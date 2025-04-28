@@ -753,7 +753,7 @@
       border: 1px solid var(--border-color);
       overflow: hidden;
       position: relative;
-      cursor: pointer; /* Added cursor for interaction hint */
+      cursor: pointer; /* Add cursor for viewing */
     }
 
     .image-item img {
@@ -774,10 +774,10 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 10px; /* Reduced font size slightly */
+      font-size: 10px; /* Reduced size slightly */
       cursor: pointer;
-      line-height: 20px; /* Added for better vertical centering */
-      text-align: center; /* Added for better horizontal centering */
+      line-height: 20px; /* Ensure symbol is centered */
+      text-align: center;
     }
 
     .notification-popup {
@@ -1029,13 +1029,15 @@
       background-color: rgba(0,0,0,0.9);
       z-index: 1100;
       padding: 20px;
+      align-items: center; /* Added for centering */
+      justify-content: center; /* Added for centering */
     }
 
     #modalImage {
       display: block;
       max-width: 90%;
       max-height: 90%;
-      margin: 40px auto;
+      margin: auto; /* Simplified margin */
       object-fit: contain;
     }
 
@@ -1727,7 +1729,7 @@
 
   <script>
     // Configuração da URL da API (URL do seu Google Script Web App publicado)
-    const API_URL = 'https://script.google.com/macros/s/AKfycbxKPWO3IsG2uFmzxx5jQ-FN4Gwsl9HpHZsRHEgG0y0FQa__G1BwmR3pp6I4I_048oEH/exec'; // SUBSTITUA PELO SEU ID
+    const API_URL = 'https://script.google.com/macros/s/AKfycbxjY8W8ExGWcnk8bMy-ZGeQJk6qGDFDPYJ4lnXQCBUE63930Rzr0bmm24LDlg-zIpq1/exec'; // SUBSTITUA PELO SEU ID
 
     // Variáveis globais
     let dashboardData = null;
@@ -1742,6 +1744,7 @@
     let cameraStream = null;
     let verificationCameraStream = null;
     let selectedMaintenanceId = null;
+    let script = null; // Variável global para o elemento script JSONP
 
     // Document ready
     document.addEventListener('DOMContentLoaded', function() {
@@ -1758,7 +1761,7 @@
       document.getElementById('last-update').textContent = formatDate(today, true);
     });
 
-    // --- INÍCIO DAS FUNÇÕES ATUALIZADAS ---
+    // --- INÍCIO DAS FUNÇÕES ATUALIZADAS/ADICIONADAS ---
 
     // ADICIONAR: Função para comprimir imagens antes do envio
     function compressImage(base64Data, maxSize = 300, quality = 0.7) {
@@ -1817,261 +1820,178 @@
       });
     }
 
-
-    // Função melhorada para chamar API
+    // SUBSTITUIR: Função callAPI melhorada
     function callAPI(action, data = {}) {
+      // Para debug
+      console.log(`Chamando API: ${action}`);
+      let localScript = null; // Use uma variável local para o script
+
       return new Promise((resolve, reject) => {
         try {
-          // Verificar se há imagens em base64 nos dados
-          const hasLargeImages = data.images && data.images.length > 0;
-
           // Nome único para a função de callback
           const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
 
           // Criar uma função global que será chamada pelo script
           window[callbackName] = function(response) {
             // Remover o script após execução
-            if (script && script.parentNode) {
-              script.parentNode.removeChild(script);
+            if (localScript && localScript.parentNode) {
+              localScript.parentNode.removeChild(localScript);
             }
 
             // Limpar o callback global
             delete window[callbackName];
 
+            // Verificar se a resposta tem um erro vindo do backend
+            if (response && response.error) {
+              console.error(`Erro na resposta da API (${action}): ${response.message || response.error}`);
+              reject(new Error(response.message || response.error)); // Use a mensagem de erro do backend
+              return;
+            }
+
             // Resolver a promessa com os dados
             resolve(response);
           };
 
-          // Se há imagens grandes e é a ação 'saveMaintenance', usar abordagem diferente
-          if (hasLargeImages && action === 'saveMaintenance') {
-            console.log("Iniciando upload de manutenção com imagens...");
-            // Primeiro enviar os metadados sem as imagens
-            const metaData = { ...data };
-            delete metaData.images;
+          // Se a ação for saveMaintenance e tiver imagens, tentar comprimir mais se necessário
+          if (action === 'saveMaintenance' && data.images && data.images.length > 0) {
+            console.log("Preparando envio de manutenção com imagens...");
 
-            // Primeiro chamar API para criar o registro
-            callAPI('createMaintenanceRecord', metaData)
-              .then(result => {
-                if (!result || !result.success) {
-                  console.error("Erro ao criar registro:", result);
-                  reject(new Error(result ? result.message : 'Erro desconhecido ao criar registro'));
-                  return;
-                }
+            let dataToSend = { ...data };
 
-                // Depois enviar cada imagem separadamente
-                const maintenanceId = result.id;
-                if (!maintenanceId) {
-                  reject(new Error('ID da manutenção não retornado ao criar registro.'));
-                  return;
-                }
-                console.log("Registro criado com ID:", maintenanceId, ". Enviando imagens...");
+            // Verificar o tamanho aproximado dos dados JSON antes de enviar
+            let jsonSize;
+            try {
+               jsonSize = JSON.stringify(dataToSend).length;
+               console.log("Tamanho inicial estimado dos dados (com imagens já comprimidas):", (jsonSize / 1024 / 1024).toFixed(2), "MB");
+            } catch (e) {
+                console.error("Erro ao estimar tamanho dos dados:", e);
+                reject(new Error("Erro ao processar dados para envio."));
+                return;
+            }
 
-                const uploadPromises = data.images.map((imageData, index) =>
-                  uploadSingleImage(maintenanceId, imageData, index)
-                    .catch(err => { // Capturar erros de upload individual
-                      console.error(`Erro ao enviar imagem ${index}:`, err);
-                      // Pode-se optar por continuar ou falhar tudo. Aqui, falhamos tudo.
-                      throw new Error(`Falha no upload da imagem ${index + 1}: ${err.message}`);
-                    })
-                );
 
-                // Aguardar todas as imagens serem enviadas
-                Promise.all(uploadPromises)
-                  .then(() => {
-                    console.log("Todas as imagens enviadas para ID:", maintenanceId, ". Finalizando registro...");
-                    // Finalizar o registro
-                    callAPI('finalizeMaintenanceRecord', { id: maintenanceId })
-                      .then(finalResult => {
-                        console.log("Registro finalizado:", finalResult);
-                        resolve(finalResult); // Resolve com o resultado da finalização
-                      })
-                      .catch(err => {
-                         console.error("Erro ao finalizar registro:", err);
-                         reject(err);
-                      });
-                  })
+            if (jsonSize > 1800000) { // Limite mais seguro para JSONP (~1.8MB)
+              console.warn("Dados muito grandes (" + (jsonSize / 1024 / 1024).toFixed(2) + " MB), tentando comprimir mais as imagens...");
+
+              // Comprimir ainda mais as imagens
+              const compressMorePromises = data.images.map(image =>
+                compressImage(image, 400, 0.4) // Reduzir ainda mais (400px, 40% qualidade)
                   .catch(err => {
-                     console.error("Erro durante o upload das imagens:", err);
-                     // Tentar cancelar ou marcar como incompleto no backend?
-                     // Por agora, apenas rejeitamos a promessa principal.
-                     reject(err);
-                  });
-              })
-              .catch(err => {
-                console.error("Erro na chamada inicial para createMaintenanceRecord:", err);
-                reject(err);
-              });
+                     console.error("Erro ao recomprimir imagem individual:", err);
+                     return image; // Retorna a imagem original se a recompressão falhar
+                  })
+              );
 
-            return; // Sair do método para evitar a execução do código JSONP abaixo
-          }
-
-          // ---- Lógica JSONP para outras ações ou saveMaintenance sem imagens ----
-
-          // Converter dados para string - limitar o tamanho se houver imagens (embora já tratado acima para saveMaintenance)
-          let dataStr;
-          if (hasLargeImages) {
-             // Se tem imagens mas não está usando o método especial (para outras ações)
-             console.warn("Tentando enviar imagens via JSONP para ação:", action, ". Simplificando dados.");
-             const simplifiedData = { ...data };
-             simplifiedData.images = [`${data.images.length} imagens (muito grandes para serem enviadas via JSONP)`];
-             dataStr = JSON.stringify(simplifiedData);
+              Promise.all(compressMorePromises)
+                .then(moreCompressedImages => {
+                  console.log("Imagens recomprimidas (ou originais em caso de erro).");
+                  dataToSend.images = moreCompressedImages;
+                  // Verificar tamanho novamente
+                  try {
+                      const finalJsonSize = JSON.stringify(dataToSend).length;
+                      console.log("Tamanho final estimado dos dados:", (finalJsonSize / 1024 / 1024).toFixed(2), "MB");
+                       if (finalJsonSize > 1800000) {
+                            console.error("Mesmo após recompressão, dados ainda são muito grandes!");
+                            // Opcional: Enviar sem imagens ou com menos imagens?
+                            // dataToSend.images = []; // Exemplo: Enviar sem imagens
+                            reject(new Error("Os dados da manutenção, mesmo com imagens recomprimidas, são muito grandes para enviar. Tente com menos fotos."));
+                            return;
+                       }
+                       sendRequest(dataToSend, action, callbackName); // Envia os dados recomprimidos
+                  } catch(e) {
+                       console.error("Erro ao verificar tamanho final ou enviar:", e);
+                       reject(new Error("Erro ao processar dados finais para envio."));
+                  }
+                })
+                .catch(error => { // Catch do Promise.all
+                  console.error("Erro geral ao recomprimir imagens:", error);
+                  // Decide se tenta enviar os dados originais ou falha
+                  // sendRequest(data, action, callbackName); // Opção: Tentar enviar original mesmo assim
+                  reject(new Error("Erro ao tentar reduzir o tamanho das imagens."));
+                });
+            } else {
+              // Enviar normalmente (tamanho aceitável)
+              sendRequest(dataToSend, action, callbackName);
+            }
           } else {
-             dataStr = JSON.stringify(data);
+            // Para outras ações ou saveMaintenance sem imagens, enviar normalmente
+            sendRequest(data, action, callbackName);
           }
 
-          // Construir URL com parâmetros
-          const url = `${API_URL}?action=${action}&data=${encodeURIComponent(dataStr)}&callback=${callbackName}&nocache=${Date.now()}`;
+          // Função interna para evitar duplicação
+          function sendRequest(payload, apiAction, cbName) {
+            try {
+                // Converter dados para string
+                let dataStr = JSON.stringify(payload);
 
-          // Verificar se a URL não ficou muito grande (limite comum ~2000 chars)
-          if (url.length > 2000) {
-             console.error("URL da requisição JSONP muito longa:", url.length, "caracteres.");
-             delete window[callbackName]; // Limpar callback
-             reject(new Error('URL de requisição muito longa. Tente enviar menos dados.'));
-             return;
+                // Construir URL com parâmetros
+                const url = `${API_URL}?action=${apiAction}&data=${encodeURIComponent(dataStr)}&callback=${cbName}&nocache=${Date.now()}`;
+
+                if(url.length > 2000000) { // Um limite mais realista para URLs em geral, embora JSONP seja mais restrito
+                    console.error("URL da requisição JSONP perigosamente longa:", url.length, "caracteres.");
+                    delete window[cbName]; // Limpar callback
+                    reject(new Error('URL de requisição muito longa. Tente enviar menos dados ou fotos.'));
+                    return;
+                }
+
+                // Criar elemento de script
+                localScript = document.createElement('script'); // Atribui à variável local
+                localScript.src = url;
+                let timeoutId = null; // Timeout ID específico para esta request
+
+                // Lidar com erros de carregamento do script
+                localScript.onerror = (event) => {
+                    console.error(`Falha ao carregar script JSONP para ação: ${apiAction}`, event);
+                    // Remover o script
+                    if (localScript && localScript.parentNode) {
+                        localScript.parentNode.removeChild(localScript);
+                    }
+
+                    // Limpar o callback e timeout
+                    delete window[cbName];
+                    if(timeoutId) clearTimeout(timeoutId);
+
+                    // Rejeitar a promessa
+                    reject(new Error(`Falha na requisição JSONP para ${apiAction} (script error). Verifique a conexão e a URL da API.`));
+                };
+
+                // Definir um timeout (aumentado para permitir uploads maiores)
+                timeoutId = setTimeout(() => {
+                    console.warn(`Timeout na requisição JSONP para ação: ${apiAction} após 60 segundos.`);
+                    if (localScript && localScript.parentNode) {
+                        localScript.parentNode.removeChild(localScript);
+                    }
+                    delete window[cbName];
+                    reject(new Error(`Timeout na requisição JSONP para ${apiAction}. O servidor pode estar demorando para responder.`));
+                }, 60000); // 60 segundos
+
+                // Substituir o handler de sucesso para limpar o timeout
+                const originalCallback = window[cbName];
+                window[cbName] = function(response) {
+                    clearTimeout(timeoutId); // Limpa o timeout ao receber resposta
+                    originalCallback(response); // Chama o callback original
+                };
+
+                // Adicionar o script ao documento para iniciar a solicitação
+                document.body.appendChild(localScript);
+
+            } catch (error) {
+                console.error(`Erro dentro de sendRequest para ${apiAction}:`, error);
+                 delete window[cbName]; // Garante limpeza do callback
+                reject(new Error(`Erro ao preparar a requisição para ${apiAction}: ${error.message}`));
+            }
           }
-
-          // Criar elemento de script
-          const script = document.createElement('script');
-          script.src = url;
-          let timeoutId; // Declarar timeoutId aqui para ser acessível no onerror
-
-          // Lidar com erros de carregamento do script
-          script.onerror = () => {
-            console.error('Falha ao carregar script JSONP para ação:', action, 'URL:', url);
-            // Remover o script
-            if (script.parentNode) {
-              script.parentNode.removeChild(script);
-            }
-
-            // Limpar o callback
-            delete window[callbackName];
-            // Limpar timeout se existir
-            if (timeoutId) clearTimeout(timeoutId);
-
-            // Rejeitar a promessa
-            reject(new Error('Falha na requisição JSONP (script error)'));
-          };
-
-          // Definir um timeout para evitar solicitações penduradas
-          timeoutId = setTimeout(() => {
-            console.warn('Timeout na requisição JSONP para ação:', action);
-            if (script && script.parentNode) {
-              script.parentNode.removeChild(script);
-            }
-            delete window[callbackName];
-            reject(new Error('Timeout na requisição JSONP'));
-          }, 30000); // 30 segundos
-
-          // Substituir o handler de sucesso para limpar o timeout
-          const originalCallback = window[callbackName];
-          window[callbackName] = function(response) {
-            clearTimeout(timeoutId);
-            originalCallback(response);
-          };
-
-          // Adicionar o script ao documento para iniciar a solicitação
-          document.body.appendChild(script);
 
         } catch (error) {
-          console.error("Erro inesperado na função callAPI:", error);
+          console.error("Erro geral em callAPI:", error);
+          // Tenta limpar o callback se já foi definido
+           const callbackNameMatch = error.message.match(/jsonp_callback_\d+/);
+           if (callbackNameMatch && window[callbackNameMatch[0]]) {
+               delete window[callbackNameMatch[0]];
+           }
           reject(error);
         }
       });
-    }
-
-    // Nova função para upload de imagem única via Fetch POST
-    function uploadSingleImage(maintenanceId, imageData, index) {
-      console.log(`Enviando imagem ${index} para manutenção ID: ${maintenanceId}`);
-      return new Promise((resolve, reject) => {
-        try {
-            // Converter o base64 para Blob
-            const blob = base64ToBlob(imageData);
-
-            // Criar um formulário para envio da imagem
-            const formData = new FormData();
-            formData.append('maintenanceId', maintenanceId);
-            formData.append('imageIndex', index);
-            // O nome do arquivo é importante para o Apps Script identificar o campo
-            formData.append('imageFile', blob, `imagem_${maintenanceId}_${index}.jpg`);
-
-            // Enviar via fetch em vez de JSONP
-            fetch(`${API_URL}?action=uploadMaintenanceImage`, { // A ação pode ir na URL ou no FormData
-              method: 'POST',
-              body: formData
-              // Não definir 'Content-Type', o browser faz isso corretamente para FormData
-            })
-            .then(response => {
-                if (!response.ok) {
-                   // Tenta ler a resposta mesmo se não for OK para obter a mensagem de erro do backend
-                   return response.text().then(text => {
-                      throw new Error(`Erro HTTP ${response.status}: ${text || response.statusText}`);
-                   });
-                }
-                return response.json(); // Espera uma resposta JSON do Apps Script
-            })
-            .then(data => {
-                console.log(`Resposta do upload da imagem ${index}:`, data);
-                if (data && data.success) {
-                  resolve(data);
-                } else {
-                  reject(new Error(data ? data.message : 'Resposta inválida do servidor ao enviar imagem'));
-                }
-            })
-            .catch(error => {
-                console.error(`Erro no fetch para upload da imagem ${index}:`, error);
-                reject(error);
-            });
-        } catch (error) {
-            console.error(`Erro ao preparar imagem ${index} para upload:`, error);
-            reject(error);
-        }
-      });
-    }
-
-    // Converter base64 para Blob
-    function base64ToBlob(base64Data) {
-        try {
-            // Remover prefixo do base64 se existir (ex: "data:image/jpeg;base64,")
-            const base64String = base64Data.split(',')[1] || base64Data;
-
-            // Validar se a string base64 é válida (verificação básica)
-            if (!/^[A-Za-z0-9+/=]+$/.test(base64String) || base64String.length % 4 !== 0) {
-                // Tentativa de correção para padding ausente (comum em algumas implementações)
-                let correctedBase64 = base64String;
-                while (correctedBase64.length % 4 !== 0) {
-                    correctedBase64 += '=';
-                }
-                if (!/^[A-Za-z0-9+/=]+$/.test(correctedBase64) || correctedBase64.length % 4 !== 0) {
-                   console.error("String Base64 inválida após tentativa de correção:", base64String.substring(0, 50) + "...");
-                   throw new Error('String Base64 inválida.');
-                }
-                 console.warn("Base64 corrigido com padding.");
-                 base64String = correctedBase64;
-            }
-
-            const byteCharacters = atob(base64String);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-
-            // Tenta extrair o tipo de conteúdo se o prefixo existir
-            let contentType = 'image/jpeg'; // Default
-            if (base64Data.startsWith('data:')) {
-                const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,/);
-                if (matches && matches.length === 2) {
-                    contentType = matches[1];
-                } else {
-                    console.warn("Não foi possível extrair o tipo de conteúdo do prefixo base64. Usando padrão:", contentType);
-                }
-            }
-
-            return new Blob([byteArray], { type: contentType });
-        } catch (error) {
-            console.error("Erro ao converter base64 para Blob:", error, "Dado (início):", base64Data.substring(0, 100));
-            throw new Error(`Erro na conversão para Blob: ${error.message}`);
-        }
     }
 
 
@@ -2136,6 +2056,10 @@
           } else {
             showNotification('Erro ao acessar câmera: ' + error.message, 'error');
           }
+          // Garantir que o botão de foto permaneça desabilitado e placeholder visível
+           takePhotoBtn.disabled = true;
+           video.style.display = 'none';
+           placeholder.style.display = 'flex'; // Use flex se for o estilo padrão do placeholder
         });
       }, 300); // Delay de 300ms para garantir que a câmera foi liberada
     }
@@ -2146,9 +2070,14 @@
         console.log("Parando stream principal...");
         cameraStream.getTracks().forEach(track => {
           track.stop();
-          console.log(`Track ${track.kind} (${track.label}) parada.`);
+          console.log(`Track ${track.kind} (${track.label || 'N/A'}) parada.`);
         });
         cameraStream = null;
+         // Resetar visualização associada
+        const video = document.getElementById('camera-stream');
+        if(video) video.srcObject = null;
+        const btn = document.getElementById('take-photo');
+        if(btn) btn.disabled = true;
       }
     }
 
@@ -2158,37 +2087,368 @@
         console.log("Parando stream de verificação...");
         verificationCameraStream.getTracks().forEach(track => {
           track.stop();
-          console.log(`Track ${track.kind} (${track.label}) parada.`);
+          console.log(`Track ${track.kind} (${track.label || 'N/A'}) parada.`);
         });
         verificationCameraStream = null;
+         // Resetar visualização associada
+        const video = document.getElementById('verification-camera-stream');
+        if(video) video.srcObject = null;
+        const btn = document.getElementById('verification-take-photo');
+        if(btn) btn.disabled = true;
       }
     }
 
     // SUBSTITUIR: Função melhorada para parar todos os streams
     function stopAllCameraStreams() {
-      // Parar streams específicos
+      // Parar streams específicos primeiro
       stopCameraStream();
       stopVerificationCameraStream();
 
       // Garantir que todos os streams em elementos de vídeo sejam parados
+      // Isso ajuda caso algum stream não tenha sido atribuído às variáveis globais
       const videoElements = document.querySelectorAll('video');
       videoElements.forEach(video => {
         if (video.srcObject) {
           const tracks = video.srcObject.getTracks();
-          tracks.forEach(track => {
-            if (track.readyState === 'live') {
-              track.stop();
-            }
-          });
-          video.srcObject = null;
+          if (tracks.length > 0) {
+              console.warn(`Parando stream encontrado diretamente no vídeo ${video.id}`);
+              tracks.forEach(track => {
+                  if (track.readyState === 'live') { // Só parar se estiver ativa
+                      track.stop();
+                  }
+              });
+              video.srcObject = null; // Limpa a referência
+              video.style.display = 'none'; // Esconde o vídeo
+
+              // Tenta resetar placeholder e botões associados
+              const placeholderId = video.id.replace('-stream', '-placeholder');
+              const placeholder = document.getElementById(placeholderId);
+              if (placeholder) placeholder.style.display = 'flex'; // Ou 'block'
+
+              const btnId = video.id.replace('-stream', '-take-photo');
+              const btn = document.getElementById(btnId);
+              if (btn) btn.disabled = true;
+
+              const imgId = video.id.replace('-stream', '-captured-image');
+              const img = document.getElementById(imgId);
+              if (img) {
+                  img.style.display = 'none';
+                  img.src = ''; // Limpa imagem anterior
+              }
+          }
         }
       });
 
       console.log("Todos os streams de câmera conhecidos foram parados.");
     }
 
+    // SUBSTITUIR: Função melhorada para tirar foto
+    function takePhoto(videoId, imgId) {
+      const video = document.getElementById(videoId);
+      const img = document.getElementById(imgId); // Elemento <img> para exibir temporariamente (se necessário)
+      const galleryId = videoId === 'camera-stream' ? 'image-gallery' : 'verification-image-gallery';
 
-    // --- FIM DAS FUNÇÕES ATUALIZADAS ---
+      // Verificar se o vídeo está ativo e tem dimensões
+      if (video.style.display !== 'block' || !video.srcObject || video.readyState < video.HAVE_METADATA || video.videoWidth === 0 || video.videoHeight === 0) {
+        showNotification('A câmera não está ativa ou pronta. Tente abrir novamente.', 'error');
+         console.warn("Tentativa de tirar foto com vídeo inativo ou não pronto. State:", video.readyState, "W:", video.videoWidth, "H:", video.videoHeight);
+        return;
+      }
+
+      // Criar canvas para capturar imagem
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      // Desenhar frame do vídeo no canvas
+      const ctx = canvas.getContext('2d');
+      try {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      } catch (error) {
+           console.error("Erro ao desenhar imagem no canvas:", error);
+           showNotification('Erro ao capturar frame da câmera. Tente novamente.', 'error');
+           return;
+      }
+
+
+      // Converter para base64 JPEG com qualidade (0.9 = 90%)
+      let dataUrl;
+      try {
+        dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      } catch (error) {
+        console.error("Erro ao converter canvas para base64:", error);
+        // Isso pode acontecer se o canvas estiver "tainted" (ex: por CORS), improvável com getUserMedia
+        showNotification('Erro ao gerar imagem. Tente novamente.', 'error');
+        return;
+      }
+
+      // Verificar se o dataUrl é válido (não vazio ou 'data:,')
+      if (!dataUrl || dataUrl === 'data:,') {
+        console.error("DataURL inválido gerado pelo canvas");
+        showNotification('Erro ao capturar imagem (DataURL inválido). Tente novamente.', 'error');
+        return;
+      }
+
+      // Não precisa mais exibir no <img> placeholder (imgId), vai direto pra galeria
+      // img.src = dataUrl;
+      // img.style.display = 'block';
+      // video.style.display = 'none'; // Esconder vídeo após tirar a foto
+
+      // Adicionar à galeria
+      addImageToGallery(dataUrl, galleryId);
+
+      // Parar o stream após tirar a foto para liberar a câmera
+      if (videoId === 'camera-stream') {
+          stopCameraStream();
+      } else {
+          stopVerificationCameraStream();
+      }
+      // Mostrar o placeholder novamente
+      const placeholderId = videoId.replace('-stream', '-placeholder');
+      document.getElementById(placeholderId).style.display = 'flex'; // ou 'block'
+      video.style.display = 'none'; // Garantir que o vídeo está escondido
+    }
+
+    // SUBSTITUIR: Função melhorada para adicionar imagem à galeria
+    function addImageToGallery(dataUrl, galleryId) {
+        const gallery = document.getElementById(galleryId);
+        const imageArray = galleryId === 'image-gallery' ? capturedImages : verificationImages;
+
+        // Criar elemento de imagem
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'image-item';
+
+        const img = document.createElement('img');
+        img.src = dataUrl;
+        img.alt = 'Imagem capturada'; // Alt text
+
+        const removeBtn = document.createElement('div');
+        removeBtn.className = 'image-remove';
+        removeBtn.innerHTML = '&times;';
+        removeBtn.title = 'Remover imagem'; // Tooltip
+        removeBtn.addEventListener('click', function(e) {
+            e.stopPropagation(); // Impedir que o click no botão dispare o click no container (modal)
+            imgContainer.remove(); // Remove o elemento visual
+
+            // Remover da lista de imagens capturadas correta
+            const index = imageArray.indexOf(dataUrl);
+            if (index > -1) {
+                imageArray.splice(index, 1);
+                 console.log(`Imagem removida. ${galleryId} agora tem ${imageArray.length} imagens.`);
+            } else {
+                console.warn("Imagem não encontrada no array correspondente para remoção.");
+            }
+
+            // Mostrar aviso se a galeria principal (manutenção) ficar vazia
+            if (galleryId === 'image-gallery') {
+                const photoWarning = document.getElementById('photo-warning');
+                if (photoWarning) {
+                    photoWarning.style.display = imageArray.length === 0 ? 'block' : 'none';
+                }
+            }
+        });
+
+        // Adicionar evento para visualizar em tamanho maior ao clicar no container
+        imgContainer.addEventListener('click', function() {
+            openImageModal(dataUrl);
+        });
+
+        imgContainer.appendChild(img);
+        imgContainer.appendChild(removeBtn);
+        gallery.appendChild(imgContainer);
+
+        // Adicionar à lista de imagens correta
+        imageArray.push(dataUrl);
+        console.log(`Imagem adicionada. ${galleryId} agora tem ${imageArray.length} imagens.`);
+
+        // Se for o formulário principal, esconder aviso de foto obrigatória
+        if (galleryId === 'image-gallery') {
+            const photoWarning = document.getElementById('photo-warning');
+            if (photoWarning) {
+                photoWarning.style.display = 'none';
+            }
+        }
+    }
+
+
+    // SUBSTITUIR: Função handleFileUpload corrigida para verificar elementos null
+    function handleFileUpload(event, imgId) {
+      try {
+        const file = event.target.files[0];
+        if (!file) {
+            console.log("Nenhum arquivo selecionado.");
+            return;
+        }
+
+        // Verificar se é uma imagem
+        if (!file.type.startsWith('image/')) {
+          showNotification('Por favor, selecione um arquivo de imagem.', 'error');
+          return;
+        }
+
+        // Não precisamos mais do elemento <img> placeholder (imgId)
+        // const img = document.getElementById(imgId);
+        // if (!img) {
+        //   console.error(`Elemento de imagem com ID ${imgId} não encontrado`);
+        //   showNotification('Erro interno: elemento de imagem não encontrado', 'error');
+        //   return;
+        // }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          try {
+            const dataUrl = e.target.result;
+
+            // // Exibir imagem carregada no placeholder - REMOVIDO
+            // img.src = dataUrl;
+            // img.style.display = 'block';
+
+            // Ocultar vídeo se estiver visível
+            const videoId = imgId === 'captured-image' ? 'camera-stream' : 'verification-camera-stream';
+            const videoElement = document.getElementById(videoId);
+            if (videoElement) {
+              videoElement.style.display = 'none';
+              if(videoElement.srcObject) { // Parar stream se estava ativo
+                 videoElement.srcObject.getTracks().forEach(track => track.stop());
+                 videoElement.srcObject = null;
+                 // Desabilitar botão de tirar foto associado
+                  const btnId = videoId.replace('-stream', '-take-photo');
+                  const btn = document.getElementById(btnId);
+                  if (btn) btn.disabled = true;
+              }
+            }
+
+            // Ocultar placeholder
+            const placeholderId = imgId === 'captured-image' ? 'camera-placeholder' : 'verification-camera-placeholder';
+            const placeholderElement = document.getElementById(placeholderId);
+            if (placeholderElement) {
+              placeholderElement.style.display = 'none';
+            }
+
+            // Adicionar diretamente à galeria correta
+            const galleryId = imgId === 'captured-image' ? 'image-gallery' : 'verification-image-gallery';
+            addImageToGallery(dataUrl, galleryId);
+
+            // // Se for o formulário principal, esconder aviso de foto obrigatória - JÁ FEITO DENTRO DE addImageToGallery
+            // if (imgId === 'captured-image') {
+            //   const photoWarning = document.getElementById('photo-warning');
+            //   if (photoWarning) {
+            //     photoWarning.style.display = 'none';
+            //   }
+            // }
+          } catch (error) {
+            console.error("Erro ao processar imagem carregada:", error);
+            showNotification('Erro ao processar imagem: ' + error.message, 'error');
+          }
+        };
+
+        reader.onerror = function(error) {
+          console.error("Erro ao ler arquivo:", error);
+          showNotification('Erro ao ler arquivo: ' + error.message, 'error');
+        };
+
+        reader.readAsDataURL(file);
+      } catch (error) {
+        console.error("Erro em handleFileUpload:", error);
+        showNotification('Erro ao processar upload: ' + error.message, 'error');
+      } finally {
+          // Resetar o input de arquivo para permitir selecionar o mesmo arquivo novamente
+          event.target.value = null;
+      }
+    }
+
+
+    // SUBSTITUIR: Função para enviar manutenção com compressão de imagens
+    function submitMaintenance() {
+      // Mostrar loading
+      showLoading(true, 'Processando imagens...');
+
+      // Verificar se há imagens
+      if (capturedImages.length === 0) {
+        showLoading(false);
+        document.getElementById('photo-warning').style.display = 'block';
+        goToFormStep('maintenance', 3); // Leva o usuário para a etapa da foto
+        showNotification('Por favor, adicione pelo menos uma foto na Etapa 3.', 'error');
+        return;
+      } else {
+         document.getElementById('photo-warning').style.display = 'none';
+      }
+
+
+      console.log(`Iniciando compressão de ${capturedImages.length} imagens...`);
+
+      // Comprimir todas as imagens capturadas
+      const compressPromises = capturedImages.map((image, index) => {
+          console.log(`Comprimindo imagem ${index+1}...`);
+          return compressImage(image, 600, 0.6) // Reduzir para 600px e 60% de qualidade
+             .catch(error => {
+                console.error(`Erro ao comprimir imagem ${index + 1}:`, error);
+                showNotification(`Erro ao comprimir imagem ${index + 1}. A imagem original será enviada.`, 'warning');
+                return image; // Retorna a original em caso de erro na compressão
+             });
+      });
+
+
+      Promise.all(compressPromises)
+        .then(compressedImages => {
+          console.log(`${compressedImages.length} imagens prontas para envio (comprimidas ou originais).`);
+
+          // Coletar dados do formulário
+          const formData = {
+            equipmentId: document.getElementById('equipment-id').value,
+            equipmentType: document.getElementById('equipment-type').value,
+            technician: document.getElementById('technician-name').value,
+            date: document.getElementById('maintenance-date').value,
+            location: document.getElementById('location').value,
+            maintenanceType: document.getElementById('maintenance-type').value,
+            isCritical: document.getElementById('is-critical').checked,
+            problemCategory: document.getElementById('problem-category').value,
+            problemDescription: document.getElementById('problem-description').value,
+            solutionDescription: document.getElementById('solution-description').value,
+            partsReplaced: document.getElementById('parts-replaced').value || "", // Enviar string vazia se não preenchido
+            additionalNotes: document.getElementById('additional-notes').value || "", // Enviar string vazia
+            images: compressedImages // Enviar imagens comprimidas (ou originais se falhou)
+          };
+
+          showLoading(true, 'Enviando dados da manutenção...');
+          console.log("Enviando manutenção com imagens processadas...");
+
+          // Enviar para a API (usando a callAPI atualizada que lida com JSONP)
+          return callAPI('saveMaintenance', formData);
+        })
+        .then(result => {
+          showLoading(false);
+
+          if (result && result.success) {
+            showNotification('Manutenção registrada com sucesso! ID: ' + result.id, 'success');
+            closeMaintenanceForm();
+            loadDashboardData(); // Recarregar tudo para refletir a nova manutenção
+          } else {
+             // Usa a mensagem de erro da API se disponível
+            showNotification('Erro ao registrar manutenção: ' + (result ? result.message : 'Erro desconhecido retornado pela API'), 'error');
+             console.error("Erro retornado pelo saveMaintenance:", result);
+          }
+        })
+        .catch(error => { // Captura erros da compressão (Promise.all) ou da callAPI
+          console.error("Erro no processo de submissão da manutenção:", error);
+          showLoading(false);
+          // Tenta mostrar uma mensagem de erro útil
+          let userMessage = 'Ocorreu um erro inesperado.';
+          if (error.message.includes("muito grandes") || error.message.includes("URL de requisição muito longa")) {
+             userMessage = "Erro: Os dados da manutenção (incluindo fotos) são muito grandes para enviar. Tente usar menos fotos ou fotos de menor resolução.";
+          } else if (error.message.includes("Falha na requisição JSONP")) {
+             userMessage = "Erro de comunicação com o servidor. Verifique sua conexão ou tente novamente mais tarde.";
+          } else if (error.message.includes("Timeout na requisição")) {
+             userMessage = "O servidor demorou muito para responder. Tente novamente mais tarde.";
+          } else {
+             userMessage = 'Erro ao processar ou enviar manutenção: ' + error.message;
+          }
+          showNotification(userMessage, 'error');
+        });
+    }
+
+    // --- FIM DAS FUNÇÕES ATUALIZADAS/ADICIONADAS ---
+
 
     // Configurar event listeners
     function setupEventListeners() {
@@ -2216,37 +2476,40 @@
       });
 
       // Filtros de manutenções
-      document.querySelectorAll('.filter-item').forEach(filter => {
+      document.querySelectorAll('#tab-maintenance .filter-item').forEach(filter => {
         filter.addEventListener('click', function() {
-          const parentTab = this.closest('.tab-content').id;
-
           const filterItems = this.parentElement.querySelectorAll('.filter-item');
           filterItems.forEach(f => f.classList.remove('active'));
           this.classList.add('active');
-
-          const filterValue = this.getAttribute('data-filter');
-
-          if (parentTab === 'tab-maintenance') {
-            currentMaintenanceFilter = filterValue;
-            updateMaintenanceList();
-          } else if (parentTab === 'tab-verification') {
-            currentVerificationFilter = filterValue;
-            updateVerificationList();
-          }
+          currentMaintenanceFilter = this.getAttribute('data-filter');
+          updateMaintenanceList();
+        });
+      });
+      // Filtros de verificações
+      document.querySelectorAll('#tab-verification .filter-item').forEach(filter => {
+        filter.addEventListener('click', function() {
+          const filterItems = this.parentElement.querySelectorAll('.filter-item');
+          filterItems.forEach(f => f.classList.remove('active'));
+          this.classList.add('active');
+          currentVerificationFilter = this.getAttribute('data-filter');
+          updateVerificationList();
         });
       });
 
+
       // Busca de manutenções
       document.getElementById('maintenance-search').addEventListener('input', function() {
-        searchTerm = this.value;
-        updateMaintenanceList();
+        searchTerm = this.value; // Atualiza o termo de busca global
+        updateMaintenanceList(); // Atualiza a lista de manutenção com o novo termo
       });
+
 
       // Busca de verificações
       document.getElementById('verification-search').addEventListener('input', function() {
-        searchTerm = this.value;
-        updateVerificationList();
+        searchTerm = this.value; // Atualiza o termo de busca global
+        updateVerificationList(); // Atualiza a lista de verificação com o novo termo
       });
+
 
       // Filtro de período
       document.getElementById('period-filter').addEventListener('change', function() {
@@ -2255,15 +2518,15 @@
 
       // Botões de refresh
       document.getElementById('refresh-type-chart').addEventListener('click', function() {
-        renderMaintenanceTypeChart(); // Deve usar dados já carregados
+        if (dashboardData) renderMaintenanceTypeChart(); else showNotification("Dados do dashboard ainda não carregados.", "info");
       });
 
       document.getElementById('refresh-status-chart').addEventListener('click', function() {
-        renderMaintenanceStatusChart(); // Deve usar dados já carregados
+        if (dashboardData) renderMaintenanceStatusChart(); else showNotification("Dados do dashboard ainda não carregados.", "info");
       });
 
       document.getElementById('refresh-equipment-ranking').addEventListener('click', function() {
-        updateEquipmentRanking(); // Deve usar dados já carregados
+        if (dashboardData) updateEquipmentRanking(); else showNotification("Dados do dashboard ainda não carregados.", "info");
       });
 
       document.getElementById('refresh-maintenance-list').addEventListener('click', function() {
@@ -2271,7 +2534,7 @@
       });
 
       document.getElementById('refresh-verification-list').addEventListener('click', function() {
-        loadVerificationData(); // Recarrega dados da API
+        loadVerificationData(); // Recarrega dados da API (ou atualiza baseado em maintenanceList)
       });
 
       // Botões de exportação
@@ -2284,6 +2547,7 @@
       });
 
       document.getElementById('print-report').addEventListener('click', function() {
+        // Pode ser necessário estilizar uma versão para impressão via CSS @media print
         window.print();
       });
 
@@ -2322,6 +2586,12 @@
       // Modal de imagem
       document.getElementById('closeModal').addEventListener('click', function() {
         document.getElementById('imageModal').style.display = 'none';
+      });
+      // Fechar modal clicando fora da imagem
+      document.getElementById('imageModal').addEventListener('click', function(e) {
+         if (e.target === this) { // Clicou no fundo escuro, não na imagem
+             this.style.display = 'none';
+         }
       });
 
       // Fechar formulários clicando fora deles (overlay)
@@ -2417,8 +2687,8 @@
 
       // Envio dos formulários
       document.getElementById('maintenance-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        submitMaintenance(); // A validação da foto está dentro da nova submitMaintenance
+        e.preventDefault(); // Impedir envio padrão HTML
+        submitMaintenance(); // Chama a função JS que agora inclui validação de fotos
       });
 
       document.getElementById('verification-form').addEventListener('submit', function(e) {
@@ -2428,16 +2698,18 @@
         const result = document.querySelector('input[name="verification-result"]:checked');
         const comments = document.getElementById('verification-comments').value;
 
-        if (!verifier || !result || !comments) {
-            showNotification('Por favor, preencha todos os campos obrigatórios (*) da verificação.', 'error');
-            // Highlight fields?
-            if (!verifier) document.getElementById('verifier-name').style.borderColor = 'red'; else document.getElementById('verifier-name').style.borderColor = '';
-            if (!comments) document.getElementById('verification-comments').style.borderColor = 'red'; else document.getElementById('verification-comments').style.borderColor = '';
-            // Highlight radio group? Maybe harder.
-            return;
+        let valid = true;
+        if (!verifier) { document.getElementById('verifier-name').style.borderColor = 'red'; valid = false; } else { document.getElementById('verifier-name').style.borderColor = ''; }
+        if (!result) {
+            // Highlight radio group label or container? Easier to just show notification.
+            valid = false;
         }
-         document.getElementById('verifier-name').style.borderColor = '';
-         document.getElementById('verification-comments').style.borderColor = '';
+        if (!comments) { document.getElementById('verification-comments').style.borderColor = 'red'; valid = false; } else { document.getElementById('verification-comments').style.borderColor = ''; }
+
+        if (!valid) {
+             showNotification('Por favor, preencha todos os campos obrigatórios (*) da verificação.', 'error');
+             return;
+        }
 
         submitVerification();
       });
@@ -2448,14 +2720,15 @@
         openCamera('camera-stream', 'camera-placeholder');
       });
       document.getElementById('take-photo').addEventListener('click', function() {
-        takePhoto('camera-stream', 'captured-image'); // Ajustado para nova assinatura
+        // Não precisa passar arrays/galleryId aqui, a função pega pelo videoId
+        takePhoto('camera-stream', 'captured-image');
       });
       document.getElementById('upload-photo').addEventListener('click', function() {
         document.getElementById('photo-upload').click();
       });
       document.getElementById('photo-upload').addEventListener('change', function(e) {
-        handleFileUpload(e, 'captured-image', capturedImages, 'image-gallery'); // Mantém assinatura antiga para handleFileUpload
-        this.value = null; // Reset input para permitir upload do mesmo arquivo novamente
+        // Não precisa passar arrays/galleryId aqui, a função pega pelo imgId
+        handleFileUpload(e, 'captured-image');
       });
 
        // Verificação
@@ -2463,14 +2736,13 @@
         openCamera('verification-camera-stream', 'verification-camera-placeholder');
       });
       document.getElementById('verification-take-photo').addEventListener('click', function() {
-        takePhoto('verification-camera-stream', 'verification-captured-image'); // Ajustado para nova assinatura
+        takePhoto('verification-camera-stream', 'verification-captured-image');
       });
       document.getElementById('verification-upload-photo').addEventListener('click', function() {
         document.getElementById('verification-photo-upload').click();
       });
       document.getElementById('verification-photo-upload').addEventListener('change', function(e) {
-        handleFileUpload(e, 'verification-captured-image', verificationImages, 'verification-image-gallery'); // Mantém assinatura antiga para handleFileUpload
-         this.value = null; // Reset input
+        handleFileUpload(e, 'verification-captured-image');
       });
 
       // Botão para verificar manutenção a partir dos detalhes
@@ -2498,8 +2770,8 @@
              dashboardData = data;
              updateDashboard();
              // Carregar listas após ter os dados do dashboard (ou em paralelo, se preferir)
-             loadMaintenanceData();
-             loadVerificationData();
+             loadMaintenanceData(); // Carrega as manutenções
+             // loadVerificationData() agora é chamado dentro de loadMaintenanceData ou após ele
           }
         })
         .catch(error => {
@@ -2522,22 +2794,25 @@
            } else {
               maintenanceList = data.maintenances || [];
            }
-           updateMaintenanceList();
-           updateRecentMaintenanceTable(); // Atualiza a tabela no dashboard também
+           // Atualizar todas as listas que dependem de maintenanceList
+           updateMaintenanceList(); // Aba Manutenções
+           updateVerificationList(); // Aba Verificações
+           updateRecentMaintenanceTable(); // Tabela no Dashboard
         })
         .catch(error => {
           showNotification('Falha na requisição da lista de manutenções: ' + error.message, 'error');
            maintenanceList = [];
+           // Limpar as tabelas em caso de erro
            updateMaintenanceList();
+           updateVerificationList();
            updateRecentMaintenanceTable();
         });
     }
 
-    // Carregar dados de verificações (pode ser otimizado se os dados já vierem com as manutenções)
+    // Carregar dados de verificações (agora apenas chama a atualização da lista)
     function loadVerificationData() {
-      // Atualmente, a lista de verificação é derivada da lista de manutenções.
-      // Se houver uma chamada API específica para verificações, ela seria usada aqui.
-      // Por enquanto, apenas atualizamos a lista baseada em `maintenanceList`.
+      // Esta função agora apenas garante que a lista de verificação seja atualizada
+      // com base nos dados de manutenção mais recentes.
       updateVerificationList();
     }
 
@@ -2612,7 +2887,7 @@
           <td>${m.id || '-'}</td>
           <td>${m.equipmentId || '-'}</td>
           <td>${m.maintenanceType || m.type || '-'}</td>
-          <td>${formatDate(m.registrationDate || m.date)}</td>
+          <td>${formatDate(m.registrationDate || m.date, true)}</td>
           <td>${m.technician || '-'}</td>
           <td><span class="status-badge status-${getStatusClass(m.status)}">${m.status || '-'}</span></td>
           <td>
@@ -2623,14 +2898,15 @@
         tbody.appendChild(row);
       });
 
-      addMaintenanceActionListeners(); // Reatribuir listeners aos novos botões
+      addMaintenanceActionListeners(tbody); // Reatribuir listeners aos novos botões
     }
 
     // Atualizar lista de manutenções (na Aba Manutenções)
     function updateMaintenanceList() {
       const tbody = document.getElementById('maintenance-tbody');
       tbody.innerHTML = '';
-      const currentSearch = document.getElementById('maintenance-search').value; // Pega o termo atual da busca
+      // Usa o termo de busca global e o filtro da aba de manutenção
+      const currentSearch = document.getElementById('maintenance-search').value.toLowerCase();
 
        if (!maintenanceList) {
          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Erro ao carregar dados.</td></tr>';
@@ -2650,7 +2926,7 @@
           <td>${m.id || '-'}</td>
           <td>${m.equipmentId || '-'}</td>
           <td>${m.maintenanceType || m.type || '-'}</td>
-          <td>${formatDate(m.registrationDate || m.date)}</td>
+          <td>${formatDate(m.registrationDate || m.date, true)}</td>
           <td>${m.technician || '-'}</td>
           <td><span class="status-badge status-${getStatusClass(m.status)}">${m.status || '-'}</span></td>
           <td>
@@ -2661,40 +2937,43 @@
         tbody.appendChild(row);
       });
 
-      addMaintenanceActionListeners();
+      addMaintenanceActionListeners(tbody);
     }
 
     // Adicionar event listeners para os botões de ação das manutenções (Ver/Verificar)
-    function addMaintenanceActionListeners() {
-       // Remover listeners antigos para evitar duplicação (importante se chamado múltiplas vezes)
-      document.querySelectorAll('.view-maintenance').forEach(btn => {
-         btn.replaceWith(btn.cloneNode(true)); // Clona e substitui, removendo listeners antigos
-      });
-       document.querySelectorAll('.verify-maintenance').forEach(btn => {
-         btn.replaceWith(btn.cloneNode(true));
+    // Recebe o tbody como parâmetro para adicionar listeners apenas aos botões dentro dele
+    function addMaintenanceActionListeners(tbodyElement) {
+      if (!tbodyElement) return;
+
+      // Adicionar listeners aos botões de visualização
+      tbodyElement.querySelectorAll('.view-maintenance').forEach(btn => {
+         // Remove listener antigo antes de adicionar novo para evitar duplicatas
+         const newBtn = btn.cloneNode(true);
+         btn.parentNode.replaceChild(newBtn, btn);
+         newBtn.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            viewMaintenanceDetails(id);
+         });
       });
 
-      // Adicionar novos listeners
-      document.querySelectorAll('.view-maintenance').forEach(btn => {
-        btn.addEventListener('click', function() {
-          const id = this.getAttribute('data-id');
-          viewMaintenanceDetails(id);
-        });
-      });
-
-      document.querySelectorAll('.verify-maintenance').forEach(btn => {
-        btn.addEventListener('click', function() {
-          const id = this.getAttribute('data-id');
-          openVerificationForm(id);
-        });
+      // Adicionar listeners aos botões de verificação
+      tbodyElement.querySelectorAll('.verify-maintenance').forEach(btn => {
+         const newBtn = btn.cloneNode(true);
+         btn.parentNode.replaceChild(newBtn, btn);
+         newBtn.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            openVerificationForm(id);
+         });
       });
     }
+
 
     // Atualizar lista de verificações (na Aba Verificações)
     function updateVerificationList() {
       const tbody = document.getElementById('verification-tbody');
       tbody.innerHTML = '';
-      const currentSearch = document.getElementById('verification-search').value; // Pega o termo atual da busca
+      // Usa o termo de busca global e o filtro da aba de verificação
+      const currentSearch = document.getElementById('verification-search').value.toLowerCase();
 
        if (!maintenanceList) {
          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Erro ao carregar dados.</td></tr>';
@@ -2704,7 +2983,7 @@
       const pending = filterVerifications(maintenanceList, currentVerificationFilter, currentSearch);
 
       if (pending.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Nenhuma verificação pendente encontrada com os critérios selecionados.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Nenhuma verificação encontrada com os critérios selecionados.</td></tr>';
         return;
       }
 
@@ -2725,7 +3004,7 @@
         tbody.appendChild(row);
       });
 
-      addMaintenanceActionListeners();
+      addMaintenanceActionListeners(tbody);
     }
 
     // Renderizar todos os gráficos do dashboard
@@ -2805,36 +3084,38 @@
     // Atualizar gráficos da aba de relatórios (placeholder)
     function updateReportsCharts() {
       // Idealmente, chamaria 'generateReport' com o período padrão ou carregaria dados salvos
-      console.log("Atualizando gráficos de relatórios (implementação pendente)...");
-      // Renderiza com dados de exemplo por enquanto
-      renderProblemTypeChart();
-      renderResolutionTimeChart();
+      console.log("Atualizando gráficos de relatórios (renderização inicial ou após gerar relatório)...");
+      // Renderiza com dados de exemplo por enquanto, até generateReport ser chamado
+      if (!charts.problemTypeChart) renderProblemTypeChart();
+      if (!charts.resolutionTimeChart) renderResolutionTimeChart();
     }
 
-    // Renderizar gráfico de tipos de problemas (exemplo)
+    // Renderizar gráfico de tipos de problemas (exemplo ou dados reais)
     function renderProblemTypeChart(problemData = null) {
       const canvas = document.getElementById('problem-type-chart');
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
       if (charts.problemTypeChart) charts.problemTypeChart.destroy();
 
-      // Usar dados recebidos ou dados de exemplo
+      // Usar dados recebidos ou dados de exemplo se nenhum for fornecido
       const data = problemData || {
-        'Motor': 15, 'Transmissão': 8, 'Sistema Hidráulico': 12,
-        'Sistema Elétrico': 20, 'Freios': 7, 'Suspensão': 5, 'Outro': 3
+        'Motor': 0, 'Transmissão': 0, 'Hidráulico': 0,
+        'Elétrico': 0, 'Freios': 0, 'Outro': 0
       };
+       const labels = Object.keys(data);
+       const values = Object.values(data);
 
       charts.problemTypeChart = new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: Object.keys(data),
-          datasets: [{ label: 'Ocorrências', data: Object.values(data), backgroundColor: '#0d6efd' }]
+          labels: labels,
+          datasets: [{ label: 'Ocorrências', data: values, backgroundColor: '#0d6efd' }]
         },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false }, title: { display: true, text: 'Problemas por Categoria (Período Selecionado)'} } }
       });
     }
 
-    // Renderizar gráfico de tempo de resolução (exemplo)
+    // Renderizar gráfico de tempo de resolução (exemplo ou dados reais)
     function renderResolutionTimeChart(timeData = null) {
       const canvas = document.getElementById('resolution-time-chart');
       if (!canvas) return;
@@ -2842,8 +3123,8 @@
       if (charts.resolutionTimeChart) charts.resolutionTimeChart.destroy();
 
        // Usar dados recebidos ou dados de exemplo
-      const labels = timeData ? Object.keys(timeData) : ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
-      const dataValues = timeData ? Object.values(timeData) : [3.2, 2.8, 3.5, 2.5, 2.1, 1.8];
+      const labels = timeData ? Object.keys(timeData) : ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'];
+      const dataValues = timeData ? Object.values(timeData) : [0, 0, 0, 0];
 
       charts.resolutionTimeChart = new Chart(ctx, {
         type: 'line',
@@ -2851,7 +3132,7 @@
           labels: labels,
           datasets: [{ label: 'Tempo Médio (dias)', data: dataValues, borderColor: '#28a745', tension: 0.1, fill: false }]
         },
-         options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: 'Dias' } } }, plugins: { legend: { display: false } } }
+         options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: 'Dias' } } }, plugins: { legend: { display: false }, title: { display: true, text: 'Tempo Médio de Resolução (Período Selecionado)' } } }
       });
     }
 
@@ -2884,8 +3165,8 @@
         form.querySelectorAll('input, select, textarea').forEach(el => el.style.borderColor = '');
 
 
-      // Resetar visualização da câmera (feito por stopAllCameraStreams)
-      // Mas garantir estado inicial
+      // Resetar visualização da câmera e galeria (feito por stopAllCameraStreams e limpar array/gallery)
+      // Garante estado inicial visual também
       document.getElementById('camera-stream').style.display = 'none';
       document.getElementById('captured-image').style.display = 'none';
       document.getElementById('captured-image').src = '';
@@ -2927,7 +3208,7 @@
        const form = document.getElementById('verification-form');
        form.querySelectorAll('input, textarea').forEach(el => el.style.borderColor = '');
 
-      // Resetar visualização da câmera (feito por stopAllCameraStreams)
+      // Resetar visualização da câmera e galeria
       document.getElementById('verification-camera-stream').style.display = 'none';
       document.getElementById('verification-captured-image').style.display = 'none';
        document.getElementById('verification-captured-image').src = '';
@@ -2935,113 +3216,48 @@
       document.getElementById('verification-take-photo').disabled = true;
     }
 
-    // Navegar para uma etapa do formulário (Manutenção ou Verificação)
+    // Navegar para uma etapa do formulário (Manutenção)
     function goToFormStep(formType, step) {
-      const formId = formType === 'maintenance' ? 'maintenance-form' : 'verification-form';
-      const stepContentPrefix = formType === 'maintenance' ? 'step-' : 'verification-step-'; // Adapte se necessário
-      const stepIndicatorPrefix = formType === 'maintenance' ? '' : 'verification-'; // Adapte se necessário
+        // Só implementado para manutenção, que tem etapas
+        if (formType !== 'maintenance') return;
 
-      // Ocultar todas as etapas de conteúdo
-      document.querySelectorAll(`#${formId} .form-step-content`).forEach(content => {
-        content.style.display = 'none';
-      });
+        const formId = 'maintenance-form';
+        const stepContentPrefix = 'step-';
+        const stepIndicatorClass = '.form-step'; // Classe dos indicadores
 
-      // Atualizar indicadores visuais de etapa (os números/labels)
-      document.querySelectorAll(`#maintenance-form .form-step`).forEach(stepEl => { // Apenas para o form de manutenção
-        const stepNum = parseInt(stepEl.getAttribute('data-step'));
-        stepEl.classList.remove('active', 'completed');
-        if (stepNum === step) {
-          stepEl.classList.add('active');
-        } else if (stepNum < step) {
-          stepEl.classList.add('completed');
-        }
-      });
-
-      // Mostrar a etapa de conteúdo atual (Apenas para o form de manutenção)
-      if(formType === 'maintenance') {
-          const contentId = `step-${step}-content`;
-          const stepContentElement = document.getElementById(contentId);
-          if (stepContentElement) {
-              stepContentElement.style.display = 'block';
-          } else {
-              console.error(`Elemento de conteúdo da etapa ${contentId} não encontrado.`);
-          }
-      }
-
-
-       // Parar câmera se saindo da etapa 3 (precaução)
-        if (formType === 'maintenance' && step !== 3) {
-           stopCameraStream(); // Para a câmera principal
-        }
-        // Adicionar lógica similar para verificação se tiver múltiplas etapas com câmera
-
-    }
-
-    // SUBSTITUIR: Função para enviar manutenção com compressão de imagens
-    function submitMaintenance() {
-      // Mostrar loading
-      showLoading(true, 'Processando imagens...');
-
-      // Verificar se há imagens
-      if (capturedImages.length === 0) {
-        showLoading(false);
-        document.getElementById('photo-warning').style.display = 'block';
-        showNotification('Por favor, adicione pelo menos uma foto.', 'error');
-        goToFormStep('maintenance', 3); // Leva para a etapa 3
-        return;
-      }
-
-      console.log("Iniciando compressão de imagens...");
-
-      // Comprimir todas as imagens
-      const compressPromises = capturedImages.map(image =>
-        compressImage(image, 600, 0.6) // Reduzir para 600px e 60% de qualidade
-      );
-
-      Promise.all(compressPromises)
-        .then(compressedImages => {
-          console.log(`${compressedImages.length} imagens comprimidas com sucesso.`);
-
-          // Coletar dados do formulário
-          const formData = {
-            equipmentId: document.getElementById('equipment-id').value,
-            equipmentType: document.getElementById('equipment-type').value,
-            technician: document.getElementById('technician-name').value,
-            date: document.getElementById('maintenance-date').value,
-            location: document.getElementById('location').value,
-            maintenanceType: document.getElementById('maintenance-type').value,
-            isCritical: document.getElementById('is-critical').checked,
-            problemCategory: document.getElementById('problem-category').value,
-            problemDescription: document.getElementById('problem-description').value,
-            solutionDescription: document.getElementById('solution-description').value,
-            partsReplaced: document.getElementById('parts-replaced').value,
-            additionalNotes: document.getElementById('additional-notes').value,
-            images: compressedImages // Usa as imagens comprimidas
-          };
-
-          showLoading(true, 'Enviando dados...');
-          console.log("Enviando manutenção com imagens comprimidas...");
-
-          // Enviar para a API (callAPI já foi atualizado para lidar com upload)
-          return callAPI('saveMaintenance', formData);
-        })
-        .then(result => {
-          showLoading(false);
-
-          if (result.success) {
-            showNotification('Manutenção registrada com sucesso!', 'success');
-            closeMaintenanceForm();
-            loadDashboardData(); // Recarregar dados
-          } else {
-            showNotification('Erro ao registrar manutenção: ' + (result.message || 'Erro desconhecido'), 'error');
-          }
-        })
-        .catch(error => {
-          console.error("Erro no catch do submitMaintenance:", error);
-          showLoading(false);
-          showNotification('Erro ao processar imagens ou enviar: ' + error.message, 'error');
+        // Ocultar todas as etapas de conteúdo
+        document.querySelectorAll(`#${formId} .form-step-content`).forEach(content => {
+            content.style.display = 'none';
         });
+
+        // Atualizar indicadores visuais de etapa (os números/labels)
+        document.querySelectorAll(`#${formId} ${stepIndicatorClass}`).forEach(stepEl => {
+            const stepNum = parseInt(stepEl.getAttribute('data-step'));
+            stepEl.classList.remove('active', 'completed');
+            if (stepNum === step) {
+            stepEl.classList.add('active');
+            } else if (stepNum < step) {
+            stepEl.classList.add('completed');
+            }
+        });
+
+        // Mostrar a etapa de conteúdo atual
+        const contentId = `${stepContentPrefix}${step}-content`;
+        const stepContentElement = document.getElementById(contentId);
+        if (stepContentElement) {
+            stepContentElement.style.display = 'block';
+        } else {
+            console.error(`Elemento de conteúdo da etapa ${contentId} não encontrado.`);
+        }
+
+
+        // Parar câmera se saindo da etapa 3 (precaução)
+        if (step !== 3 && cameraStream) {
+           stopCameraStream(); // Para a câmera principal do form de manutenção
+        }
+        // Adicionar lógica similar para verificação se tivesse múltiplas etapas com câmera
     }
+
 
 
     // Submeter formulário de verificação
@@ -3053,38 +3269,80 @@
         }
 
         showLoading(true, 'Salvando verificação...');
-        const formData = {
-            maintenanceId: selectedMaintenanceId, // Usar o ID guardado
-            verifier: document.getElementById('verifier-name').value,
-            result: document.querySelector('input[name="verification-result"]:checked').value,
-            comments: document.getElementById('verification-comments').value,
-            // As imagens são base64. A função callAPI precisa ser adaptada ou uma nova ação criada
-            // se o upload de imagens de verificação também for grande.
-            // Assumindo por enquanto que são poucas ou que a API lida com elas via JSONP/GET.
-            // Se precisar de upload via POST como na manutenção, terá que adaptar `callAPI` ou criar `saveVerificationWithImages`
-            images: verificationImages
-        };
 
-         // IMPORTANTE: Se verificationImages puder ser grande, a lógica de upload precisa ser similar à de submitMaintenance
-         // Por simplicidade, vamos assumir que 'saveVerification' no backend consegue lidar com as imagens via JSONP por enquanto.
-         // Se der erro de URL longa, essa parte precisará ser refatorada como 'saveMaintenance'.
+        // Comprimir imagens da verificação ANTES de enviar (similar à manutenção)
+        console.log(`Iniciando compressão de ${verificationImages.length} imagens de verificação...`);
+        const compressPromises = verificationImages.map((image, index) => {
+            console.log(`Comprimindo imagem de verificação ${index+1}...`);
+            // Usar uma compressão talvez menos agressiva para verificação, se necessário
+            return compressImage(image, 500, 0.7)
+             .catch(error => {
+                console.error(`Erro ao comprimir imagem de verificação ${index + 1}:`, error);
+                showNotification(`Erro ao comprimir imagem ${index + 1} da verificação. A original será enviada.`, 'warning');
+                return image; // Retorna a original em caso de erro
+             });
+        });
 
-        callAPI('saveVerification', formData)
-            .then(result => {
-                if (result && result.success) {
-                    showNotification('Verificação registrada com sucesso!', 'success');
-                    closeVerificationForm();
-                    loadDashboardData(); // Recarregar dados
-                } else {
-                    showNotification('Erro ao registrar verificação: ' + (result ? result.message : 'Erro desconhecido'), 'error');
-                }
-            })
-            .catch(error => {
-                showNotification('Falha grave ao enviar verificação: ' + error.message, 'error');
-            })
-             .finally(() => {
-                showLoading(false);
-            });
+        Promise.all(compressPromises)
+         .then(compressedVerificationImages => {
+            console.log(`${compressedVerificationImages.length} imagens de verificação prontas para envio.`);
+
+            const formData = {
+                maintenanceId: selectedMaintenanceId, // Usar o ID guardado
+                verifier: document.getElementById('verifier-name').value,
+                result: document.querySelector('input[name="verification-result"]:checked').value,
+                comments: document.getElementById('verification-comments').value,
+                images: compressedVerificationImages // Envia imagens comprimidas/originais
+            };
+
+             // Verificar tamanho antes de chamar API (similar à manutenção)
+             let jsonSize;
+             try {
+                jsonSize = JSON.stringify(formData).length;
+                console.log("Tamanho estimado dos dados de verificação:", (jsonSize / 1024 / 1024).toFixed(2), "MB");
+                 if (jsonSize > 1800000) { // Mesmo limite JSONP
+                     throw new Error("Dados da verificação (incluindo fotos) são muito grandes. Tente com menos fotos.");
+                 }
+             } catch (e) {
+                  showLoading(false);
+                  console.error("Erro ao processar dados da verificação:", e);
+                  showNotification(e.message || "Erro ao preparar dados da verificação.", "error");
+                  return Promise.reject(e); // Rejeita a promessa para não continuar
+             }
+
+
+            showLoading(true, 'Enviando dados da verificação...');
+            console.log("Enviando verificação com imagens processadas...");
+            // Chama a API para salvar a verificação
+            return callAPI('saveVerification', formData);
+        })
+        .then(result => {
+            // Este .then() é da callAPI
+            showLoading(false);
+            if (result && result.success) {
+                showNotification('Verificação registrada com sucesso!', 'success');
+                closeVerificationForm();
+                loadDashboardData(); // Recarregar dados para refletir a mudança de status
+            } else {
+                showNotification('Erro ao registrar verificação: ' + (result ? result.message : 'Erro desconhecido'), 'error');
+            }
+        })
+        .catch(error => {
+            // Captura erros da compressão (Promise.all) ou da callAPI ou da verificação de tamanho
+            console.error("Erro no processo de submissão da verificação:", error);
+            showLoading(false);
+             let userMessage = 'Ocorreu um erro inesperado ao salvar a verificação.';
+             if (error.message.includes("muito grandes") || error.message.includes("URL de requisição muito longa")) {
+                userMessage = "Erro: Os dados da verificação (incluindo fotos) são muito grandes. Tente com menos fotos.";
+             } else if (error.message.includes("Falha na requisição JSONP")) {
+                userMessage = "Erro de comunicação com o servidor ao salvar verificação.";
+             } else if (error.message.includes("Timeout na requisição")) {
+                userMessage = "O servidor demorou muito para responder à verificação.";
+             } else {
+                userMessage = 'Erro ao salvar verificação: ' + error.message;
+             }
+            showNotification(userMessage, 'error');
+        });
     }
 
 
@@ -3142,7 +3400,7 @@
           ${(details.verification.images && details.verification.images.length > 0) ? `
           <div class="detail-section-title" style="margin-top: 15px;">Fotos da Verificação</div>
           <div class="detail-image-gallery">
-            ${details.verification.images.map(img => `<div class="detail-image-item view-full-image" data-src="${img.url}"><img src="${img.url}" alt="Foto verificação"></div>`).join('')}
+            ${details.verification.images.map(img => `<div class="detail-image-item view-full-image" data-src="${img.url || img}" title="Clique para ampliar"><img src="${img.url || img}" alt="Foto verificação"></div>`).join('')}
           </div>` : '<p style="font-size: 13px; color: var(--text-light);">Nenhuma foto de verificação.</p>'}
         </div>
       ` : '<div class="detail-section"><p style="font-style: italic; color: var(--text-light);">Aguardando verificação.</p></div>';
@@ -3163,6 +3421,14 @@
             <div class="timeline-description">Por: ${details.verification.verifier || '-'} | Resultado: ${details.verification.result || '-'}</div>
           </div>
         </div>` : ''}
+        ${details.status === 'Concluído' && details.verification && details.verification.date ? `
+         <div class="timeline-item">
+           <div class="timeline-dot completed"></div>
+           <div class="timeline-content">
+             <div class="timeline-title"><span>Manutenção Concluída</span><span class="timeline-date">${formatDate(details.completionDate || details.verification.date, true)}</span></div>
+             <div class="timeline-description">Processo finalizado.</div>
+           </div>
+         </div>` : ''}
       `;
 
       const html = `
@@ -3196,7 +3462,7 @@
         <div class="detail-section"><div class="detail-section-title">Fotos da Manutenção</div>
           ${(details.images && details.images.length > 0) ? `
           <div class="detail-image-gallery">
-            ${details.images.map(img => `<div class="detail-image-item view-full-image" data-src="${img.url}"><img src="${img.url}" alt="Foto manutenção"></div>`).join('')}
+             ${details.images.map(img => `<div class="detail-image-item view-full-image" data-src="${img.url || img}" title="Clique para ampliar"><img src="${img.url || img}" alt="Foto manutenção"></div>`).join('')}
           </div>` : '<p style="font-size: 13px; color: var(--text-light);">Nenhuma foto adicionada.</p>'}
         </div>
         ${verificationHtml}
@@ -3206,22 +3472,27 @@
       `;
       container.innerHTML = html;
 
-      // Reatribuir listeners para as imagens recém-criadas
-       container.querySelectorAll('.view-full-image').forEach(img => {
-        img.addEventListener('click', function() {
-          openImageModal(this.getAttribute('data-src'));
-        });
-      });
+      // Reatribuir listeners para as imagens recém-criadas NO DETALHE
+       container.querySelectorAll('.view-full-image').forEach(imgContainer => {
+           // Remove old listener before adding new one
+           const newImgContainer = imgContainer.cloneNode(true);
+           imgContainer.parentNode.replaceChild(newImgContainer, imgContainer);
+           newImgContainer.addEventListener('click', function() {
+             openImageModal(this.getAttribute('data-src'));
+           });
+       });
     }
 
     // Abrir modal de imagem em tela cheia
     function openImageModal(src) {
+      if (!src) {
+          console.warn("Tentativa de abrir modal com imagem inválida (src vazio).");
+          return;
+      }
       const modal = document.getElementById('imageModal');
       const modalImg = document.getElementById('modalImage');
-      modalImg.src = src;
-      modal.style.display = 'flex'; // Usar flex para centralizar melhor
-       modal.style.alignItems = 'center';
-       modal.style.justifyContent = 'center';
+      modalImg.src = src; // Define a imagem
+      modal.style.display = 'flex'; // Mostra o modal
     }
 
     // Gerar relatório por período
@@ -3232,15 +3503,21 @@
         showNotification('Por favor, selecione as datas inicial e final.', 'error');
         return;
       }
+      if (new Date(endDate) < new Date(startDate)) {
+         showNotification('A data final não pode ser anterior à data inicial.', 'error');
+         return;
+      }
+
       showLoading(true, 'Gerando relatório...');
       callAPI('generateReport', { startDate, endDate })
         .then(data => {
           if (data.error) {
             showNotification('Erro ao gerar relatório: ' + data.message, 'error');
+            // Limpar gráficos talvez? Ou manter os antigos?
           } else {
             // Atualizar gráficos da aba de relatórios com os dados recebidos
-            renderProblemTypeChart(data.problemTypes); // Assumindo que a API retorna esses dados
-            renderResolutionTimeChart(data.resolutionTimes); // Assumindo que a API retorna esses dados
+            renderProblemTypeChart(data.problemTypes || {}); // Passa objeto vazio se não vier
+            renderResolutionTimeChart(data.resolutionTimes || {}); // Passa objeto vazio se não vier
             showNotification('Dados do relatório carregados. Gráficos atualizados.', 'success');
           }
         })
@@ -3258,6 +3535,11 @@
         showNotification('Por favor, selecione o período para exportação.', 'error');
         return;
       }
+       if (new Date(endDate) < new Date(startDate)) {
+         showNotification('A data final não pode ser anterior à data inicial.', 'error');
+         return;
+      }
+
       showLoading(true, `Exportando para ${format}...`);
       callAPI('exportData', { startDate, endDate, format })
         .then(result => {
@@ -3265,9 +3547,9 @@
             showNotification('Erro na exportação: ' + result.message, 'error');
           } else if (result.url) {
             showNotification('Arquivo pronto para download.', 'success');
-            window.open(result.url, '_blank'); // Abre link para download
+            window.open(result.url, '_blank'); // Abre link para download em nova aba
           } else {
-             showNotification('Link de download não retornado pela API.', 'error');
+             showNotification('Resposta inválida da API de exportação (sem URL).', 'error');
           }
         })
         .catch(error => {
@@ -3276,188 +3558,32 @@
         .finally(() => showLoading(false));
     }
 
-    // --- Funções de Câmera e Imagem ---
-
-    // SUBSTITUIR: Função melhorada para tirar foto
-    function takePhoto(videoId, imgId) {
-      const video = document.getElementById(videoId);
-      const img = document.getElementById(imgId);
-      const galleryId = videoId === 'camera-stream' ? 'image-gallery' : 'verification-image-gallery';
-
-      // Verificar se o vídeo está ativo
-      if (video.style.display !== 'block' || !video.srcObject) {
-        showNotification('A câmera não está ativa.', 'error');
-        return;
-      }
-
-      // Criar canvas para capturar imagem
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      // Verificar se o vídeo tem dimensões válidas
-      if (canvas.width === 0 || canvas.height === 0) {
-        showNotification('Erro: Vídeo não inicializado completamente. Tente novamente.', 'error');
-        return;
-      }
-
-      // Desenhar frame do vídeo no canvas
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      // Converter para base64
-      let dataUrl;
-      try {
-        dataUrl = canvas.toDataURL('image/jpeg', 0.9); // Qualidade 0.9
-      } catch (error) {
-        console.error("Erro ao converter canvas para base64:", error);
-        showNotification('Erro ao capturar imagem. Tente novamente.', 'error');
-        return;
-      }
-
-      // Verificar se o dataUrl é válido
-      if (!dataUrl || dataUrl === 'data:,') {
-        console.error("DataURL inválido gerado");
-        showNotification('Erro ao capturar imagem. Tente novamente.', 'error');
-        return;
-      }
-
-      // Exibir imagem capturada (opcional, pode ir direto pra galeria)
-      // img.src = dataUrl;
-      // img.style.display = 'block';
-      // video.style.display = 'none'; // Esconder vídeo após tirar foto
-
-      // Adicionar à galeria
-      addImageToGallery(dataUrl, galleryId); // Chamando a função atualizada
-
-      // Se for o formulário principal, esconder aviso de foto obrigatória
-      if (videoId === 'camera-stream') {
-        document.getElementById('photo-warning').style.display = 'none';
-      }
-
-      // Parar streams após tirar a foto (ação comum)
-      stopAllCameraStreams();
-      // Mostrar placeholder novamente
-      const placeholderId = videoId.replace('-stream','-placeholder');
-      document.getElementById(placeholderId).style.display = 'flex';
-      // Desabilitar botão de tirar foto novamente
-      const takePhotoBtnId = videoId.replace('-stream','-take-photo');
-      document.getElementById(takePhotoBtnId).disabled = true;
-
-    }
-
-
-    // Manipular upload de arquivo
-    function handleFileUpload(event, imgId, imageArray, galleryId) {
-      const file = event.target.files[0];
-      if (!file) return;
-      if (!file.type.startsWith('image/')) {
-        showNotification('Por favor, selecione um arquivo de imagem.', 'error');
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const dataUrl = e.target.result;
-        // Adicionar à galeria e ao array
-        addImageToGallery(dataUrl, galleryId); // Chama a função atualizada que manipula os arrays globais
-
-         // Ocultar vídeo/placeholder se estiverem visíveis e parar streams
-        const videoId = galleryId === 'image-gallery' ? 'camera-stream' : 'verification-camera-stream';
-        const placeholderId = galleryId === 'image-gallery' ? 'camera-placeholder' : 'verification-camera-placeholder';
-         stopAllCameraStreams();
-         document.getElementById(videoId).style.display = 'none';
-         document.getElementById(placeholderId).style.display = 'flex'; // Reexibe o placeholder
-         const takePhotoBtnId = videoId.replace('-stream','-take-photo');
-         document.getElementById(takePhotoBtnId).disabled = true; // Garante que está desabilitado
-
-      };
-      reader.onerror = function() {
-         showNotification('Erro ao ler o arquivo selecionado.', 'error');
-      };
-      reader.readAsDataURL(file);
-    }
-
-    // SUBSTITUIR: Função melhorada para adicionar imagem à galeria
-    function addImageToGallery(dataUrl, galleryId) {
-      const gallery = document.getElementById(galleryId);
-
-      // Criar elemento de imagem
-      const imgContainer = document.createElement('div');
-      imgContainer.className = 'image-item';
-
-      const img = document.createElement('img');
-      img.src = dataUrl;
-      img.alt = 'Prévia'; // Added alt text
-
-      const removeBtn = document.createElement('div');
-      removeBtn.className = 'image-remove';
-      removeBtn.innerHTML = '&times;';
-      removeBtn.title = 'Remover imagem'; // Added title
-      removeBtn.addEventListener('click', function(e) {
-        e.stopPropagation(); // Prevent triggering the container's click event
-        imgContainer.remove(); // Remove visualmente
-
-        // Remover da lista de imagens capturadas apropriada
-        if (galleryId === 'image-gallery') {
-          const index = capturedImages.indexOf(dataUrl);
-          if (index > -1) {
-            capturedImages.splice(index, 1);
-          }
-          // Mostrar aviso se não houver imagens
-          if (capturedImages.length === 0) {
-            document.getElementById('photo-warning').style.display = 'block';
-          }
-           console.log(`Imagem removida. ${galleryId} agora tem ${capturedImages.length} imagens.`);
-        } else { // Assume verification gallery
-          const index = verificationImages.indexOf(dataUrl);
-          if (index > -1) {
-            verificationImages.splice(index, 1);
-          }
-           console.log(`Imagem removida. ${galleryId} agora tem ${verificationImages.length} imagens.`);
-        }
-      });
-
-      // Adicionar evento para visualizar em tamanho maior
-      imgContainer.addEventListener('click', function() {
-        openImageModal(dataUrl);
-      });
-
-      imgContainer.appendChild(img);
-      imgContainer.appendChild(removeBtn);
-      gallery.appendChild(imgContainer);
-
-      // Adicionar à lista de imagens apropriada
-      if (galleryId === 'image-gallery') {
-        capturedImages.push(dataUrl);
-        document.getElementById('photo-warning').style.display = 'none'; // Esconder aviso ao adicionar
-        console.log(`Imagem adicionada. ${galleryId} agora tem ${capturedImages.length} imagens.`);
-      } else {
-        verificationImages.push(dataUrl);
-        console.log(`Imagem adicionada. ${galleryId} agora tem ${verificationImages.length} imagens.`);
-      }
-    }
 
     // --- Funções de Filtragem ---
 
-    // Filtrar manutenções para a lista principal
+    // Filtrar manutenções para a lista principal e recentes
     function filterMaintenances(maintenances, filter, search) {
-       const searchLower = search ? search.toLowerCase() : '';
+       const searchLower = search ? search.toLowerCase().trim() : '';
         return maintenances.filter(m => {
             let statusMatch = false;
+            const maintenanceStatus = m.status ? m.status.toLowerCase() : 'pendente'; // Assume pendente se não houver status
+
             switch (filter) {
-                case 'pending': statusMatch = m.status === 'Pendente'; break;
-                case 'verified': statusMatch = m.status === 'Verificado' || m.status === 'Aprovado' || m.status === 'Ajustes' ; break; // Ajustado para incluir variações
-                case 'completed': statusMatch = m.status === 'Concluído' || m.status === 'Concluido'; break; // Ajustado
+                case 'pending': statusMatch = maintenanceStatus === 'pendente'; break;
+                case 'verified': statusMatch = ['verificado', 'aprovado', 'ajustes'].includes(maintenanceStatus); break; // Agrupa verificados
+                case 'completed': statusMatch = maintenanceStatus === 'concluído' || maintenanceStatus === 'concluido'; break;
                 case 'all': default: statusMatch = true; break;
             }
             if (!statusMatch) return false;
 
             if (searchLower) {
-                return (m.id && m.id.toString().includes(searchLower)) ||
+                // Busca em vários campos
+                return (m.id && m.id.toString().toLowerCase().includes(searchLower)) ||
                        (m.equipmentId && m.equipmentId.toLowerCase().includes(searchLower)) ||
                        (m.technician && m.technician.toLowerCase().includes(searchLower)) ||
-                       (m.maintenanceType && m.maintenanceType.toLowerCase().includes(searchLower));
+                       (m.maintenanceType && m.maintenanceType.toLowerCase().includes(searchLower)) ||
+                       (m.problemCategory && m.problemCategory.toLowerCase().includes(searchLower)) ||
+                       (m.problemDescription && m.problemDescription.toLowerCase().includes(searchLower));
             }
             return true;
         }).sort((a, b) => new Date(b.registrationDate || b.date) - new Date(a.registrationDate || a.date)); // Ordenar por mais recente
@@ -3465,41 +3591,53 @@
 
     // Filtrar manutenções para a lista de verificação
     function filterVerifications(maintenances, filter, search) {
-        const searchLower = search ? search.toLowerCase() : '';
-        let baseList = [];
+        const searchLower = search ? search.toLowerCase().trim() : '';
 
-        // Filtra baseado no status selecionado
-        switch (filter) {
+        // Define a lista base dependendo do filtro
+        let baseList;
+        const todayStr = new Date().toISOString().split('T')[0]; // Formato YYYY-MM-DD
+
+        switch(filter) {
             case 'pending':
                 baseList = maintenances.filter(m => m.status === 'Pendente');
                 break;
-            case 'verified': // Exemplo: Mostrar Verificados de Hoje (requer data da verificação)
-                 baseList = maintenances.filter(m => m.status === 'Verificado' /* && isToday(m.verification.date) */ ); // Lógica de data não implementada aqui
-                 console.warn("Filtro 'Verificados Hoje' não implementado completamente (requer data de verificação). Mostrando todos 'Verificados'.");
+            case 'verified': // Mostra os verificados de hoje
+                 baseList = maintenances.filter(m =>
+                    ['Verificado', 'Aprovado', 'Ajustes'].includes(m.status) &&
+                    m.verification && m.verification.date && m.verification.date.startsWith(todayStr)
+                 );
                  break;
-            case 'completed':
-                baseList = maintenances.filter(m => m.status === 'Concluído' || m.status === 'Concluido');
-                break;
-            case 'all':
+            case 'completed': // Mostra todos os concluídos
+                 baseList = maintenances.filter(m => m.status === 'Concluído');
+                 break;
+            case 'all': // Mostra todos que precisam ou foram verificados (Pendente, Verificado, Concluído, Reprovado)
             default:
-                 baseList = [...maintenances]; // Todos os status
-                break;
+                 baseList = maintenances; // Começa com todos
+                 break;
         }
 
-        // Aplica a busca textual sobre a lista filtrada por status
+
+        // Aplica a busca textual na lista base
         return baseList.filter(m => {
             if (searchLower) {
-                 return (m.id && m.id.toString().includes(searchLower)) ||
+                 return (m.id && m.id.toString().toLowerCase().includes(searchLower)) ||
                        (m.equipmentId && m.equipmentId.toLowerCase().includes(searchLower)) ||
                        (m.technician && m.technician.toLowerCase().includes(searchLower)) ||
                         (m.maintenanceType && m.maintenanceType.toLowerCase().includes(searchLower));
             }
             return true;
-        }).sort((a, b) => { // Ordenação diferente para pendentes
-             if (filter === 'pending') {
-                 return new Date(a.registrationDate || a.date) - new Date(b.registrationDate || b.date); // Pendentes mais antigas primeiro
-             }
-             return new Date(b.registrationDate || b.date) - new Date(a.registrationDate || a.date); // Outros status, mais recentes primeiro
+        }).sort((a, b) => {
+           // Ordenar pendentes mais antigas primeiro, depois outras por data de verificação/conclusão?
+           if (a.status === 'Pendente' && b.status !== 'Pendente') return -1;
+           if (a.status !== 'Pendente' && b.status === 'Pendente') return 1;
+           // Se ambos pendentes, mais antigo primeiro
+           if (a.status === 'Pendente' && b.status === 'Pendente') {
+              return new Date(a.registrationDate || a.date) - new Date(b.registrationDate || b.date);
+           }
+           // Para outros status, ordenar por data de verificação/conclusão (mais recente primeiro)
+           const dateA = new Date(a.completionDate || (a.verification ? a.verification.date : a.registrationDate));
+           const dateB = new Date(b.completionDate || (b.verification ? b.verification.date : b.registrationDate));
+           return dateB - dateA;
         });
     }
 
@@ -3521,6 +3659,7 @@
           container.style.display = 'flex';
           container.style.flexDirection = 'column';
           container.style.gap = '10px';
+          container.style.maxWidth = '90%'; // Evitar ocupar toda a largura em telas pequenas
           document.body.appendChild(container);
       }
 
@@ -3532,8 +3671,15 @@
       switch (type) {
         case 'success': icon = '✓'; title = 'Sucesso'; break;
         case 'error': icon = '✗'; title = 'Erro'; break;
+        case 'warning': icon = '⚠️'; title = 'Aviso'; break; // Adicionado warning
         default: icon = 'ℹ'; title = 'Informação'; type = 'info'; break;
       }
+       if (type === 'warning') { // Adicionar estilo para warning
+            notification.style.backgroundColor = '#fff3cd';
+            notification.style.borderLeft = '4px solid var(--warning-color)';
+            notification.style.color = '#856404';
+       }
+
 
       notification.innerHTML = `
         <div class="notification-icon">${icon}</div>
@@ -3552,18 +3698,16 @@
       const close = () => {
           notification.style.opacity = '0';
            setTimeout(() => {
-               if (container.contains(notification)) {
+               if (notification.parentNode === container) { // Verifica se ainda é filho
                    container.removeChild(notification);
-                   // Opcional: remover container se vazio
-                   // if (container.children.length === 0) {
-                   //     document.body.removeChild(container);
-                   // }
                }
            }, 500); // Tempo para fade-out
       };
 
       notification.querySelector('.close-btn').onclick = close;
-      setTimeout(close, 5000); // Auto-close after 5 seconds
+      // Aumentar tempo para erros e avisos
+      const autoCloseTime = (type === 'error' || type === 'warning') ? 8000 : 5000;
+      setTimeout(close, autoCloseTime);
     }
 
     // Mostrar/esconder indicador de carregamento global
@@ -3579,14 +3723,15 @@
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: rgba(0,0,0,0.6); display: flex; align-items: center;
             justify-content: center; z-index: 2100; color: white; flex-direction: column;
-            gap: 15px; text-align: center;
+            gap: 15px; text-align: center; padding: 20px; box-sizing: border-box;
           `;
            loader.innerHTML = `
             <div style="border: 4px solid #f3f3f3; border-top: 4px solid var(--primary-color); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;"></div>
-            <div id="global-loader-message">${message}</div>
+            <div id="global-loader-message" style="font-size: 16px; font-weight: 500;">${message}</div>
           `;
           document.body.appendChild(loader);
 
+          // Add animation style if not already present
           if (!document.getElementById('spin-style')) {
             const style = document.createElement('style'); style.id = 'spin-style';
             style.textContent = `@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`;
@@ -3594,10 +3739,18 @@
           }
         }
         loader.style.display = 'flex';
-        document.getElementById('global-loader-message').textContent = message;
+        // Atualiza a mensagem se o loader já existir
+        const messageElement = document.getElementById('global-loader-message');
+        if (messageElement) messageElement.textContent = message;
       } else {
         if (loader) {
-          loader.style.display = 'none';
+          // Fade out effect (optional)
+          loader.style.transition = 'opacity 0.3s ease-out';
+          loader.style.opacity = '0';
+          setTimeout(() => {
+              if(loader) loader.style.display = 'none';
+              loader.style.opacity = '1'; // Reset opacity for next time
+          }, 300);
         }
       }
     }
@@ -3606,14 +3759,32 @@
     function formatDate(dateString, includeTime = false) {
         if (!dateString) return '-';
         try {
-            // Tentar criar data. Lida com diferentes formatos que o JS pode entender.
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) return dateString; // Retorna original se inválida
+            // Tenta criar data. Lida com diferentes formatos (YYYY-MM-DD, ISO string, etc.)
+             // Corrigir possível problema com datas que são apenas YYYY-MM-DD interpretadas como UTC
+             let date;
+             if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+                 // Se for apenas data, adiciona T00:00:00 para interpretar no fuso local
+                 date = new Date(dateString + 'T00:00:00');
+             } else {
+                 date = new Date(dateString);
+             }
+
+            if (isNaN(date.getTime())) {
+                 console.warn("Formato de data inválido recebido:", dateString);
+                 return dateString; // Retorna original se inválida
+             }
 
             const options = {
                 day: '2-digit', month: '2-digit', year: 'numeric',
-                ...(includeTime && { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) // Ajuste fuso se necessário
+                // Timezone é importante para consistência, especialmente se o servidor e o cliente estão em fusos diferentes
+                timeZone: 'America/Sao_Paulo' // Ex: Fuso de São Paulo. Ajuste se necessário.
             };
+            if (includeTime) {
+                options.hour = '2-digit';
+                options.minute = '2-digit';
+                options.second = '2-digit'; // Opcional: incluir segundos
+            }
+
             return new Intl.DateTimeFormat('pt-BR', options).format(date);
         } catch (e) {
             console.error("Erro ao formatar data:", dateString, e);
@@ -3624,14 +3795,16 @@
 
     // Obter classe CSS baseada no status
     function getStatusClass(status) {
-      if (!status) return 'pending';
+      if (!status) return 'pending'; // Default
       const lowerStatus = status.toLowerCase();
       switch (lowerStatus) {
         case 'pendente': return 'pending';
         case 'verificado': case 'aprovado': case 'ajustes': return 'verification'; // Agrupar verificados
         case 'concluído': case 'concluido': return 'completed'; // Agrupar concluídos
         case 'reprovado': return 'danger'; // Usar classe de perigo
-        default: return 'pending';
+        default:
+           console.warn("Status desconhecido recebido:", status);
+           return 'pending'; // Fallback para status desconhecido
       }
     }
 
