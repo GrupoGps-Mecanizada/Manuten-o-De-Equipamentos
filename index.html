@@ -1,0 +1,3428 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GrupoGPS Mecanizada - Sistema de Dupla Checagem de Manutenção</title>
+  <!-- Favicon -->
+  <link rel="icon" href="data:,">
+
+  <!-- Chart.js para gráficos -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  
+  <!-- Estilo CSS -->
+  <style>
+    :root {
+      --primary-color: #0056b3;
+      --secondary-color: #2e4b85;
+      --accent-color: #28a745;
+      --warning-color: #ffc107;
+      --danger-color: #dc3545;
+      --text-color: #333;
+      --text-light: #777;
+      --bg-color: #f8f9fa;
+      --card-bg: #ffffff;
+      --border-color: #ddd;
+      --shadow-color: rgba(0,0,0,0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 100%;
+      margin: 0 auto;
+      padding: 10px;
+    }
+
+    .header {
+      background-color: var(--primary-color);
+      color: white;
+      padding: 15px;
+      border-radius: 8px 8px 0 0;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 8px var(--shadow-color);
+    }
+
+    .header h1 {
+      font-size: 20px;
+      margin: 0;
+    }
+
+    .header p {
+      font-size: 14px;
+      margin: 5px 0 0;
+      opacity: 0.9;
+    }
+
+    .company-branding {
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .company-logo {
+      font-size: 18px;
+      font-weight: bold;
+      color: white;
+      text-decoration: none;
+    }
+
+    .notification-badge {
+      background-color: var(--accent-color);
+      color: white;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .date-filter {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .date-filter select {
+      padding: 8px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      background-color: white;
+    }
+
+    .summary-cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      border-radius: 8px;
+      box-shadow: 0 2px 8px var(--shadow-color);
+      padding: 20px;
+      flex: 1 1 calc(25% - 15px);
+      min-width: 200px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 5px 15px var(--shadow-color);
+    }
+
+    .card-title {
+      font-size: 14px;
+      color: var(--text-light);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+    }
+
+    .card-title i {
+      margin-right: 8px;
+      font-size: 16px;
+    }
+
+    .card-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: var(--primary-color);
+    }
+
+    .card-footer {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--text-light);
+      display: flex;
+      align-items: center;
+    }
+
+    .card-trend {
+      margin-left: 8px;
+      padding: 3px 6px;
+      border-radius: 12px;
+      font-weight: bold;
+    }
+
+    .trend-up {
+      background-color: rgba(40, 167, 69, 0.1);
+      color: var(--accent-color);
+    }
+
+    .trend-down {
+      background-color: rgba(220, 53, 69, 0.1);
+      color: var(--danger-color);
+    }
+
+    .section {
+      background-color: var(--card-bg);
+      border-radius: 8px;
+      box-shadow: 0 2px 8px var(--shadow-color);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 18px;
+      color: var(--text-color);
+      margin: 0 0 15px 0;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .section-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-icon {
+      background: none;
+      border: none;
+      color: var(--text-light);
+      cursor: pointer;
+      padding: 5px;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+
+    .btn-icon:hover {
+      background-color: rgba(0,0,0,0.05);
+      color: var(--primary-color);
+    }
+
+    .chart-container {
+      position: relative;
+      height: 300px;
+      margin-bottom: 20px;
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .table-responsive {
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background-color: white;
+    }
+
+    th {
+      background-color: rgba(0,0,0,0.03);
+      text-align: left;
+      padding: 12px 15px;
+      border-bottom: 2px solid var(--border-color);
+      color: var(--text-color);
+      font-weight: 600;
+    }
+
+    td {
+      padding: 12px 15px;
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: middle;
+    }
+
+    tr:hover {
+      background-color: rgba(0,0,0,0.01);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-pending {
+      background-color: rgba(255, 193, 7, 0.2);
+      color: #d49c00;
+    }
+
+    .status-verification {
+      background-color: rgba(13, 110, 253, 0.2);
+      color: #0d6efd;
+    }
+
+    .status-completed {
+      background-color: rgba(40, 167, 69, 0.2);
+      color: var(--accent-color);
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 20px;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+
+    .tab {
+      padding: 12px 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+      white-space: nowrap;
+      border-bottom: 2px solid transparent;
+    }
+
+    .tab.active {
+      color: var(--primary-color);
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    .tab:hover:not(.active) {
+      border-bottom: 2px solid rgba(0,0,0,0.1);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .search-container {
+      margin-bottom: 20px;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 12px 15px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 15px;
+      transition: all 0.2s;
+      background-color: white;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(0, 86, 179, 0.1);
+    }
+
+    .filter-container {
+      display: flex;
+      margin-bottom: 20px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 5px;
+      gap: 10px;
+    }
+
+    .filter-item {
+      background-color: white;
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 8px 15px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .filter-item.active {
+      background-color: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+
+    .filter-item:hover:not(.active) {
+      background-color: rgba(0,0,0,0.03);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .badge-success {
+      background-color: var(--accent-color);
+      color: white;
+    }
+
+    .badge-warning {
+      background-color: var(--warning-color);
+      color: #212529;
+    }
+
+    .badge-danger {
+      background-color: var(--danger-color);
+      color: white;
+    }
+
+    .badge-info {
+      background-color: #17a2b8;
+      color: white;
+    }
+
+    .progress-container {
+      width: 100%;
+      background-color: var(--bg-color);
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+      margin-top: 5px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background-color: var(--accent-color);
+      border-radius: 4px;
+      transition: width 0.5s;
+    }
+
+    .btn {
+      display: inline-block;
+      background-color: var(--primary-color);
+      color: white;
+      padding: 10px 15px;
+      border-radius: 4px;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 500;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background-color: var(--secondary-color);
+    }
+
+    .btn-success {
+      background-color: var(--accent-color);
+    }
+
+    .btn-success:hover {
+      background-color: #218838;
+    }
+
+    .btn-danger {
+      background-color: var(--danger-color);
+    }
+
+    .btn-danger:hover {
+      background-color: #bd2130;
+    }
+
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 13px;
+    }
+
+    .btn-lg {
+      padding: 12px 20px;
+      font-size: 16px;
+    }
+
+    .btn-block {
+      display: block;
+      width: 100%;
+    }
+
+    .btn-outline {
+      background-color: transparent;
+      border: 1px solid var(--primary-color);
+      color: var(--primary-color);
+    }
+
+    .btn-outline:hover {
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    .btn-outline-success {
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+    }
+
+    .btn-outline-success:hover {
+      background-color: var(--accent-color);
+      color: white;
+    }
+
+    .btn-new {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background-color: var(--accent-color);
+      color: white;
+      text-align: center;
+      line-height: 60px;
+      font-size: 24px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      z-index: 100;
+      transition: all 0.3s ease;
+    }
+
+    .btn-new:hover {
+      transform: scale(1.1);
+      background-color: #218838;
+    }
+
+    .btn-action-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    /* Estilos para o formulário de manutenção */
+    .form-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      z-index: 1000;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .form-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90%;
+      max-width: 700px;
+      max-height: 90vh;
+      overflow-y: auto;
+      background-color: white;
+      border-radius: 8px;
+      padding: 25px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+
+    .form-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 15px;
+    }
+
+    .form-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .form-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--text-light);
+      transition: color 0.2s;
+    }
+
+    .form-close:hover {
+      color: var(--danger-color);
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      font-size: 15px;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 15px;
+      transition: all 0.2s;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(0, 86, 179, 0.1);
+    }
+
+    .form-row {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .form-col {
+      flex: 1;
+    }
+
+    .form-check {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .form-check input[type="radio"],
+    .form-check input[type="checkbox"] {
+      margin-right: 8px;
+    }
+
+    .form-check label {
+      margin: 0;
+      font-weight: normal;
+    }
+
+    .form-steps {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 30px;
+      position: relative;
+    }
+
+    .form-steps::before {
+      content: '';
+      position: absolute;
+      top: 14px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background-color: var(--border-color);
+      z-index: 1;
+    }
+
+    .form-step {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      flex: 1;
+    }
+
+    .step-number {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background-color: white;
+      border: 2px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 8px;
+      font-weight: bold;
+      color: var(--text-light);
+      position: relative;
+      z-index: 2;
+    }
+
+    .form-step.active .step-number {
+      background-color: var(--primary-color);
+      border-color: var(--primary-color);
+      color: white;
+    }
+
+    .form-step.completed .step-number {
+      background-color: var(--accent-color);
+      border-color: var(--accent-color);
+      color: white;
+    }
+
+    .step-label {
+      font-size: 13px;
+      color: var(--text-light);
+    }
+
+    .form-step.active .step-label {
+      color: var(--primary-color);
+      font-weight: 500;
+    }
+
+    .form-step.completed .step-label {
+      color: var(--accent-color);
+      font-weight: 500;
+    }
+
+    .form-navigation {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 30px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 20px;
+    }
+
+    .form-required {
+      color: var(--danger-color);
+      margin-left: 2px;
+    }
+
+    .camera-container {
+      width: 100%;
+      position: relative;
+      margin-bottom: 15px;
+    }
+    
+    .camera-preview {
+      width: 100%;
+      height: 300px;
+      background-color: #eee;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .camera-preview video,
+    .camera-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .camera-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    
+    .camera-button {
+      flex: 1;
+      min-width: 120px;
+    }
+
+    .image-gallery {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    
+    .image-item {
+      width: 100px;
+      height: 100px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .image-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .image-remove {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 20px;
+      height: 20px;
+      background-color: rgba(0,0,0,0.5);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      cursor: pointer;
+    }
+
+    .notification-popup {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      min-width: 280px;
+      max-width: 350px;
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+      z-index: 1050;
+      animation: slideIn 0.3s ease-out forwards;
+      font-weight: 500;
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .notification-icon {
+      margin-right: 12px;
+      font-size: 20px;
+    }
+
+    .notification-content {
+      flex: 1;
+    }
+
+    .notification-title {
+      font-weight: 600;
+      margin-bottom: 5px;
+      font-size: 16px;
+    }
+
+    .notification-popup.success {
+      background-color: #d4edda;
+      border-left: 4px solid var(--accent-color);
+      color: #155724;
+    }
+
+    .notification-popup.error {
+      background-color: #f8d7da;
+      border-left: 4px solid var(--danger-color);
+      color: #721c24;
+    }
+
+    .notification-popup.info {
+      background-color: #d1ecf1;
+      border-left: 4px solid #17a2b8;
+      color: #0c5460;
+    }
+
+    .notification-popup .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 16px;
+      cursor: pointer;
+      color: inherit;
+      opacity: 0.7;
+    }
+
+    .notification-popup .close-btn:hover {
+      opacity: 1;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes fadeOut {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+      }
+    }
+
+    /* Estilos para detalhes da manutenção */
+    .maintenance-detail {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    
+    .detail-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .detail-header-left {
+      flex: 1;
+      min-width: 280px;
+    }
+    
+    .detail-header-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    }
+    
+    .detail-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    
+    .detail-subtitle {
+      font-size: 14px;
+      color: var(--text-light);
+    }
+    
+    .detail-section {
+      margin-bottom: 15px;
+    }
+    
+    .detail-section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 1px dashed var(--border-color);
+    }
+    
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+    
+    .detail-field {
+      margin-bottom: 10px;
+    }
+    
+    .detail-label {
+      font-size: 12px;
+      color: var(--text-light);
+      margin-bottom: 3px;
+    }
+    
+    .detail-value {
+      font-size: 15px;
+      font-weight: 500;
+    }
+    
+    .detail-image-gallery {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    
+    .detail-image-item {
+      width: 150px;
+      height: 150px;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      transition: transform 0.2s;
+      cursor: pointer;
+    }
+    
+    .detail-image-item:hover {
+      transform: scale(1.05);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .detail-image-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .timeline {
+      position: relative;
+      margin-left: 20px;
+      padding-left: 20px;
+      border-left: 2px solid var(--border-color);
+    }
+    
+    .timeline-item {
+      position: relative;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+    }
+    
+    .timeline-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .timeline-dot {
+      position: absolute;
+      left: -31px;
+      top: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background-color: var(--primary-color);
+      border: 3px solid white;
+    }
+    
+    .timeline-dot.completed {
+      background-color: var(--accent-color);
+    }
+    
+    .timeline-content {
+      background-color: #f9f9f9;
+      padding: 15px;
+      border-radius: 4px;
+      margin-top: -5px;
+    }
+    
+    .timeline-title {
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    
+    .timeline-date {
+      font-size: 12px;
+      color: var(--text-light);
+    }
+    
+    .timeline-description {
+      font-size: 14px;
+      margin-top: 5px;
+    }
+
+    #imageModal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.9);
+      z-index: 1100;
+      padding: 20px;
+    }
+    
+    #modalImage {
+      display: block;
+      max-width: 90%;
+      max-height: 90%;
+      margin: 40px auto;
+      object-fit: contain;
+    }
+    
+    #closeModal {
+      position: absolute;
+      top: 15px;
+      right: 25px;
+      color: white;
+      font-size: 30px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 20px 0;
+      color: var(--text-light);
+      font-size: 13px;
+      margin-top: 30px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .developer-credit {
+      font-size: 12px;
+      color: var(--text-light);
+      margin-top: 5px;
+    }
+
+    /* Responsividade */
+    @media (max-width: 768px) {
+      .grid-container {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-cards {
+        flex-direction: column;
+      }
+
+      .card {
+        flex: 1 1 100%;
+        min-width: 100%;
+      }
+
+      .form-row {
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .form-steps {
+        overflow-x: auto;
+        padding-bottom: 10px;
+      }
+
+      .step-label {
+        font-size: 11px;
+      }
+
+      .btn-new {
+        width: 50px;
+        height: 50px;
+        line-height: 50px;
+        font-size: 20px;
+        bottom: 20px;
+        right: 20px;
+      }
+
+      .section {
+        padding: 15px;
+      }
+
+      .form-container {
+        width: 95%;
+        padding: 15px;
+      }
+      
+      .detail-image-item {
+        width: 120px;
+        height: 120px;
+      }
+    }
+
+    @media (min-width: 769px) and (max-width: 1024px) {
+      .grid-container {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .card {
+        flex: 1 1 calc(50% - 15px);
+      }
+    }
+
+    @media (min-width: 1025px) {
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      .chart-container {
+        height: 350px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="company-branding">
+        <a href="#" class="company-logo">GrupoGPS - Mecanizada</a>
+        <span class="notification-badge">Manutenção</span>
+      </div>
+      <h1>Sistema de Dupla Checagem de Manutenção</h1>
+      <p>Registro, verificação e controle de manutenções</p>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="dashboard">Dashboard</div>
+      <div class="tab" data-tab="maintenance">Manutenções</div>
+      <div class="tab" data-tab="verification">Verificações</div>
+      <div class="tab" data-tab="reports">Relatórios</div>
+    </div>
+
+    <!-- Dashboard Tab -->
+    <div class="tab-content active" id="tab-dashboard">
+      <div class="dashboard-header">
+        <h2>Visão Geral</h2>
+        <div class="date-filter">
+          <label for="period-filter">Período:</label>
+          <select id="period-filter">
+            <option value="all">Todos</option>
+            <option value="current-month" selected>Mês Atual</option>
+            <option value="last-month">Mês Anterior</option>
+            <option value="last-3-months">Últimos 3 Meses</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Resumo em cards -->
+      <div class="summary-cards">
+        <div class="card">
+          <div class="card-title">
+            <i class="icon">🔧</i>
+            Total de Manutenções
+          </div>
+          <div class="card-value" id="total-maintenance">0</div>
+          <div class="card-footer">
+            <span>Período selecionado</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <i class="icon">⌛</i>
+            Aguardando Verificação
+          </div>
+          <div class="card-value" id="pending-verification">0</div>
+          <div class="card-footer">
+            <span>Precisa de atenção</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <i class="icon">✅</i>
+            Verificações Concluídas
+          </div>
+          <div class="card-value" id="completed-verifications">0</div>
+          <div class="card-footer">
+            <span>Período atual</span>
+            <span class="card-trend trend-up" id="verification-trend">+0.0%</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <i class="icon">⚠️</i>
+            Manutenções Críticas
+          </div>
+          <div class="card-value" id="critical-maintenance">0</div>
+          <div class="card-footer">
+            <span>Atenção necessária</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gráficos -->
+      <div class="grid-container">
+        <div class="section">
+          <h3 class="section-title">
+            Manutenções por Tipo
+            <div class="section-actions">
+              <button class="btn-icon" id="refresh-type-chart" title="Atualizar">↻</button>
+            </div>
+          </h3>
+          <div class="chart-container">
+            <canvas id="maintenance-type-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">
+            Status das Manutenções
+            <div class="section-actions">
+              <button class="btn-icon" id="refresh-status-chart" title="Atualizar">↻</button>
+            </div>
+          </h3>
+          <div class="chart-container">
+            <canvas id="maintenance-status-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Equipamentos com mais manutenções -->
+      <div class="section">
+        <h3 class="section-title">
+          Equipamentos com Mais Manutenções
+          <div class="section-actions">
+            <button class="btn-icon" id="refresh-equipment-ranking" title="Atualizar">↻</button>
+          </div>
+        </h3>
+        <div class="table-responsive">
+          <table id="equipment-ranking-table">
+            <thead>
+              <tr>
+                <th>Equipamento</th>
+                <th>Tipo</th>
+                <th>Total Manutenções</th>
+                <th>Última Manutenção</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="equipment-ranking-tbody">
+              <!-- Dados serão preenchidos via JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Manutenções Recentes -->
+      <div class="section">
+        <h3 class="section-title">Manutenções Recentes</h3>
+        <div class="table-responsive">
+          <table id="recent-maintenance-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Equipamento</th>
+                <th>Tipo</th>
+                <th>Data Registro</th>
+                <th>Técnico</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="recent-maintenance-tbody">
+              <!-- Dados serão preenchidos via JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manutenções Tab -->
+    <div class="tab-content" id="tab-maintenance">
+      <div class="section">
+        <div class="search-container">
+          <input type="text" class="search-input" id="maintenance-search" placeholder="Buscar por ID, equipamento, técnico...">
+        </div>
+
+        <div class="filter-container">
+          <div class="filter-item active" data-filter="all">Todos</div>
+          <div class="filter-item" data-filter="pending">Aguardando Verificação</div>
+          <div class="filter-item" data-filter="verified">Verificados</div>
+          <div class="filter-item" data-filter="completed">Concluídos</div>
+        </div>
+
+        <h3 class="section-title">
+          Lista de Manutenções
+          <div class="section-actions">
+            <button class="btn-icon" id="refresh-maintenance-list" title="Atualizar">↻</button>
+          </div>
+        </h3>
+
+        <div class="table-responsive">
+          <table id="maintenance-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Equipamento</th>
+                <th>Tipo</th>
+                <th>Data Registro</th>
+                <th>Técnico</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="maintenance-tbody">
+              <!-- Dados serão preenchidos via JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Verificações Tab -->
+    <div class="tab-content" id="tab-verification">
+      <div class="section">
+        <div class="search-container">
+          <input type="text" class="search-input" id="verification-search" placeholder="Buscar por ID, equipamento, técnico...">
+        </div>
+
+        <div class="filter-container">
+          <div class="filter-item active" data-filter="all">Todos</div>
+          <div class="filter-item" data-filter="pending">Aguardando Verificação</div>
+          <div class="filter-item" data-filter="verified">Verificados Hoje</div>
+          <div class="filter-item" data-filter="completed">Concluídos</div>
+        </div>
+
+        <h3 class="section-title">
+          Verificações Pendentes
+          <div class="section-actions">
+            <button class="btn-icon" id="refresh-verification-list" title="Atualizar">↻</button>
+          </div>
+        </h3>
+
+        <div class="table-responsive">
+          <table id="verification-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Equipamento</th>
+                <th>Tipo</th>
+                <th>Data Manutenção</th>
+                <th>Técnico</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="verification-tbody">
+              <!-- Dados serão preenchidos via JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Relatórios Tab -->
+    <div class="tab-content" id="tab-reports">
+      <div class="section">
+        <h3 class="section-title">Relatórios por Período</h3>
+        <div class="form-row">
+          <div class="form-col">
+            <div class="form-group">
+              <label for="report-start-date">Data Inicial</label>
+              <input type="date" class="form-control" id="report-start-date">
+            </div>
+          </div>
+          <div class="form-col">
+            <div class="form-group">
+              <label for="report-end-date">Data Final</label>
+              <input type="date" class="form-control" id="report-end-date">
+            </div>
+          </div>
+          <div class="form-col" style="display: flex; align-items: flex-end;">
+            <button class="btn" id="generate-report">Gerar Relatório</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3 class="section-title">Análise por Tipo de Problema</h3>
+        <div class="chart-container">
+          <canvas id="problem-type-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3 class="section-title">Tempo Médio de Resolução</h3>
+        <div class="chart-container">
+          <canvas id="resolution-time-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3 class="section-title">Exportar Dados</h3>
+        <div class="btn-action-group">
+          <button class="btn" id="export-excel">Exportar para Excel</button>
+          <button class="btn" id="export-pdf">Exportar para PDF</button>
+          <button class="btn" id="print-report">Imprimir Relatório</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Formulário de Nova Manutenção -->
+    <div class="form-overlay" id="maintenance-form-overlay">
+      <div class="form-container">
+        <div class="form-header">
+          <h2 class="form-title">Registrar Nova Manutenção</h2>
+          <button class="form-close" id="close-maintenance-form">&times;</button>
+        </div>
+
+        <div class="form-steps">
+          <div class="form-step active" data-step="1">
+            <div class="step-number">1</div>
+            <div class="step-label">Informações</div>
+          </div>
+          <div class="form-step" data-step="2">
+            <div class="step-number">2</div>
+            <div class="step-label">Problema</div>
+          </div>
+          <div class="form-step" data-step="3">
+            <div class="step-number">3</div>
+            <div class="step-label">Fotos</div>
+          </div>
+        </div>
+
+        <form id="maintenance-form">
+          <!-- Etapa 1: Informações Básicas -->
+          <div class="form-step-content" id="step-1-content">
+            <div class="form-row">
+              <div class="form-col">
+                <div class="form-group">
+                  <label for="equipment-id">ID do Equipamento <span class="form-required">*</span></label>
+                  <input type="text" class="form-control" id="equipment-id" name="equipment-id" required>
+                </div>
+              </div>
+              <div class="form-col">
+                <div class="form-group">
+                  <label for="equipment-type">Tipo de Equipamento <span class="form-required">*</span></label>
+                  <select class="form-control" id="equipment-type" name="equipment-type" required>
+                    <option value="">Selecione o tipo</option>
+                    <option value="Caminhão">Caminhão</option>
+                    <option value="Trator">Trator</option>
+                    <option value="Escavadeira">Escavadeira</option>
+                    <option value="Retroescavadeira">Retroescavadeira</option>
+                    <option value="Carregadeira">Carregadeira</option>
+                    <option value="Outro">Outro</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-col">
+                <div class="form-group">
+                  <label for="technician-name">Nome do Técnico <span class="form-required">*</span></label>
+                  <input type="text" class="form-control" id="technician-name" name="technician-name" required>
+                </div>
+              </div>
+              <div class="form-col">
+                <div class="form-group">
+                  <label for="maintenance-date">Data da Manutenção <span class="form-required">*</span></label>
+                  <input type="date" class="form-control" id="maintenance-date" name="maintenance-date" required>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="location">Local da Manutenção <span class="form-required">*</span></label>
+              <input type="text" class="form-control" id="location" name="location" required>
+            </div>
+
+            <div class="form-group">
+              <label for="maintenance-type">Tipo de Manutenção <span class="form-required">*</span></label>
+              <select class="form-control" id="maintenance-type" name="maintenance-type" required>
+                <option value="">Selecione o tipo</option>
+                <option value="Preventiva">Preventiva</option>
+                <option value="Corretiva">Corretiva</option>
+                <option value="Emergencial">Emergencial</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <div class="form-check">
+                <input type="checkbox" id="is-critical" name="is-critical">
+                <label for="is-critical">Manutenção Crítica (requer atenção imediata)</label>
+              </div>
+            </div>
+
+            <div class="form-navigation">
+              <button type="button" class="btn" id="cancel-maintenance">Cancelar</button>
+              <button type="button" class="btn btn-success" id="next-to-step-2">Próximo</button>
+            </div>
+          </div>
+
+          <!-- Etapa 2: Problema e Solução -->
+          <div class="form-step-content" id="step-2-content" style="display: none;">
+            <div class="form-group">
+              <label for="problem-category">Categoria do Problema <span class="form-required">*</span></label>
+              <select class="form-control" id="problem-category" name="problem-category" required>
+                <option value="">Selecione a categoria</option>
+                <option value="Motor">Motor</option>
+                <option value="Transmissão">Transmissão</option>
+                <option value="Sistema Hidráulico">Sistema Hidráulico</option>
+                <option value="Sistema Elétrico">Sistema Elétrico</option>
+                <option value="Freios">Freios</option>
+                <option value="Suspensão">Suspensão</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="problem-description">Descrição do Problema <span class="form-required">*</span></label>
+              <textarea class="form-control" id="problem-description" name="problem-description" rows="3" required></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="solution-description">Descrição da Solução Aplicada <span class="form-required">*</span></label>
+              <textarea class="form-control" id="solution-description" name="solution-description" rows="3" required></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="parts-replaced">Peças Substituídas</label>
+              <textarea class="form-control" id="parts-replaced" name="parts-replaced" rows="2"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="additional-notes">Observações Adicionais</label>
+              <textarea class="form-control" id="additional-notes" name="additional-notes" rows="2"></textarea>
+            </div>
+
+            <div class="form-navigation">
+              <button type="button" class="btn" id="back-to-step-1">Voltar</button>
+              <button type="button" class="btn btn-success" id="next-to-step-3">Próximo</button>
+            </div>
+          </div>
+
+          <!-- Etapa 3: Fotos e Evidências -->
+          <div class="form-step-content" id="step-3-content" style="display: none;">
+            <div class="form-group">
+              <label>Fotos do Problema e Solução <span class="form-required">*</span></label>
+              
+              <div class="camera-container">
+                <div class="camera-preview" id="camera-preview">
+                  <video id="camera-stream" autoplay playsinline style="display:none;"></video>
+                  <img id="captured-image" style="display:none;">
+                  <div id="camera-placeholder" style="display:flex; height:100%; align-items:center; justify-content:center; background:#eee;">
+                    <span>Clique em "Abrir Câmera" para capturar imagens</span>
+                  </div>
+                </div>
+                
+                <div class="camera-buttons">
+                  <button type="button" class="btn camera-button" id="open-camera">Abrir Câmera</button>
+                  <button type="button" class="btn camera-button" id="take-photo" disabled>Tirar Foto</button>
+                  <button type="button" class="btn camera-button" id="upload-photo">Carregar Foto</button>
+                  <input type="file" id="photo-upload" accept="image/*" style="display:none;">
+                </div>
+              </div>
+              
+              <div class="image-gallery" id="image-gallery">
+                <!-- Imagens capturadas serão exibidas aqui -->
+              </div>
+              
+              <div id="photo-warning" class="form-required" style="display:none; margin-top:5px;">
+                É necessário adicionar pelo menos uma foto
+              </div>
+            </div>
+
+            <div class="form-navigation">
+              <button type="button" class="btn" id="back-to-step-2">Voltar</button>
+              <button type="submit" class="btn btn-success" id="submit-maintenance">Finalizar Registro</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Formulário de Verificação de Manutenção -->
+    <div class="form-overlay" id="verification-form-overlay">
+      <div class="form-container">
+        <div class="form-header">
+          <h2 class="form-title">Verificação de Manutenção</h2>
+          <button class="form-close" id="close-verification-form">&times;</button>
+        </div>
+
+        <form id="verification-form">
+          <div class="form-group">
+            <label for="verification-id">ID da Manutenção</label>
+            <input type="text" class="form-control" id="verification-id" name="verification-id" readonly>
+          </div>
+
+          <div class="form-row">
+            <div class="form-col">
+              <div class="form-group">
+                <label for="verification-equipment">Equipamento</label>
+                <input type="text" class="form-control" id="verification-equipment" readonly>
+              </div>
+            </div>
+            <div class="form-col">
+              <div class="form-group">
+                <label for="verification-type">Tipo de Manutenção</label>
+                <input type="text" class="form-control" id="verification-type" readonly>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="verifier-name">Nome do Verificador <span class="form-required">*</span></label>
+            <input type="text" class="form-control" id="verifier-name" name="verifier-name" required>
+          </div>
+
+          <div class="form-group">
+            <label>Resultado da Verificação <span class="form-required">*</span></label>
+            <div class="form-check">
+              <input type="radio" id="verification-approved" name="verification-result" value="Aprovado" required>
+              <label for="verification-approved">Aprovado - Manutenção Correta</label>
+            </div>
+            <div class="form-check">
+              <input type="radio" id="verification-adjustments" name="verification-result" value="Ajustes" required>
+              <label for="verification-adjustments">Necessita Ajustes Menores</label>
+            </div>
+            <div class="form-check">
+              <input type="radio" id="verification-rejected" name="verification-result" value="Reprovado" required>
+              <label for="verification-rejected">Reprovado - Precisa de Nova Manutenção</label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="verification-comments">Comentários da Verificação <span class="form-required">*</span></label>
+            <textarea class="form-control" id="verification-comments" name="verification-comments" rows="3" required></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Fotos da Verificação</label>
+            
+            <div class="camera-container">
+              <div class="camera-preview" id="verification-camera-preview">
+                <video id="verification-camera-stream" autoplay playsinline style="display:none;"></video>
+                <img id="verification-captured-image" style="display:none;">
+                <div id="verification-camera-placeholder" style="display:flex; height:100%; align-items:center; justify-content:center; background:#eee;">
+                  <span>Clique em "Abrir Câmera" para capturar imagens</span>
+                </div>
+              </div>
+              
+              <div class="camera-buttons">
+                <button type="button" class="btn camera-button" id="verification-open-camera">Abrir Câmera</button>
+                <button type="button" class="btn camera-button" id="verification-take-photo" disabled>Tirar Foto</button>
+                <button type="button" class="btn camera-button" id="verification-upload-photo">Carregar Foto</button>
+                <input type="file" id="verification-photo-upload" accept="image/*" style="display:none;">
+              </div>
+            </div>
+            
+            <div class="image-gallery" id="verification-image-gallery">
+              <!-- Imagens capturadas serão exibidas aqui -->
+            </div>
+          </div>
+
+          <div class="form-navigation">
+            <button type="button" class="btn" id="cancel-verification">Cancelar</button>
+            <button type="submit" class="btn btn-success" id="submit-verification">Finalizar Verificação</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Detalhes da Manutenção -->
+    <div class="form-overlay" id="detail-overlay">
+      <div class="form-container">
+        <div class="form-header">
+          <h2 class="form-title">Detalhes da Manutenção</h2>
+          <button class="form-close" id="close-detail">&times;</button>
+        </div>
+        
+        <div class="maintenance-detail" id="maintenance-detail-content">
+          <!-- Conteúdo será preenchido via JavaScript -->
+        </div>
+        
+        <div class="form-navigation">
+          <button class="btn" id="close-detail-btn">Fechar</button>
+          <button class="btn btn-success" id="verify-maintenance-btn">Verificar Manutenção</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal para visualizar imagens -->
+    <div id="imageModal">
+      <span id="closeModal">&times;</span>
+      <img id="modalImage">
+    </div>
+
+    <!-- Botão de Nova Manutenção -->
+    <div class="btn-new" id="new-maintenance">+</div>
+
+    <div class="footer">
+      <p>Sistema de Dupla Checagem de Manutenção © 2025 | Última atualização: <span id="last-update">Carregando...</span></p>
+      <p class="developer-credit">Desenvolvido por Warlison Abreu</p>
+    </div>
+  </div>
+
+  <script>
+    // Configuração da URL da API (URL do seu Google Script Web App publicado)
+    const API_URL = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID_HERE/exec'; // SUBSTITUA PELO SEU ID
+
+    // Variáveis globais
+    let dashboardData = null;
+    let maintenanceList = [];
+    let capturedImages = [];
+    let verificationImages = [];
+    let currentTab = 'dashboard';
+    let currentMaintenanceFilter = 'all';
+    let currentVerificationFilter = 'all';
+    let searchTerm = '';
+    let charts = {};
+    let cameraStream = null;
+    let verificationCameraStream = null;
+    let selectedMaintenanceId = null;
+
+    // Document ready
+    document.addEventListener('DOMContentLoaded', function() {
+      // Inicializar o sistema
+      setupEventListeners();
+      loadDashboardData();
+
+      // Define a data de hoje como padrão nos campos de data
+      const today = new Date();
+      document.getElementById('maintenance-date').valueAsDate = today;
+      document.getElementById('report-start-date').valueAsDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      document.getElementById('report-end-date').valueAsDate = today;
+
+      document.getElementById('last-update').textContent = formatDate(today, true);
+    });
+
+    // Função para chamar a API via JSONP
+    function callAPI(action, data = {}) {
+      return new Promise((resolve, reject) => {
+        try {
+          // Nome único para a função de callback
+          const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+
+          // Criar uma função global que será chamada pelo script
+          window[callbackName] = function(response) {
+            // Remover o script após execução
+            if (script && script.parentNode) {
+              script.parentNode.removeChild(script);
+            }
+
+            // Limpar o callback global
+            delete window[callbackName];
+
+            // Resolver a promessa com os dados
+            resolve(response);
+          };
+
+          // Converter dados para string
+          const dataStr = JSON.stringify(data);
+
+          // Construir URL com parâmetros
+          const url = `${API_URL}?action=${action}&data=${encodeURIComponent(dataStr)}&callback=${callbackName}&nocache=${Date.now()}`;
+
+          // Criar elemento de script
+          const script = document.createElement('script');
+          script.src = url;
+
+          // Lidar com erros
+          script.onerror = () => {
+            // Remover o script
+            if (script.parentNode) {
+              script.parentNode.removeChild(script);
+            }
+
+            // Limpar o callback
+            delete window[callbackName];
+
+            // Rejeitar a promessa
+            reject(new Error('Falha na requisição JSONP'));
+          };
+
+          // Definir um timeout para evitar solicitações penduradas
+          const timeoutId = setTimeout(() => {
+            if (script && script.parentNode) {
+              script.parentNode.removeChild(script);
+            }
+            delete window[callbackName];
+            reject(new Error('Timeout na requisição JSONP'));
+          }, 30000); // 30 segundos
+
+          // Substituir o handler de sucesso para limpar o timeout
+          const originalCallback = window[callbackName];
+          window[callbackName] = function(response) {
+            clearTimeout(timeoutId);
+            originalCallback(response);
+          };
+
+          // Adicionar o script ao documento para iniciar a solicitação
+          document.body.appendChild(script);
+
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }
+
+    // Configurar event listeners
+    function setupEventListeners() {
+      // Navegação por tabs
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+          this.classList.add('active');
+          currentTab = this.getAttribute('data-tab');
+          document.getElementById(`tab-${currentTab}`).classList.add('active');
+
+          // Atualizar conteúdo da tab selecionada
+          if (currentTab === 'maintenance') {
+            updateMaintenanceList();
+          } else if (currentTab === 'verification') {
+            updateVerificationList();
+          } else if (currentTab === 'reports') {
+            updateReportsCharts();
+          }
+        });
+      });
+
+      // Filtros de manutenções
+      document.querySelectorAll('.filter-item').forEach(filter => {
+        filter.addEventListener('click', function() {
+          const parentTab = this.closest('.tab-content').id;
+          
+          const filterItems = this.parentElement.querySelectorAll('.filter-item');
+          filterItems.forEach(f => f.classList.remove('active'));
+          this.classList.add('active');
+
+          const filterValue = this.getAttribute('data-filter');
+          
+          if (parentTab === 'tab-maintenance') {
+            currentMaintenanceFilter = filterValue;
+            updateMaintenanceList();
+          } else if (parentTab === 'tab-verification') {
+            currentVerificationFilter = filterValue;
+            updateVerificationList();
+          }
+        });
+      });
+
+      // Busca de manutenções
+      document.getElementById('maintenance-search').addEventListener('input', function() {
+        searchTerm = this.value;
+        updateMaintenanceList();
+      });
+
+      // Busca de verificações
+      document.getElementById('verification-search').addEventListener('input', function() {
+        searchTerm = this.value;
+        updateVerificationList();
+      });
+
+      // Filtro de período
+      document.getElementById('period-filter').addEventListener('change', function() {
+        loadDashboardData();
+      });
+
+      // Botões de refresh
+      document.getElementById('refresh-type-chart').addEventListener('click', function() {
+        renderMaintenanceTypeChart();
+      });
+
+      document.getElementById('refresh-status-chart').addEventListener('click', function() {
+        renderMaintenanceStatusChart();
+      });
+
+      document.getElementById('refresh-equipment-ranking').addEventListener('click', function() {
+        updateEquipmentRanking();
+      });
+
+      document.getElementById('refresh-maintenance-list').addEventListener('click', function() {
+        loadMaintenanceData();
+      });
+
+      document.getElementById('refresh-verification-list').addEventListener('click', function() {
+        loadVerificationData();
+      });
+
+      // Botões de exportação
+      document.getElementById('export-excel').addEventListener('click', function() {
+        exportData('excel');
+      });
+
+      document.getElementById('export-pdf').addEventListener('click', function() {
+        exportData('pdf');
+      });
+
+      document.getElementById('print-report').addEventListener('click', function() {
+        window.print();
+      });
+
+      // Geração de relatório
+      document.getElementById('generate-report').addEventListener('click', function() {
+        generateReport();
+      });
+
+      // Botão de nova manutenção
+      document.getElementById('new-maintenance').addEventListener('click', function() {
+        openMaintenanceForm();
+      });
+
+      // Fechar formulários
+      document.getElementById('close-maintenance-form').addEventListener('click', function() {
+        closeMaintenanceForm();
+      });
+
+      document.getElementById('close-verification-form').addEventListener('click', function() {
+        closeVerificationForm();
+      });
+
+      document.getElementById('close-detail').addEventListener('click', function() {
+        document.getElementById('detail-overlay').style.display = 'none';
+        stopAllCameraStreams();
+      });
+
+      document.getElementById('close-detail-btn').addEventListener('click', function() {
+        document.getElementById('detail-overlay').style.display = 'none';
+        stopAllCameraStreams();
+      });
+
+      // Modal de imagem
+      document.getElementById('closeModal').addEventListener('click', function() {
+        document.getElementById('imageModal').style.display = 'none';
+      });
+
+      // Fechar formulários clicando fora deles
+      document.getElementById('maintenance-form-overlay').addEventListener('click', function(e) {
+        if (e.target === this) {
+          if (confirm('Tem certeza que deseja cancelar o registro? Os dados não serão salvos.')) {
+            closeMaintenanceForm();
+          }
+        }
+      });
+
+      document.getElementById('verification-form-overlay').addEventListener('click', function(e) {
+        if (e.target === this) {
+          if (confirm('Tem certeza que deseja cancelar a verificação? Os dados não serão salvos.')) {
+            closeVerificationForm();
+          }
+        }
+      });
+
+      document.getElementById('detail-overlay').addEventListener('click', function(e) {
+        if (e.target === this) {
+          document.getElementById('detail-overlay').style.display = 'none';
+          stopAllCameraStreams();
+        }
+      });
+
+      // Navegação no formulário de manutenção
+      document.getElementById('next-to-step-2').addEventListener('click', function() {
+        const equipmentId = document.getElementById('equipment-id').value;
+        const equipmentType = document.getElementById('equipment-type').value;
+        const technicianName = document.getElementById('technician-name').value;
+        const maintenanceDate = document.getElementById('maintenance-date').value;
+        const location = document.getElementById('location').value;
+        const maintenanceType = document.getElementById('maintenance-type').value;
+
+        if (!equipmentId || !equipmentType || !technicianName || !maintenanceDate || !location || !maintenanceType) {
+          showNotification('Por favor, preencha todos os campos obrigatórios.', 'error');
+          return;
+        }
+
+        // Avançar para a próxima etapa
+        goToFormStep('maintenance', 2);
+      });
+
+      document.getElementById('back-to-step-1').addEventListener('click', function() {
+        goToFormStep('maintenance', 1);
+      });
+
+      document.getElementById('next-to-step-3').addEventListener('click', function() {
+        const problemCategory = document.getElementById('problem-category').value;
+        const problemDescription = document.getElementById('problem-description').value;
+        const solutionDescription = document.getElementById('solution-description').value;
+
+        if (!problemCategory || !problemDescription || !solutionDescription) {
+          showNotification('Por favor, preencha todos os campos obrigatórios.', 'error');
+          return;
+        }
+
+        // Avançar para a próxima etapa
+        goToFormStep('maintenance', 3);
+      });
+
+      document.getElementById('back-to-step-2').addEventListener('click', function() {
+        goToFormStep('maintenance', 2);
+      });
+
+      // Cancelar formulários
+      document.getElementById('cancel-maintenance').addEventListener('click', function() {
+        if (confirm('Tem certeza que deseja cancelar o registro? Os dados não serão salvos.')) {
+          closeMaintenanceForm();
+        }
+      });
+
+      document.getElementById('cancel-verification').addEventListener('click', function() {
+        if (confirm('Tem certeza que deseja cancelar a verificação? Os dados não serão salvos.')) {
+          closeVerificationForm();
+        }
+      });
+
+      // Envio dos formulários
+      document.getElementById('maintenance-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Verificar se pelo menos uma foto foi capturada
+        if (capturedImages.length === 0) {
+          document.getElementById('photo-warning').style.display = 'block';
+          showNotification('Por favor, adicione pelo menos uma foto.', 'error');
+          return;
+        }
+        
+        submitMaintenance();
+      });
+
+      document.getElementById('verification-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        submitVerification();
+      });
+
+      // Funcionalidades da câmera para manutenção
+      document.getElementById('open-camera').addEventListener('click', function() {
+        openCamera('camera-stream', 'camera-placeholder');
+      });
+
+      document.getElementById('take-photo').addEventListener('click', function() {
+        takePhoto('camera-stream', 'captured-image');
+      });
+
+      document.getElementById('upload-photo').addEventListener('click', function() {
+        document.getElementById('photo-upload').click();
+      });
+
+      document.getElementById('photo-upload').addEventListener('change', function(e) {
+        handleFileUpload(e, 'captured-image');
+      });
+
+      // Funcionalidades da câmera para verificação
+      document.getElementById('verification-open-camera').addEventListener('click', function() {
+        openCamera('verification-camera-stream', 'verification-camera-placeholder');
+      });
+
+      document.getElementById('verification-take-photo').addEventListener('click', function() {
+        takePhoto('verification-camera-stream', 'verification-captured-image');
+      });
+
+      document.getElementById('verification-upload-photo').addEventListener('click', function() {
+        document.getElementById('verification-photo-upload').click();
+      });
+
+      document.getElementById('verification-photo-upload').addEventListener('change', function(e) {
+        handleFileUpload(e, 'verification-captured-image');
+      });
+
+      // Botão para verificar manutenção a partir dos detalhes
+      document.getElementById('verify-maintenance-btn').addEventListener('click', function() {
+        if (selectedMaintenanceId) {
+          openVerificationForm(selectedMaintenanceId);
+          document.getElementById('detail-overlay').style.display = 'none';
+        }
+      });
+    }
+
+    // Carregar dados do dashboard
+    function loadDashboardData() {
+      showLoading(true);
+
+      const period = document.getElementById('period-filter').value;
+
+      callAPI('getDashboardData', { period: period })
+        .then(data => {
+          dashboardData = data;
+          updateDashboard();
+          loadMaintenanceData();
+          loadVerificationData();
+          showLoading(false);
+        })
+        .catch(error => {
+          showNotification('Erro ao carregar dados: ' + error.message, 'error');
+          showLoading(false);
+        });
+    }
+
+    // Carregar dados de manutenções
+    function loadMaintenanceData() {
+      callAPI('getMaintenanceList')
+        .then(data => {
+          maintenanceList = data.maintenances || [];
+          updateMaintenanceList();
+          updateRecentMaintenanceTable();
+        })
+        .catch(error => {
+          showNotification('Erro ao carregar manutenções: ' + error.message, 'error');
+        });
+    }
+
+    // Carregar dados de verificações
+    function loadVerificationData() {
+      callAPI('getVerificationList')
+        .then(data => {
+          // Atualizar a lista de verificações pendentes
+          updateVerificationList();
+        })
+        .catch(error => {
+          showNotification('Erro ao carregar verificações: ' + error.message, 'error');
+        });
+    }
+
+    // Atualizar o dashboard com os dados carregados
+    function updateDashboard() {
+      if (!dashboardData) return;
+
+      // Verificar se há erro nos dados
+      if (dashboardData.error) {
+        showNotification(dashboardData.error, 'error');
+        return;
+      }
+
+      // Atualizar cards de resumo
+      updateSummaryCards();
+
+      // Atualizar tabelas
+      updateEquipmentRanking();
+
+      // Renderizar gráficos
+      renderCharts();
+    }
+
+    // Atualizar cards de resumo
+    function updateSummaryCards() {
+      const summary = dashboardData.summary || {};
+
+      document.getElementById('total-maintenance').textContent = summary.totalMaintenance || 0;
+      document.getElementById('pending-verification').textContent = summary.pendingVerification || 0;
+      document.getElementById('completed-verifications').textContent = summary.completedVerifications || 0;
+      document.getElementById('critical-maintenance').textContent = summary.criticalMaintenance || 0;
+
+      // Calcular tendência
+      const trend = summary.verificationTrend || 0;
+      const trendElement = document.getElementById('verification-trend');
+      trendElement.textContent = trend >= 0 ? `+${trend.toFixed(1)}%` : `${trend.toFixed(1)}%`;
+      trendElement.className = 'card-trend ' + (trend >= 0 ? 'trend-up' : 'trend-down');
+    }
+
+    // Atualizar ranking de equipamentos
+    function updateEquipmentRanking() {
+      const tbody = document.getElementById('equipment-ranking-tbody');
+      tbody.innerHTML = '';
+
+      if (!dashboardData.equipmentRanking || dashboardData.equipmentRanking.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="5" class="text-center">Nenhum dado de equipamento encontrado</td>';
+        tbody.appendChild(row);
+        return;
+      }
+
+      dashboardData.equipmentRanking.forEach(equipment => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${equipment.id || '-'}</td>
+          <td>${equipment.type || '-'}</td>
+          <td>${equipment.maintenanceCount || 0}</td>
+          <td>${formatDate(equipment.lastMaintenance)}</td>
+          <td><span class="status-badge status-${getStatusClass(equipment.status)}">${equipment.status || '-'}</span></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // Atualizar tabela de manutenções recentes
+    function updateRecentMaintenanceTable() {
+      const tbody = document.getElementById('recent-maintenance-tbody');
+      tbody.innerHTML = '';
+
+      if (!maintenanceList || maintenanceList.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="7" class="text-center">Nenhuma manutenção encontrada</td>';
+        tbody.appendChild(row);
+        return;
+      }
+
+      // Limitar a 5 manutenções mais recentes
+      const recentMaintenances = [...maintenanceList]
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .slice(0, 5);
+
+      recentMaintenances.forEach(maintenance => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${maintenance.id || '-'}</td>
+          <td>${maintenance.equipmentId || '-'}</td>
+          <td>${maintenance.type || '-'}</td>
+          <td>${formatDate(maintenance.date)}</td>
+          <td>${maintenance.technician || '-'}</td>
+          <td><span class="status-badge status-${getStatusClass(maintenance.status)}">${maintenance.status || '-'}</span></td>
+          <td>
+            <button class="btn-icon view-maintenance" data-id="${maintenance.id}" title="Ver detalhes">👁️</button>
+            ${maintenance.status === 'Pendente' ? `<button class="btn-icon verify-maintenance" data-id="${maintenance.id}" title="Verificar">✓</button>` : ''}
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      // Adicionar event listeners para os botões de ação
+      addMaintenanceActionListeners();
+    }
+
+    // Atualizar lista de manutenções
+    function updateMaintenanceList() {
+      const tbody = document.getElementById('maintenance-tbody');
+      tbody.innerHTML = '';
+
+      if (!maintenanceList || maintenanceList.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="7" class="text-center">Nenhuma manutenção encontrada</td>';
+        tbody.appendChild(row);
+        return;
+      }
+
+      // Filtrar e buscar manutenções
+      const filteredMaintenances = filterMaintenances(maintenanceList, currentMaintenanceFilter, searchTerm);
+
+      if (filteredMaintenances.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="7" class="text-center">Nenhuma manutenção encontrada com os critérios selecionados</td>';
+        tbody.appendChild(row);
+        return;
+      }
+
+      filteredMaintenances.forEach(maintenance => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${maintenance.id || '-'}</td>
+          <td>${maintenance.equipmentId || '-'}</td>
+          <td>${maintenance.type || '-'}</td>
+          <td>${formatDate(maintenance.date)}</td>
+          <td>${maintenance.technician || '-'}</td>
+          <td><span class="status-badge status-${getStatusClass(maintenance.status)}">${maintenance.status || '-'}</span></td>
+          <td>
+            <button class="btn-icon view-maintenance" data-id="${maintenance.id}" title="Ver detalhes">👁️</button>
+            ${maintenance.status === 'Pendente' ? `<button class="btn-icon verify-maintenance" data-id="${maintenance.id}" title="Verificar">✓</button>` : ''}
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      // Adicionar event listeners para os botões de ação
+      addMaintenanceActionListeners();
+    }
+
+    // Adicionar event listeners para os botões de ação das manutenções
+    function addMaintenanceActionListeners() {
+      document.querySelectorAll('.view-maintenance').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const maintenanceId = this.getAttribute('data-id');
+          viewMaintenanceDetails(maintenanceId);
+        });
+      });
+
+      document.querySelectorAll('.verify-maintenance').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const maintenanceId = this.getAttribute('data-id');
+          openVerificationForm(maintenanceId);
+        });
+      });
+    }
+
+    // Atualizar lista de verificações
+    function updateVerificationList() {
+      const tbody = document.getElementById('verification-tbody');
+      tbody.innerHTML = '';
+
+      if (!maintenanceList || maintenanceList.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="7" class="text-center">Nenhuma verificação pendente encontrada</td>';
+        tbody.appendChild(row);
+        return;
+      }
+
+      // Filtrar manutenções que precisam de verificação
+      const pendingVerifications = filterVerifications(maintenanceList, currentVerificationFilter, searchTerm);
+
+      if (pendingVerifications.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="7" class="text-center">Nenhuma verificação pendente encontrada com os critérios selecionados</td>';
+        tbody.appendChild(row);
+        return;
+      }
+
+      pendingVerifications.forEach(maintenance => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${maintenance.id || '-'}</td>
+          <td>${maintenance.equipmentId || '-'}</td>
+          <td>${maintenance.type || '-'}</td>
+          <td>${formatDate(maintenance.date)}</td>
+          <td>${maintenance.technician || '-'}</td>
+          <td><span class="status-badge status-${getStatusClass(maintenance.status)}">${maintenance.status || '-'}</span></td>
+          <td>
+            <button class="btn-icon view-maintenance" data-id="${maintenance.id}" title="Ver detalhes">👁️</button>
+            ${maintenance.status === 'Pendente' ? `<button class="btn-icon verify-maintenance" data-id="${maintenance.id}" title="Verificar">✓</button>` : ''}
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      // Adicionar event listeners para os botões de ação
+      addMaintenanceActionListeners();
+    }
+
+    // Renderizar todos os gráficos
+    function renderCharts() {
+      renderMaintenanceTypeChart();
+      renderMaintenanceStatusChart();
+      renderProblemTypeChart();
+      renderResolutionTimeChart();
+    }
+
+    // Renderizar gráfico de tipos de manutenção
+    function renderMaintenanceTypeChart() {
+      const canvas = document.getElementById('maintenance-type-chart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      // Destruir gráfico existente se houver
+      if (charts.maintenanceTypeChart) {
+        charts.maintenanceTypeChart.destroy();
+      }
+
+      // Preparar dados para o gráfico
+      const types = {};
+      if (dashboardData && dashboardData.maintenanceTypes) {
+        dashboardData.maintenanceTypes.forEach(item => {
+          types[item.type] = item.count;
+        });
+      }
+
+      // Criar gráfico
+      charts.maintenanceTypeChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: Object.keys(types),
+          datasets: [{
+            data: Object.values(types),
+            backgroundColor: [
+              '#0d6efd',
+              '#6f42c1',
+              '#fd7e14',
+              '#20c997',
+              '#dc3545'
+            ],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right'
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const label = context.label || '';
+                  const value = context.raw || 0;
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                  return `${label}: ${value} (${percentage}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Renderizar gráfico de status das manutenções
+    function renderMaintenanceStatusChart() {
+      const canvas = document.getElementById('maintenance-status-chart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      // Destruir gráfico existente se houver
+      if (charts.maintenanceStatusChart) {
+        charts.maintenanceStatusChart.destroy();
+      }
+
+      // Preparar dados para o gráfico
+      const statuses = {};
+      if (dashboardData && dashboardData.maintenanceStatuses) {
+        dashboardData.maintenanceStatuses.forEach(item => {
+          statuses[item.status] = item.count;
+        });
+      }
+
+      // Criar gráfico
+      charts.maintenanceStatusChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(statuses),
+          datasets: [{
+            data: Object.values(statuses),
+            backgroundColor: [
+              '#ffc107',
+              '#0d6efd',
+              '#28a745',
+              '#dc3545'
+            ],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right'
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const label = context.label || '';
+                  const value = context.raw || 0;
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                  return `${label}: ${value} (${percentage}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Atualizar gráficos de relatórios
+    function updateReportsCharts() {
+      renderProblemTypeChart();
+      renderResolutionTimeChart();
+    }
+
+    // Renderizar gráfico de tipos de problemas
+    function renderProblemTypeChart() {
+      const canvas = document.getElementById('problem-type-chart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      // Destruir gráfico existente se houver
+      if (charts.problemTypeChart) {
+        charts.problemTypeChart.destroy();
+      }
+
+      // Preparar dados para o gráfico (exemplo)
+      const problemTypes = {
+        'Motor': 15,
+        'Transmissão': 8,
+        'Sistema Hidráulico': 12,
+        'Sistema Elétrico': 20,
+        'Freios': 7,
+        'Suspensão': 5,
+        'Outro': 3
+      };
+
+      // Criar gráfico
+      charts.problemTypeChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: Object.keys(problemTypes),
+          datasets: [{
+            label: 'Quantidade de Manutenções',
+            data: Object.values(problemTypes),
+            backgroundColor: '#0d6efd',
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Quantidade'
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            }
+          }
+        }
+      });
+    }
+
+    // Renderizar gráfico de tempo de resolução
+    function renderResolutionTimeChart() {
+      const canvas = document.getElementById('resolution-time-chart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      // Destruir gráfico existente se houver
+      if (charts.resolutionTimeChart) {
+        charts.resolutionTimeChart.destroy();
+      }
+
+      // Preparar dados para o gráfico (exemplo)
+      const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
+      const resolutionTimes = [3.2, 2.8, 3.5, 2.5, 2.1, 1.8];
+
+      // Criar gráfico
+      charts.resolutionTimeChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: months,
+          datasets: [{
+            label: 'Tempo Médio (dias)',
+            data: resolutionTimes,
+            borderColor: '#28a745',
+            backgroundColor: 'rgba(40, 167, 69, 0.1)',
+            borderWidth: 2,
+            tension: 0.3,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Dias'
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            }
+          }
+        }
+      });
+    }
+
+    // Abrir formulário de manutenção
+    function openMaintenanceForm() {
+      resetMaintenanceForm();
+      document.getElementById('maintenance-form-overlay').style.display = 'block';
+      goToFormStep('maintenance', 1);
+    }
+
+    // Fechar formulário de manutenção
+    function closeMaintenanceForm() {
+      document.getElementById('maintenance-form-overlay').style.display = 'none';
+      stopAllCameraStreams();
+    }
+
+    // Resetar formulário de manutenção
+    function resetMaintenanceForm() {
+      document.getElementById('maintenance-form').reset();
+      capturedImages = [];
+      document.getElementById('image-gallery').innerHTML = '';
+      document.getElementById('photo-warning').style.display = 'none';
+      
+      // Resetar visualização da câmera
+      document.getElementById('camera-stream').style.display = 'none';
+      document.getElementById('captured-image').style.display = 'none';
+      document.getElementById('camera-placeholder').style.display = 'flex';
+      document.getElementById('take-photo').disabled = true;
+      
+      // Parar stream da câmera se estiver ativo
+      stopCameraStream();
+    }
+
+    // Abrir formulário de verificação
+    function openVerificationForm(maintenanceId) {
+      resetVerificationForm();
+      
+      // Buscar dados da manutenção para preencher o formulário
+      const maintenance = maintenanceList.find(m => m.id === maintenanceId);
+      if (maintenance) {
+        document.getElementById('verification-id').value = maintenance.id;
+        document.getElementById('verification-equipment').value = maintenance.equipmentId;
+        document.getElementById('verification-type').value = maintenance.type;
+      }
+      
+      document.getElementById('verification-form-overlay').style.display = 'block';
+    }
+
+    // Fechar formulário de verificação
+    function closeVerificationForm() {
+      document.getElementById('verification-form-overlay').style.display = 'none';
+      stopVerificationCameraStream();
+    }
+
+    // Resetar formulário de verificação
+    function resetVerificationForm() {
+      document.getElementById('verification-form').reset();
+      verificationImages = [];
+      document.getElementById('verification-image-gallery').innerHTML = '';
+      
+      // Resetar visualização da câmera
+      document.getElementById('verification-camera-stream').style.display = 'none';
+      document.getElementById('verification-captured-image').style.display = 'none';
+      document.getElementById('verification-camera-placeholder').style.display = 'flex';
+      document.getElementById('verification-take-photo').disabled = true;
+      
+      // Parar stream da câmera se estiver ativo
+      stopVerificationCameraStream();
+    }
+
+    // Navegar para uma etapa do formulário
+    function goToFormStep(formType, step) {
+      const prefix = formType === 'maintenance' ? '' : 'verification-';
+      
+      // Ocultar todas as etapas
+      document.querySelectorAll(`#${prefix}form .form-step-content`).forEach(content => {
+        content.style.display = 'none';
+      });
+
+      // Atualizar classes das etapas
+      document.querySelectorAll(`#${prefix}form .form-step`).forEach(stepEl => {
+        const stepNum = parseInt(stepEl.getAttribute('data-step'));
+
+        stepEl.classList.remove('active', 'completed');
+
+        if (stepNum === step) {
+          stepEl.classList.add('active');
+        } else if (stepNum < step) {
+          stepEl.classList.add('completed');
+        }
+      });
+
+      // Mostrar a etapa atual
+      document.getElementById(`${prefix}step-${step}-content`).style.display = 'block';
+    }
+
+    // Submeter formulário de manutenção
+    function submitMaintenance() {
+      // Coletar dados do formulário
+      const formData = {
+        equipmentId: document.getElementById('equipment-id').value,
+        equipmentType: document.getElementById('equipment-type').value,
+        technician: document.getElementById('technician-name').value,
+        date: document.getElementById('maintenance-date').value,
+        location: document.getElementById('location').value,
+        maintenanceType: document.getElementById('maintenance-type').value,
+        isCritical: document.getElementById('is-critical').checked,
+        problemCategory: document.getElementById('problem-category').value,
+        problemDescription: document.getElementById('problem-description').value,
+        solutionDescription: document.getElementById('solution-description').value,
+        partsReplaced: document.getElementById('parts-replaced').value,
+        additionalNotes: document.getElementById('additional-notes').value,
+        images: capturedImages
+      };
+
+      // Enviar dados para o servidor
+      showLoading(true, 'Salvando manutenção...');
+
+      callAPI('saveMaintenance', formData)
+        .then(result => {
+          showLoading(false);
+
+          if (result.success) {
+            showNotification('Manutenção registrada com sucesso!', 'success');
+            closeMaintenanceForm();
+            loadDashboardData(); // Reload data to reflect changes
+          } else {
+            showNotification('Erro ao registrar manutenção: ' + (result.message || 'Erro desconhecido'), 'error');
+          }
+        })
+        .catch(error => {
+          showLoading(false);
+          showNotification('Erro ao enviar dados: ' + error.message, 'error');
+        });
+    }
+
+    // Submeter formulário de verificação
+    function submitVerification() {
+      // Coletar dados do formulário
+      const formData = {
+        maintenanceId: document.getElementById('verification-id').value,
+        verifier: document.getElementById('verifier-name').value,
+        result: document.querySelector('input[name="verification-result"]:checked').value,
+        comments: document.getElementById('verification-comments').value,
+        images: verificationImages
+      };
+
+      // Enviar dados para o servidor
+      showLoading(true, 'Salvando verificação...');
+
+      callAPI('saveVerification', formData)
+        .then(result => {
+          showLoading(false);
+
+          if (result.success) {
+            showNotification('Verificação registrada com sucesso!', 'success');
+            closeVerificationForm();
+            loadDashboardData(); // Reload data to reflect changes
+          } else {
+            showNotification('Erro ao registrar verificação: ' + (result.message || 'Erro desconhecido'), 'error');
+          }
+        })
+        .catch(error => {
+          showLoading(false);
+          showNotification('Erro ao enviar dados: ' + error.message, 'error');
+        });
+    }
+
+    // Ver detalhes de uma manutenção
+    function viewMaintenanceDetails(maintenanceId) {
+      selectedMaintenanceId = maintenanceId;
+      
+      // Buscar dados detalhados da manutenção
+      callAPI('getMaintenanceDetails', { id: maintenanceId })
+        .then(details => {
+          if (details.error) {
+            showNotification(details.error, 'error');
+            return;
+          }
+          
+          renderMaintenanceDetails(details);
+          document.getElementById('detail-overlay').style.display = 'block';
+          
+          // Habilitar/desabilitar botão de verificação conforme o status
+          const verifyBtn = document.getElementById('verify-maintenance-btn');
+          verifyBtn.style.display = details.status === 'Pendente' ? 'block' : 'none';
+        })
+        .catch(error => {
+          showNotification('Erro ao carregar detalhes: ' + error.message, 'error');
+        });
+    }
+
+    // Renderizar detalhes da manutenção
+    function renderMaintenanceDetails(details) {
+      const container = document.getElementById('maintenance-detail-content');
+      
+      // Formatar status
+      const statusClass = getStatusClass(details.status);
+      
+      // Criar HTML de detalhes
+      const html = `
+        <div class="detail-header">
+          <div class="detail-header-left">
+            <div class="detail-title">Manutenção #${details.id}</div>
+            <div class="detail-subtitle">Registrada em ${formatDate(details.registrationDate, true)}</div>
+          </div>
+          <div class="detail-header-right">
+            <span class="status-badge status-${statusClass}">${details.status}</span>
+          </div>
+        </div>
+        
+        <div class="detail-section">
+          <div class="detail-section-title">Informações Básicas</div>
+          <div class="detail-grid">
+            <div class="detail-field">
+              <div class="detail-label">Equipamento</div>
+              <div class="detail-value">${details.equipmentId}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-label">Tipo de Equipamento</div>
+              <div class="detail-value">${details.equipmentType}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-label">Técnico Responsável</div>
+              <div class="detail-value">${details.technician}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-label">Data da Manutenção</div>
+              <div class="detail-value">${formatDate(details.date)}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-label">Local</div>
+              <div class="detail-value">${details.location}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-label">Tipo de Manutenção</div>
+              <div class="detail-value">${details.maintenanceType}</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="detail-section">
+          <div class="detail-section-title">Problema e Solução</div>
+          <div class="detail-grid">
+            <div class="detail-field">
+              <div class="detail-label">Categoria do Problema</div>
+              <div class="detail-value">${details.problemCategory}</div>
+            </div>
+            <div class="detail-field" style="grid-column: span 2;">
+              <div class="detail-label">Descrição do Problema</div>
+              <div class="detail-value">${details.problemDescription}</div>
+            </div>
+            <div class="detail-field" style="grid-column: span 2;">
+              <div class="detail-label">Solução Aplicada</div>
+              <div class="detail-value">${details.solutionDescription}</div>
+            </div>
+            <div class="detail-field" style="grid-column: span 2;">
+              <div class="detail-label">Peças Substituídas</div>
+              <div class="detail-value">${details.partsReplaced || 'Nenhuma'}</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="detail-section">
+          <div class="detail-section-title">Fotos e Evidências</div>
+          <div class="detail-image-gallery">
+            ${details.images.map(img => `
+              <div class="detail-image-item view-full-image" data-src="${img.url}">
+                <img src="${img.url}" alt="Foto da manutenção">
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        
+        ${details.verification ? `
+        <div class="detail-section">
+          <div class="detail-section-title">Verificação</div>
+          <div class="detail-grid">
+            <div class="detail-field">
+              <div class="detail-label">Verificador</div>
+              <div class="detail-value">${details.verification.verifier}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-label">Data da Verificação</div>
+              <div class="detail-value">${formatDate(details.verification.date)}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-label">Resultado</div>
+              <div class="detail-value">${details.verification.result}</div>
+            </div>
+            <div class="detail-field" style="grid-column: span 3;">
+              <div class="detail-label">Comentários</div>
+              <div class="detail-value">${details.verification.comments}</div>
+            </div>
+          </div>
+          
+          ${details.verification.images && details.verification.images.length > 0 ? `
+          <div class="detail-section-title" style="margin-top: 15px;">Fotos da Verificação</div>
+          <div class="detail-image-gallery">
+            ${details.verification.images.map(img => `
+              <div class="detail-image-item view-full-image" data-src="${img.url}">
+                <img src="${img.url}" alt="Foto da verificação">
+              </div>
+            `).join('')}
+          </div>
+          ` : ''}
+        </div>
+        ` : ''}
+        
+        <div class="detail-section">
+          <div class="detail-section-title">Histórico</div>
+          <div class="timeline">
+            <div class="timeline-item">
+              <div class="timeline-dot"></div>
+              <div class="timeline-content">
+                <div class="timeline-title">
+                  <span>Manutenção Registrada</span>
+                  <span class="timeline-date">${formatDate(details.registrationDate, true)}</span>
+                </div>
+                <div class="timeline-description">Manutenção registrada por ${details.technician}</div>
+              </div>
+            </div>
+            
+            ${details.verification ? `
+            <div class="timeline-item">
+              <div class="timeline-dot completed"></div>
+              <div class="timeline-content">
+                <div class="timeline-title">
+                  <span>Verificação Realizada</span>
+                  <span class="timeline-date">${formatDate(details.verification.date, true)}</span>
+                </div>
+                <div class="timeline-description">Verificação realizada por ${details.verification.verifier} com resultado: ${details.verification.result}</div>
+              </div>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+      
+      container.innerHTML = html;
+      
+      // Adicionar event listeners para as imagens
+      document.querySelectorAll('.view-full-image').forEach(img => {
+        img.addEventListener('click', function() {
+          const src = this.getAttribute('data-src');
+          openImageModal(src);
+        });
+      });
+    }
+    
+    // Abrir modal de imagem
+    function openImageModal(src) {
+      const modal = document.getElementById('imageModal');
+      const modalImg = document.getElementById('modalImage');
+      
+      modalImg.src = src;
+      modal.style.display = 'block';
+    }
+
+    // Gerar relatório por período
+    function generateReport() {
+      const startDate = document.getElementById('report-start-date').value;
+      const endDate = document.getElementById('report-end-date').value;
+      
+      if (!startDate || !endDate) {
+        showNotification('Por favor, defina o período para o relatório.', 'error');
+        return;
+      }
+      
+      showLoading(true, 'Gerando relatório...');
+      
+      callAPI('generateReport', { startDate, endDate })
+        .then(data => {
+          showLoading(false);
+          
+          if (data.error) {
+            showNotification(data.error, 'error');
+            return;
+          }
+          
+          // Atualizar gráficos do relatório com os dados
+          updateReportCharts(data);
+          
+          showNotification('Relatório gerado com sucesso!', 'success');
+        })
+        .catch(error => {
+          showLoading(false);
+          showNotification('Erro ao gerar relatório: ' + error.message, 'error');
+        });
+    }
+    
+    // Atualizar gráficos do relatório
+    function updateReportCharts(data) {
+      // Implementar atualização dos gráficos com os dados recebidos
+      
+      // Exemplo (pseudocódigo):
+      // updateProblemTypeChart(data.problemTypes);
+      // updateResolutionTimeChart(data.resolutionTimes);
+    }
+
+    // Exportar dados
+    function exportData(format) {
+      const startDate = document.getElementById('report-start-date').value;
+      const endDate = document.getElementById('report-end-date').value;
+      
+      if (!startDate || !endDate) {
+        showNotification('Por favor, defina o período para exportação.', 'error');
+        return;
+      }
+      
+      showLoading(true, `Exportando dados para ${format}...`);
+      
+      callAPI('exportData', { startDate, endDate, format })
+        .then(result => {
+          showLoading(false);
+          
+          if (result.error) {
+            showNotification(result.error, 'error');
+            return;
+          }
+          
+          if (result.url) {
+            // Abrir URL para download
+            window.open(result.url, '_blank');
+            showNotification('Exportação concluída com sucesso!', 'success');
+          } else {
+            showNotification('Erro ao gerar arquivo de exportação.', 'error');
+          }
+        })
+        .catch(error => {
+          showLoading(false);
+          showNotification('Erro ao exportar dados: ' + error.message, 'error');
+        });
+    }
+    
+    // Funções para manipular a câmera
+    
+    // Abrir câmera
+    function openCamera(videoId, placeholderId) {
+      const video = document.getElementById(videoId);
+      const placeholder = document.getElementById(placeholderId);
+      const takePhotoBtn = document.getElementById(videoId === 'camera-stream' ? 'take-photo' : 'verification-take-photo');
+      
+      // Verificar se o navegador suporta getUserMedia
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showNotification('Seu navegador não suporta acesso à câmera.', 'error');
+        return;
+      }
+      
+      // Parar streams anteriores se existirem
+      if (videoId === 'camera-stream') {
+        stopCameraStream();
+      } else {
+        stopVerificationCameraStream();
+      }
+      
+      // Solicitar acesso à câmera
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(stream => {
+          // Guardar referência ao stream
+          if (videoId === 'camera-stream') {
+            cameraStream = stream;
+          } else {
+            verificationCameraStream = stream;
+          }
+          
+          // Exibir vídeo
+          video.srcObject = stream;
+          video.style.display = 'block';
+          placeholder.style.display = 'none';
+          
+          // Habilitar botão de tirar foto
+          takePhotoBtn.disabled = false;
+        })
+        .catch(error => {
+          console.error('Erro ao acessar câmera:', error);
+          showNotification('Erro ao acessar câmera: ' + error.message, 'error');
+        });
+    }
+    
+    // Tirar foto
+    function takePhoto(videoId, imgId) {
+      const video = document.getElementById(videoId);
+      const img = document.getElementById(imgId);
+      
+      // Verificar se o vídeo está ativo
+      if (video.style.display !== 'block' || !video.srcObject) {
+        showNotification('A câmera não está ativa.', 'error');
+        return;
+      }
+      
+      // Criar canvas para capturar imagem
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      
+      // Desenhar frame do vídeo no canvas
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // Converter para base64
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      
+      // Exibir imagem capturada
+      img.src = dataUrl;
+      img.style.display = 'block';
+      video.style.display = 'none';
+      
+      // Adicionar à galeria
+      addImageToGallery(dataUrl, videoId === 'camera-stream' ? 'image-gallery' : 'verification-image-gallery');
+      
+      // Se for o formulário principal, esconder aviso de foto obrigatória
+      if (videoId === 'camera-stream') {
+        document.getElementById('photo-warning').style.display = 'none';
+      }
+    }
+    
+    // Manipular upload de arquivo
+    function handleFileUpload(event, imgId) {
+      const file = event.target.files[0];
+      const img = document.getElementById(imgId);
+      
+      if (!file) return;
+      
+      // Verificar se é uma imagem
+      if (!file.type.startsWith('image/')) {
+        showNotification('Por favor, selecione um arquivo de imagem.', 'error');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const dataUrl = e.target.result;
+        
+        // Exibir imagem carregada
+        img.src = dataUrl;
+        img.style.display = 'block';
+        
+        // Ocultar vídeo se estiver visível
+        const videoId = imgId === 'captured-image' ? 'camera-stream' : 'verification-camera-stream';
+        document.getElementById(videoId).style.display = 'none';
+        
+        // Ocultar placeholder
+        const placeholderId = imgId === 'captured-image' ? 'camera-placeholder' : 'verification-camera-placeholder';
+        document.getElementById(placeholderId).style.display = 'none';
+        
+        // Adicionar à galeria
+        const galleryId = imgId === 'captured-image' ? 'image-gallery' : 'verification-image-gallery';
+        addImageToGallery(dataUrl, galleryId);
+        
+        // Se for o formulário principal, esconder aviso de foto obrigatória
+        if (imgId === 'captured-image') {
+          document.getElementById('photo-warning').style.display = 'none';
+        }
+      };
+      
+      reader.readAsDataURL(file);
+    }
+    
+    // Adicionar imagem à galeria
+    function addImageToGallery(dataUrl, galleryId) {
+      const gallery = document.getElementById(galleryId);
+      
+      // Criar elemento de imagem
+      const imgContainer = document.createElement('div');
+      imgContainer.className = 'image-item';
+      
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      
+      const removeBtn = document.createElement('div');
+      removeBtn.className = 'image-remove';
+      removeBtn.innerHTML = '&times;';
+      removeBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        imgContainer.remove();
+        
+        // Remover da lista de imagens capturadas
+        if (galleryId === 'image-gallery') {
+          const index = capturedImages.indexOf(dataUrl);
+          if (index > -1) {
+            capturedImages.splice(index, 1);
+          }
+          
+          // Mostrar aviso se não houver imagens
+          if (capturedImages.length === 0) {
+            document.getElementById('photo-warning').style.display = 'block';
+          }
+        } else {
+          const index = verificationImages.indexOf(dataUrl);
+          if (index > -1) {
+            verificationImages.splice(index, 1);
+          }
+        }
+      });
+      
+      // Adicionar evento para visualizar em tamanho maior
+      imgContainer.addEventListener('click', function() {
+        openImageModal(dataUrl);
+      });
+      
+      imgContainer.appendChild(img);
+      imgContainer.appendChild(removeBtn);
+      gallery.appendChild(imgContainer);
+      
+      // Adicionar à lista de imagens
+      if (galleryId === 'image-gallery') {
+        capturedImages.push(dataUrl);
+      } else {
+        verificationImages.push(dataUrl);
+      }
+    }
+    
+    // Parar stream da câmera principal
+    function stopCameraStream() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+      }
+    }
+    
+    // Parar stream da câmera de verificação
+    function stopVerificationCameraStream() {
+      if (verificationCameraStream) {
+        verificationCameraStream.getTracks().forEach(track => track.stop());
+        verificationCameraStream = null;
+      }
+    }
+    
+    // Parar todos os streams de câmera ativos
+    function stopAllCameraStreams() {
+      stopCameraStream();
+      stopVerificationCameraStream();
+    }
+
+    // Filtrar manutenções
+    function filterMaintenances(maintenances, filter, search) {
+      return maintenances.filter(maintenance => {
+        // Filtrar por status
+        if (filter !== 'all') {
+          if (filter === 'pending' && maintenance.status !== 'Pendente') return false;
+          if (filter === 'verified' && maintenance.status !== 'Verificado') return false;
+          if (filter === 'completed' && maintenance.status !== 'Concluído') return false;
+        }
+        
+        // Filtrar por texto de busca
+        if (search) {
+          const searchLower = search.toLowerCase();
+          return (maintenance.id && maintenance.id.toString().includes(searchLower)) ||
+                 (maintenance.equipmentId && maintenance.equipmentId.toLowerCase().includes(searchLower)) ||
+                 (maintenance.technician && maintenance.technician.toLowerCase().includes(searchLower));
+        }
+        
+        return true;
+      });
+    }
+    
+    // Filtrar verificações
+    function filterVerifications(maintenances, filter, search) {
+      // Para verificações, filtramos principalmente as manutenções pendentes
+      const pendingVerifications = maintenances.filter(maintenance => {
+        // Filtrar por status
+        if (filter !== 'all') {
+          if (filter === 'pending' && maintenance.status !== 'Pendente') return false;
+          if (filter === 'verified' && maintenance.status !== 'Verificado') return false;
+          if (filter === 'completed' && maintenance.status !== 'Concluído') return false;
+        } else {
+          // No modo "todos", mostrar principalmente as pendentes
+          if (maintenance.status !== 'Pendente') return false;
+        }
+        
+        // Filtrar por texto de busca
+        if (search) {
+          const searchLower = search.toLowerCase();
+          return (maintenance.id && maintenance.id.toString().includes(searchLower)) ||
+                 (maintenance.equipmentId && maintenance.equipmentId.toLowerCase().includes(searchLower)) ||
+                 (maintenance.technician && maintenance.technician.toLowerCase().includes(searchLower));
+        }
+        
+        return true;
+      });
+      
+      return pendingVerifications;
+    }
+
+    // Sistema de notificações
+    function showNotification(message, type = 'info') {
+      // Remover notificações existentes para evitar acúmulo
+      const existingNotifications = document.querySelectorAll('.notification-popup');
+      existingNotifications.forEach(notification => {
+        document.body.removeChild(notification);
+      });
+
+      // Criar elemento de notificação
+      const notification = document.createElement('div');
+      notification.className = `notification-popup ${type}`;
+
+      // Ícone baseado no tipo
+      let icon = '';
+      let title = '';
+
+      switch (type) {
+        case 'success':
+          icon = '✓';
+          title = 'Sucesso';
+          break;
+        case 'error':
+          icon = '✗';
+          title = 'Erro';
+          break;
+        case 'info':
+        default:
+          icon = 'ℹ';
+          title = 'Informação';
+          break;
+      }
+
+      // Adicionar conteúdo
+      notification.innerHTML = `
+        <div class="notification-icon">${icon}</div>
+        <div class="notification-content">
+          <div class="notification-title">${title}</div>
+          <div>${message}</div>
+        </div>
+        <span class="close-btn">&times;</span>
+      `;
+
+      // Adicionar à página
+      document.body.appendChild(notification);
+
+      // Configurar botão de fechar
+      const closeBtn = notification.querySelector('.close-btn');
+      closeBtn.addEventListener('click', function() {
+        notification.style.animation = 'fadeOut 0.3s forwards';
+        setTimeout(() => {
+          if (document.body.contains(notification)) {
+            document.body.removeChild(notification);
+          }
+        }, 300);
+      });
+
+      // Auto-fechar após 5 segundos
+      setTimeout(function() {
+        if (document.body.contains(notification)) {
+          notification.style.animation = 'fadeOut 0.3s forwards';
+          setTimeout(() => {
+            if (document.body.contains(notification)) {
+              document.body.removeChild(notification);
+            }
+          }, 300);
+        }
+      }, 5000);
+    }
+
+    // Mostrar/esconder indicador de carregamento
+    function showLoading(show, message = 'Carregando dados...') {
+      // Remover loader existente
+      const existingLoader = document.getElementById('global-loader');
+      if (existingLoader) {
+        existingLoader.remove();
+      }
+
+      if (show) {
+        // Criar loader
+        const loader = document.createElement('div');
+        loader.id = 'global-loader';
+        loader.style.position = 'fixed';
+        loader.style.top = '0';
+        loader.style.left = '0';
+        loader.style.width = '100%';
+        loader.style.height = '100%';
+        loader.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        loader.style.display = 'flex';
+        loader.style.alignItems = 'center';
+        loader.style.justifyContent = 'center';
+        loader.style.zIndex = '2000';
+        loader.style.color = 'white';
+
+        const content = document.createElement('div');
+        content.style.backgroundColor = 'white';
+        content.style.padding = '20px 30px';
+        content.style.borderRadius = '8px';
+        content.style.boxShadow = '0 5px 15px rgba(0,0,0,0.2)';
+        content.style.textAlign = 'center';
+        content.style.color = '#333';
+        content.style.display = 'flex';
+        content.style.alignItems = 'center';
+        content.style.gap = '15px';
+
+        // Spinner CSS
+        const spinner = document.createElement('div');
+        spinner.style.width = '30px';
+        spinner.style.height = '30px';
+        spinner.style.border = '4px solid #f3f3f3';
+        spinner.style.borderTop = '4px solid var(--primary-color)';
+        spinner.style.borderRadius = '50%';
+        spinner.style.animation = 'spin 1s linear infinite';
+
+        const messageDiv = document.createElement('div');
+        messageDiv.textContent = message;
+
+        content.appendChild(spinner);
+        content.appendChild(messageDiv);
+        loader.appendChild(content);
+        document.body.appendChild(loader);
+
+        // Adicionar estilo para animação se não existir
+        if (!document.getElementById('spin-style')) {
+          const style = document.createElement('style');
+          style.id = 'spin-style';
+          style.textContent = `
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `;
+          document.head.appendChild(style);
+        }
+      }
+    }
+
+    // Funções utilitárias
+
+    // Formatar data
+    function formatDate(dateString, includeTime = false) {
+      if (!dateString) return '-';
+
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return dateString; // Retorna o texto original se não for uma data válida
+
+      const options = {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        ...(includeTime ? { hour: '2-digit', minute: '2-digit' } : {})
+      };
+
+      return new Intl.DateTimeFormat('pt-BR', options).format(date);
+    }
+
+    // Obter classe CSS baseada no status
+    function getStatusClass(status) {
+      if (!status) return 'pending';
+      
+      switch (status.toLowerCase()) {
+        case 'pendente': return 'pending';
+        case 'verificado': return 'verification';
+        case 'concluído': case 'concluido': return 'completed';
+        default: return 'pending';
+      }
+    }
+  </script>
