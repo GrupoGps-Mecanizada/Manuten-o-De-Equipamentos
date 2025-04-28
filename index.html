@@ -1729,7 +1729,7 @@
 
   <script>
     // Configuração da URL da API (URL do seu Google Script Web App publicado)
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzDcJwqmuFsMj0PHXXo6-Jsp7J9IgDVf2AEHkGBBK5UgveqkzEjlC3ONDJQU7EML-K_5A/exec'; // SUBSTITUA PELO SEU ID
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyR5yVl62kMiN1a45lolYfd9XTWFGYRDxWDuwX-WSaJ0TFP_HHxTsW7cm4x_MjlSk3iAQ/exec'; // SUBSTITUA PELO SEU ID
 
     // Variáveis globais
     let dashboardData = null;
@@ -4010,7 +4010,7 @@
       const autoCloseTime = (type === 'error' || type === 'warning') ? 8000 : 5000;
       setTimeout(close, autoCloseTime);
     }
-
+    
     // Mostrar/esconder indicador de carregamento global
     function showLoading(show, message = 'Carregando...') {
       const loaderId = 'global-loader';
@@ -4055,7 +4055,7 @@
         }
       }
     }
-
+    
     // Formatar data (Brasileiro)
     function formatDate(dateString, includeTime = false) {
         if (!dateString) return '-';
