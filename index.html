@@ -753,6 +753,7 @@
       border: 1px solid var(--border-color);
       overflow: hidden;
       position: relative;
+      cursor: pointer; /* Added cursor for interaction hint */
     }
 
     .image-item img {
@@ -773,8 +774,10 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 10px;
+      font-size: 10px; /* Reduced font size slightly */
       cursor: pointer;
+      line-height: 20px; /* Added for better vertical centering */
+      text-align: center; /* Added for better horizontal centering */
     }
 
     .notification-popup {
@@ -1757,6 +1760,64 @@
 
     // --- INÍCIO DAS FUNÇÕES ATUALIZADAS ---
 
+    // ADICIONAR: Função para comprimir imagens antes do envio
+    function compressImage(base64Data, maxSize = 300, quality = 0.7) {
+      return new Promise((resolve, reject) => {
+        try {
+          // Criar uma imagem temporária
+          const img = new Image();
+
+          // Configurar o carregamento da imagem
+          img.onload = function() {
+            // Criar canvas para redimensionar
+            const canvas = document.createElement('canvas');
+
+            // Calcular novas dimensões mantendo a proporção
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > maxSize) {
+                height = Math.round(height * (maxSize / width));
+                width = maxSize;
+              }
+            } else {
+              if (height > maxSize) {
+                width = Math.round(width * (maxSize / height));
+                height = maxSize;
+              }
+            }
+
+            // Configurar canvas com as novas dimensões
+            canvas.width = width;
+            canvas.height = height;
+
+            // Desenhar imagem redimensionada
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Converter para base64 com compressão
+            const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+
+            // Resolver com a imagem comprimida
+            resolve(compressedBase64);
+          };
+
+          // Configurar tratamento de erro
+          img.onerror = function() {
+            reject(new Error('Erro ao carregar imagem para compressão'));
+          };
+
+          // Carregar a imagem
+          img.src = base64Data;
+
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }
+
+
     // Função melhorada para chamar API
     function callAPI(action, data = {}) {
       return new Promise((resolve, reject) => {
@@ -2014,159 +2075,118 @@
     }
 
 
-    // Função melhorada para abrir a câmera
+    // SUBSTITUIR: Função melhorada para abrir a câmera
     function openCamera(videoId, placeholderId) {
       const video = document.getElementById(videoId);
       const placeholder = document.getElementById(placeholderId);
       const takePhotoBtn = document.getElementById(videoId === 'camera-stream' ? 'take-photo' : 'verification-take-photo');
 
-      console.log(`Tentando abrir câmera para ${videoId}`);
+      console.log("Tentando abrir câmera para " + videoId);
 
-      // Certificar-se de fechar TODOS os streams anteriores ANTES de solicitar um novo
+      // Certificar-se de fechar TODOS os streams anteriores
       stopAllCameraStreams();
 
       // Verificar se o navegador suporta getUserMedia
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         showNotification('Seu navegador não suporta acesso à câmera.', 'error');
-        console.error('getUserMedia não suportado.');
         return;
       }
 
       // Adicionar um pequeno delay antes de solicitar a câmera novamente
-      // Ajuda a garantir que o recurso foi liberado pelo sistema operacional
       setTimeout(() => {
-        console.log(`Solicitando acesso à câmera para ${videoId} após delay...`);
-        // Solicitar acesso à câmera com tratamento de erro melhorado
+        console.log("Solicitando acesso à câmera para " + videoId + " após delay...");
+
+        // Solicitar acesso à câmera
         navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: 'environment', // Preferir câmera traseira
-            width: { ideal: 1280 },   // Resolução ideal
+            facingMode: 'environment',
+            width: { ideal: 1280 },
             height: { ideal: 720 }
-            // Adicionar mais restrições se necessário (e.g., frameRate)
           }
         })
         .then(stream => {
-          console.log(`Câmera ${videoId} acessada com sucesso. Stream ID: ${stream.id}`);
-          // Guardar referência ao stream global correto
+          // Guardar referência ao stream
           if (videoId === 'camera-stream') {
             cameraStream = stream;
-          } else if (videoId === 'verification-camera-stream') {
+          } else {
             verificationCameraStream = stream;
           }
 
-          // Associar stream ao elemento de vídeo
+          // Exibir vídeo
           video.srcObject = stream;
           video.style.display = 'block';
           placeholder.style.display = 'none';
 
-          // Habilitar botão de tirar foto apenas quando o vídeo estiver pronto
-          video.onloadedmetadata = () => {
-             takePhotoBtn.disabled = false;
-             console.log(`Metadados do vídeo ${videoId} carregados, botão de foto habilitado.`);
-          };
+          console.log("Câmera " + videoId + " acessada com sucesso. Stream ID: " + stream.id);
 
+          // Habilitar botão após o carregamento completo do vídeo
+          video.onloadedmetadata = function() {
+            console.log("Metadados do vídeo " + videoId + " carregados, botão de foto habilitado.");
+            takePhotoBtn.disabled = false;
+          };
         })
         .catch(error => {
-          console.error(`Erro ao acessar câmera ${videoId}:`, error.name, error.message);
+          console.error("Erro ao acessar câmera " + videoId + ":", error);
 
-          // Mensagem de erro mais específica para o usuário
-          let userMessage = 'Erro desconhecido ao acessar câmera.';
-          if (error.name === 'NotReadableError' || error.name === 'TrackStartError' || error.message.includes('in use')) {
-            userMessage = 'Erro: Câmera já está em uso ou não pôde ser iniciada. Feche outros aplicativos/abas que possam estar usando a câmera e tente novamente.';
-          } else if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-            userMessage = 'Permissão para acessar câmera negada. Por favor, conceda permissão nas configurações do navegador ou do sistema.';
-          } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-            userMessage = 'Nenhuma câmera compatível encontrada no dispositivo.';
-          } else if (error.name === 'AbortError') {
-             userMessage = 'Acesso à câmera abortado. Tente novamente.';
-          } else if (error.name === 'OverconstrainedError') {
-             userMessage = `A câmera não suporta as configurações solicitadas (resolução, etc.). ${error.message}`;
+          // Mensagem de erro mais específica
+          if (error.name === 'NotReadableError') {
+            showNotification('Erro: Câmera já está em uso. Feche outros aplicativos que possam estar usando a câmera.', 'error');
+          } else if (error.name === 'NotAllowedError') {
+            showNotification('Permissão para acessar câmera negada. Por favor, conceda permissão nas configurações.', 'error');
           } else {
-             userMessage = `Erro ao acessar câmera: ${error.name} - ${error.message}`;
+            showNotification('Erro ao acessar câmera: ' + error.message, 'error');
           }
-
-          showNotification(userMessage, 'error');
-          // Garantir que o botão de foto permaneça desabilitado
-          takePhotoBtn.disabled = true;
-          // Mostrar placeholder novamente se o vídeo falhou
-          video.style.display = 'none';
-          placeholder.style.display = 'flex';
         });
-      }, 300); // Delay de 300ms
+      }, 300); // Delay de 300ms para garantir que a câmera foi liberada
     }
 
-    // Função melhorada para parar todos os streams
+    // SUBSTITUIR: Função melhorada para parar stream da câmera principal
+    function stopCameraStream() {
+      if (cameraStream) {
+        console.log("Parando stream principal...");
+        cameraStream.getTracks().forEach(track => {
+          track.stop();
+          console.log(`Track ${track.kind} (${track.label}) parada.`);
+        });
+        cameraStream = null;
+      }
+    }
+
+    // SUBSTITUIR: Função melhorada para parar stream da câmera de verificação
+    function stopVerificationCameraStream() {
+      if (verificationCameraStream) {
+        console.log("Parando stream de verificação...");
+        verificationCameraStream.getTracks().forEach(track => {
+          track.stop();
+          console.log(`Track ${track.kind} (${track.label}) parada.`);
+        });
+        verificationCameraStream = null;
+      }
+    }
+
+    // SUBSTITUIR: Função melhorada para parar todos os streams
     function stopAllCameraStreams() {
-        let stopped = false;
-        // Parar stream da câmera principal
-        if (cameraStream) {
-            console.log("Parando stream principal...");
-            cameraStream.getTracks().forEach(track => {
-                track.stop();
-                console.log(`Track ${track.kind} (${track.label || 'sem label'}) parada.`);
-            });
-            cameraStream = null;
-            stopped = true;
-            // Limpar o elemento de vídeo associado
-            const video = document.getElementById('camera-stream');
-            if(video) {
-                video.srcObject = null;
-                video.style.display = 'none';
-                document.getElementById('camera-placeholder').style.display = 'flex';
-                document.getElementById('take-photo').disabled = true;
-                document.getElementById('captured-image').style.display = 'none'; // Esconder imagem antiga
-                document.getElementById('captured-image').src = ''; // Limpar src da imagem
+      // Parar streams específicos
+      stopCameraStream();
+      stopVerificationCameraStream();
+
+      // Garantir que todos os streams em elementos de vídeo sejam parados
+      const videoElements = document.querySelectorAll('video');
+      videoElements.forEach(video => {
+        if (video.srcObject) {
+          const tracks = video.srcObject.getTracks();
+          tracks.forEach(track => {
+            if (track.readyState === 'live') {
+              track.stop();
             }
-
+          });
+          video.srcObject = null;
         }
+      });
 
-        // Parar stream da câmera de verificação
-        if (verificationCameraStream) {
-            console.log("Parando stream de verificação...");
-            verificationCameraStream.getTracks().forEach(track => {
-                track.stop();
-                 console.log(`Track ${track.kind} (${track.label || 'sem label'}) parada.`);
-            });
-            verificationCameraStream = null;
-            stopped = true;
-             // Limpar o elemento de vídeo associado
-            const video = document.getElementById('verification-camera-stream');
-             if(video) {
-                video.srcObject = null;
-                video.style.display = 'none';
-                document.getElementById('verification-camera-placeholder').style.display = 'flex';
-                document.getElementById('verification-take-photo').disabled = true;
-                document.getElementById('verification-captured-image').style.display = 'none'; // Esconder imagem antiga
-                document.getElementById('verification-captured-image').src = ''; // Limpar src da imagem
-            }
-        }
-
-        // Se nenhum stream específico foi parado, verifica outros vídeos (menos comum ser necessário)
-        if (!stopped) {
-            const videoElements = document.querySelectorAll('video');
-            videoElements.forEach(video => {
-                if (video.srcObject) {
-                    console.warn(`Parando stream órfão no vídeo ${video.id}`);
-                    const tracks = video.srcObject.getTracks();
-                    tracks.forEach(track => track.stop());
-                    video.srcObject = null;
-                    video.style.display = 'none';
-                    // Tenta encontrar placeholder associado (heurística)
-                    const placeholder = document.getElementById(video.id.replace('-stream', '-placeholder'));
-                    if (placeholder) placeholder.style.display = 'flex';
-                     const takePhotoButton = document.getElementById(video.id.replace('-stream', '-take-photo'));
-                    if (takePhotoButton) takePhotoButton.disabled = true;
-                     const capturedImage = document.getElementById(video.id.replace('-stream', '-captured-image'));
-                     if (capturedImage) {
-                         capturedImage.style.display = 'none';
-                         capturedImage.src = '';
-                     }
-
-                }
-            });
-        }
-        console.log("Todos os streams de câmera conhecidos foram parados.");
+      console.log("Todos os streams de câmera conhecidos foram parados.");
     }
+
 
     // --- FIM DAS FUNÇÕES ATUALIZADAS ---
 
@@ -2398,18 +2418,7 @@
       // Envio dos formulários
       document.getElementById('maintenance-form').addEventListener('submit', function(e) {
         e.preventDefault();
-
-        // Verificar se pelo menos uma foto foi adicionada
-        if (capturedImages.length === 0) {
-          document.getElementById('photo-warning').style.display = 'block';
-          goToFormStep('maintenance', 3); // Leva o usuário para a etapa da foto
-          showNotification('Por favor, adicione pelo menos uma foto na Etapa 3.', 'error');
-          return;
-        } else {
-           document.getElementById('photo-warning').style.display = 'none';
-        }
-
-        submitMaintenance();
+        submitMaintenance(); // A validação da foto está dentro da nova submitMaintenance
       });
 
       document.getElementById('verification-form').addEventListener('submit', function(e) {
@@ -2439,13 +2448,13 @@
         openCamera('camera-stream', 'camera-placeholder');
       });
       document.getElementById('take-photo').addEventListener('click', function() {
-        takePhoto('camera-stream', 'captured-image', capturedImages, 'image-gallery');
+        takePhoto('camera-stream', 'captured-image'); // Ajustado para nova assinatura
       });
       document.getElementById('upload-photo').addEventListener('click', function() {
         document.getElementById('photo-upload').click();
       });
       document.getElementById('photo-upload').addEventListener('change', function(e) {
-        handleFileUpload(e, 'captured-image', capturedImages, 'image-gallery');
+        handleFileUpload(e, 'captured-image', capturedImages, 'image-gallery'); // Mantém assinatura antiga para handleFileUpload
         this.value = null; // Reset input para permitir upload do mesmo arquivo novamente
       });
 
@@ -2454,13 +2463,13 @@
         openCamera('verification-camera-stream', 'verification-camera-placeholder');
       });
       document.getElementById('verification-take-photo').addEventListener('click', function() {
-        takePhoto('verification-camera-stream', 'verification-captured-image', verificationImages, 'verification-image-gallery');
+        takePhoto('verification-camera-stream', 'verification-captured-image'); // Ajustado para nova assinatura
       });
       document.getElementById('verification-upload-photo').addEventListener('click', function() {
         document.getElementById('verification-photo-upload').click();
       });
       document.getElementById('verification-photo-upload').addEventListener('change', function(e) {
-        handleFileUpload(e, 'verification-captured-image', verificationImages, 'verification-image-gallery');
+        handleFileUpload(e, 'verification-captured-image', verificationImages, 'verification-image-gallery'); // Mantém assinatura antiga para handleFileUpload
          this.value = null; // Reset input
       });
 
@@ -2938,7 +2947,7 @@
       });
 
       // Atualizar indicadores visuais de etapa (os números/labels)
-      document.querySelectorAll(`#${formId} .form-step`).forEach(stepEl => {
+      document.querySelectorAll(`#maintenance-form .form-step`).forEach(stepEl => { // Apenas para o form de manutenção
         const stepNum = parseInt(stepEl.getAttribute('data-step'));
         stepEl.classList.remove('active', 'completed');
         if (stepNum === step) {
@@ -2948,16 +2957,16 @@
         }
       });
 
-      // Mostrar a etapa de conteúdo atual
-      // CUIDADO: O ID no HTML original só tem prefixo para a câmera. Ajustar se necessário.
-      // O ID correto parece ser apenas "step-X-content" para manutenção.
-       const contentId = `step-${step}-content`;
-      const stepContentElement = document.getElementById(contentId);
-       if (stepContentElement) {
-           stepContentElement.style.display = 'block';
-       } else {
-           console.error(`Elemento de conteúdo da etapa ${contentId} não encontrado.`);
-       }
+      // Mostrar a etapa de conteúdo atual (Apenas para o form de manutenção)
+      if(formType === 'maintenance') {
+          const contentId = `step-${step}-content`;
+          const stepContentElement = document.getElementById(contentId);
+          if (stepContentElement) {
+              stepContentElement.style.display = 'block';
+          } else {
+              console.error(`Elemento de conteúdo da etapa ${contentId} não encontrado.`);
+          }
+      }
 
 
        // Parar câmera se saindo da etapa 3 (precaução)
@@ -2968,45 +2977,72 @@
 
     }
 
-    // Submeter formulário de manutenção
+    // SUBSTITUIR: Função para enviar manutenção com compressão de imagens
     function submitMaintenance() {
-      showLoading(true, 'Salvando manutenção...');
-      const formData = {
-        equipmentId: document.getElementById('equipment-id').value,
-        equipmentType: document.getElementById('equipment-type').value,
-        technician: document.getElementById('technician-name').value,
-        date: document.getElementById('maintenance-date').value,
-        location: document.getElementById('location').value,
-        maintenanceType: document.getElementById('maintenance-type').value,
-        isCritical: document.getElementById('is-critical').checked,
-        problemCategory: document.getElementById('problem-category').value,
-        problemDescription: document.getElementById('problem-description').value,
-        solutionDescription: document.getElementById('solution-description').value,
-        partsReplaced: document.getElementById('parts-replaced').value || "", // Enviar string vazia se não preenchido
-        additionalNotes: document.getElementById('additional-notes').value || "", // Enviar string vazia
-        // As imagens são base64 e serão tratadas pelo callAPI atualizado
-        images: capturedImages
-      };
+      // Mostrar loading
+      showLoading(true, 'Processando imagens...');
 
-      callAPI('saveMaintenance', formData)
+      // Verificar se há imagens
+      if (capturedImages.length === 0) {
+        showLoading(false);
+        document.getElementById('photo-warning').style.display = 'block';
+        showNotification('Por favor, adicione pelo menos uma foto.', 'error');
+        goToFormStep('maintenance', 3); // Leva para a etapa 3
+        return;
+      }
+
+      console.log("Iniciando compressão de imagens...");
+
+      // Comprimir todas as imagens
+      const compressPromises = capturedImages.map(image =>
+        compressImage(image, 600, 0.6) // Reduzir para 600px e 60% de qualidade
+      );
+
+      Promise.all(compressPromises)
+        .then(compressedImages => {
+          console.log(`${compressedImages.length} imagens comprimidas com sucesso.`);
+
+          // Coletar dados do formulário
+          const formData = {
+            equipmentId: document.getElementById('equipment-id').value,
+            equipmentType: document.getElementById('equipment-type').value,
+            technician: document.getElementById('technician-name').value,
+            date: document.getElementById('maintenance-date').value,
+            location: document.getElementById('location').value,
+            maintenanceType: document.getElementById('maintenance-type').value,
+            isCritical: document.getElementById('is-critical').checked,
+            problemCategory: document.getElementById('problem-category').value,
+            problemDescription: document.getElementById('problem-description').value,
+            solutionDescription: document.getElementById('solution-description').value,
+            partsReplaced: document.getElementById('parts-replaced').value,
+            additionalNotes: document.getElementById('additional-notes').value,
+            images: compressedImages // Usa as imagens comprimidas
+          };
+
+          showLoading(true, 'Enviando dados...');
+          console.log("Enviando manutenção com imagens comprimidas...");
+
+          // Enviar para a API (callAPI já foi atualizado para lidar com upload)
+          return callAPI('saveMaintenance', formData);
+        })
         .then(result => {
-          if (result && result.success) {
-            showNotification('Manutenção registrada com sucesso! ID: ' + result.id, 'success');
+          showLoading(false);
+
+          if (result.success) {
+            showNotification('Manutenção registrada com sucesso!', 'success');
             closeMaintenanceForm();
-            loadDashboardData(); // Recarregar tudo para refletir a nova manutenção
+            loadDashboardData(); // Recarregar dados
           } else {
-            showNotification('Erro ao registrar manutenção: ' + (result ? result.message : 'Erro desconhecido'), 'error');
-             console.error("Erro retornado pelo saveMaintenance:", result);
+            showNotification('Erro ao registrar manutenção: ' + (result.message || 'Erro desconhecido'), 'error');
           }
         })
         .catch(error => {
-          showNotification('Falha grave ao enviar manutenção: ' + error.message, 'error');
-           console.error("Erro no catch do submitMaintenance:", error);
-        })
-         .finally(() => {
-            showLoading(false);
+          console.error("Erro no catch do submitMaintenance:", error);
+          showLoading(false);
+          showNotification('Erro ao processar imagens ou enviar: ' + error.message, 'error');
         });
     }
+
 
     // Submeter formulário de verificação
     function submitVerification() {
@@ -3242,47 +3278,74 @@
 
     // --- Funções de Câmera e Imagem ---
 
-    // Tirar foto e adicionar à galeria
-    function takePhoto(videoId, imgId, imageArray, galleryId) {
+    // SUBSTITUIR: Função melhorada para tirar foto
+    function takePhoto(videoId, imgId) {
       const video = document.getElementById(videoId);
-      const imgElement = document.getElementById(imgId);
+      const img = document.getElementById(imgId);
+      const galleryId = videoId === 'camera-stream' ? 'image-gallery' : 'verification-image-gallery';
 
-      if (video.style.display !== 'block' || !video.srcObject || !video.videoWidth) {
-        showNotification('Câmera não está pronta ou ativa.', 'error');
+      // Verificar se o vídeo está ativo
+      if (video.style.display !== 'block' || !video.srcObject) {
+        showNotification('A câmera não está ativa.', 'error');
         return;
       }
 
+      // Criar canvas para capturar imagem
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
+
+      // Verificar se o vídeo tem dimensões válidas
+      if (canvas.width === 0 || canvas.height === 0) {
+        showNotification('Erro: Vídeo não inicializado completamente. Tente novamente.', 'error');
+        return;
+      }
+
+      // Desenhar frame do vídeo no canvas
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Obter base64 com qualidade (0.8 = 80%)
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      // Converter para base64
+      let dataUrl;
+      try {
+        dataUrl = canvas.toDataURL('image/jpeg', 0.9); // Qualidade 0.9
+      } catch (error) {
+        console.error("Erro ao converter canvas para base64:", error);
+        showNotification('Erro ao capturar imagem. Tente novamente.', 'error');
+        return;
+      }
 
-      // Exibir prévia (opcional, pode ir direto pra galeria)
-      // imgElement.src = dataUrl;
-      // imgElement.style.display = 'block';
-      // video.style.display = 'none'; // Opcional: esconder vídeo após foto
+      // Verificar se o dataUrl é válido
+      if (!dataUrl || dataUrl === 'data:,') {
+        console.error("DataURL inválido gerado");
+        showNotification('Erro ao capturar imagem. Tente novamente.', 'error');
+        return;
+      }
 
-      // Adicionar à galeria e ao array
-      addImageToGallery(dataUrl, galleryId, imageArray);
+      // Exibir imagem capturada (opcional, pode ir direto pra galeria)
+      // img.src = dataUrl;
+      // img.style.display = 'block';
+      // video.style.display = 'none'; // Esconder vídeo após tirar foto
 
-      // Opcional: Parar o stream após tirar a foto? Depende do fluxo desejado.
-      // stopCameraStream(); // ou stopVerificationCameraStream()
+      // Adicionar à galeria
+      addImageToGallery(dataUrl, galleryId); // Chamando a função atualizada
 
-      // Habilitar novamente o botão Abrir Câmera e desabilitar Tirar Foto
-       const openBtnId = videoId.replace('-stream', '-open-camera');
-       const takeBtnId = videoId.replace('-stream', '-take-photo');
-       // document.getElementById(openBtnId).disabled = false;
-       // document.getElementById(takeBtnId).disabled = true; // Desabilitar após tirar uma
-       // video.style.display = 'none'; // Esconder vídeo
-       // video.srcObject = null; // Liberar stream
-        stopAllCameraStreams(); // Para garantir que parou
-        document.getElementById(videoId.replace('-stream','-placeholder')).style.display = 'flex'; // Mostra placeholder
+      // Se for o formulário principal, esconder aviso de foto obrigatória
+      if (videoId === 'camera-stream') {
+        document.getElementById('photo-warning').style.display = 'none';
+      }
+
+      // Parar streams após tirar a foto (ação comum)
+      stopAllCameraStreams();
+      // Mostrar placeholder novamente
+      const placeholderId = videoId.replace('-stream','-placeholder');
+      document.getElementById(placeholderId).style.display = 'flex';
+      // Desabilitar botão de tirar foto novamente
+      const takePhotoBtnId = videoId.replace('-stream','-take-photo');
+      document.getElementById(takePhotoBtnId).disabled = true;
 
     }
+
 
     // Manipular upload de arquivo
     function handleFileUpload(event, imgId, imageArray, galleryId) {
@@ -3296,19 +3359,17 @@
       const reader = new FileReader();
       reader.onload = function(e) {
         const dataUrl = e.target.result;
-        // Exibir prévia (opcional)
-        // const imgElement = document.getElementById(imgId);
-        // imgElement.src = dataUrl;
-        // imgElement.style.display = 'block';
-
         // Adicionar à galeria e ao array
-        addImageToGallery(dataUrl, galleryId, imageArray);
+        addImageToGallery(dataUrl, galleryId); // Chama a função atualizada que manipula os arrays globais
 
-         // Ocultar vídeo/placeholder se estiverem visíveis
-        const videoId = imgId === 'captured-image' ? 'camera-stream' : 'verification-camera-stream';
-        const placeholderId = imgId === 'captured-image' ? 'camera-placeholder' : 'verification-camera-placeholder';
+         // Ocultar vídeo/placeholder se estiverem visíveis e parar streams
+        const videoId = galleryId === 'image-gallery' ? 'camera-stream' : 'verification-camera-stream';
+        const placeholderId = galleryId === 'image-gallery' ? 'camera-placeholder' : 'verification-camera-placeholder';
+         stopAllCameraStreams();
          document.getElementById(videoId).style.display = 'none';
-         document.getElementById(placeholderId).style.display = 'none';
+         document.getElementById(placeholderId).style.display = 'flex'; // Reexibe o placeholder
+         const takePhotoBtnId = videoId.replace('-stream','-take-photo');
+         document.getElementById(takePhotoBtnId).disabled = true; // Garante que está desabilitado
 
       };
       reader.onerror = function() {
@@ -3317,76 +3378,65 @@
       reader.readAsDataURL(file);
     }
 
-    // Adicionar imagem à galeria visual e ao array correspondente
-    function addImageToGallery(dataUrl, galleryId, imageArray) {
+    // SUBSTITUIR: Função melhorada para adicionar imagem à galeria
+    function addImageToGallery(dataUrl, galleryId) {
       const gallery = document.getElementById(galleryId);
+
+      // Criar elemento de imagem
       const imgContainer = document.createElement('div');
       imgContainer.className = 'image-item';
 
       const img = document.createElement('img');
       img.src = dataUrl;
-      img.alt = 'Prévia';
+      img.alt = 'Prévia'; // Added alt text
 
       const removeBtn = document.createElement('div');
       removeBtn.className = 'image-remove';
       removeBtn.innerHTML = '&times;';
-      removeBtn.title = 'Remover imagem';
-      removeBtn.onclick = function(e) { // Usar onclick para simplificar, ou addEventListener
-        e.stopPropagation();
-        const index = imageArray.indexOf(dataUrl);
-        if (index > -1) {
-          imageArray.splice(index, 1); // Remove do array
-        }
-        imgContainer.remove(); // Remove da galeria visual
+      removeBtn.title = 'Remover imagem'; // Added title
+      removeBtn.addEventListener('click', function(e) {
+        e.stopPropagation(); // Prevent triggering the container's click event
+        imgContainer.remove(); // Remove visualmente
 
-        // Mostrar aviso se a galeria principal ficar vazia
-        if (galleryId === 'image-gallery' && imageArray.length === 0) {
-          document.getElementById('photo-warning').style.display = 'block';
+        // Remover da lista de imagens capturadas apropriada
+        if (galleryId === 'image-gallery') {
+          const index = capturedImages.indexOf(dataUrl);
+          if (index > -1) {
+            capturedImages.splice(index, 1);
+          }
+          // Mostrar aviso se não houver imagens
+          if (capturedImages.length === 0) {
+            document.getElementById('photo-warning').style.display = 'block';
+          }
+           console.log(`Imagem removida. ${galleryId} agora tem ${capturedImages.length} imagens.`);
+        } else { // Assume verification gallery
+          const index = verificationImages.indexOf(dataUrl);
+          if (index > -1) {
+            verificationImages.splice(index, 1);
+          }
+           console.log(`Imagem removida. ${galleryId} agora tem ${verificationImages.length} imagens.`);
         }
-         console.log(`Imagem removida. ${galleryId} agora tem ${imageArray.length} imagens.`);
-      };
+      });
 
-      imgContainer.onclick = function() { // Visualizar imagem
+      // Adicionar evento para visualizar em tamanho maior
+      imgContainer.addEventListener('click', function() {
         openImageModal(dataUrl);
-      };
+      });
 
       imgContainer.appendChild(img);
       imgContainer.appendChild(removeBtn);
       gallery.appendChild(imgContainer);
 
-      // Adiciona ao array
-      imageArray.push(dataUrl);
-
-      // Esconder aviso da galeria principal se alguma imagem for adicionada
+      // Adicionar à lista de imagens apropriada
       if (galleryId === 'image-gallery') {
-        document.getElementById('photo-warning').style.display = 'none';
+        capturedImages.push(dataUrl);
+        document.getElementById('photo-warning').style.display = 'none'; // Esconder aviso ao adicionar
+        console.log(`Imagem adicionada. ${galleryId} agora tem ${capturedImages.length} imagens.`);
+      } else {
+        verificationImages.push(dataUrl);
+        console.log(`Imagem adicionada. ${galleryId} agora tem ${verificationImages.length} imagens.`);
       }
-       console.log(`Imagem adicionada. ${galleryId} agora tem ${imageArray.length} imagens.`);
     }
-
-    // Parar stream da câmera principal (já incluído em stopAllCameraStreams)
-    function stopCameraStream() {
-        if (cameraStream) {
-            console.log("Parando stream principal especificamente...");
-            cameraStream.getTracks().forEach(track => track.stop());
-            cameraStream = null;
-            const video = document.getElementById('camera-stream');
-            if (video) video.srcObject = null;
-        }
-    }
-
-    // Parar stream da câmera de verificação (já incluído em stopAllCameraStreams)
-    function stopVerificationCameraStream() {
-        if (verificationCameraStream) {
-            console.log("Parando stream de verificação especificamente...");
-            verificationCameraStream.getTracks().forEach(track => track.stop());
-            verificationCameraStream = null;
-             const video = document.getElementById('verification-camera-stream');
-            if (video) video.srcObject = null;
-        }
-    }
-    // stopAllCameraStreams é a função preferencial para parar tudo
-
 
     // --- Funções de Filtragem ---
 
@@ -3397,8 +3447,8 @@
             let statusMatch = false;
             switch (filter) {
                 case 'pending': statusMatch = m.status === 'Pendente'; break;
-                case 'verified': statusMatch = m.status === 'Verificado'; break; // Ou Aprovado/Ajustes? Definir
-                case 'completed': statusMatch = m.status === 'Concluído'; break; // Ou Aprovado? Definir
+                case 'verified': statusMatch = m.status === 'Verificado' || m.status === 'Aprovado' || m.status === 'Ajustes' ; break; // Ajustado para incluir variações
+                case 'completed': statusMatch = m.status === 'Concluído' || m.status === 'Concluido'; break; // Ajustado
                 case 'all': default: statusMatch = true; break;
             }
             if (!statusMatch) return false;
@@ -3416,23 +3466,27 @@
     // Filtrar manutenções para a lista de verificação
     function filterVerifications(maintenances, filter, search) {
         const searchLower = search ? search.toLowerCase() : '';
-        // A aba de verificação geralmente foca nas pendentes
-        let baseList = maintenances.filter(m => m.status === 'Pendente');
+        let baseList = [];
 
-        // Aplicar filtros adicionais se não for 'all' ou 'pending' (embora incomum para esta aba)
-        if (filter !== 'all' && filter !== 'pending') {
-           // Exemplo: Se houvesse filtro 'verifiedToday'
-           // if (filter === 'verifiedToday') {
-           //    baseList = maintenances.filter(m => m.status === 'Verificado' && isToday(m.verification.date));
-           // } else ...
-             baseList = maintenances.filter(m => { // Permite outros filtros, mas pode não fazer sentido aqui
-                 if (filter === 'verified' && m.status !== 'Verificado') return false;
-                 if (filter === 'completed' && m.status !== 'Concluído') return false;
-                 return true;
-             });
+        // Filtra baseado no status selecionado
+        switch (filter) {
+            case 'pending':
+                baseList = maintenances.filter(m => m.status === 'Pendente');
+                break;
+            case 'verified': // Exemplo: Mostrar Verificados de Hoje (requer data da verificação)
+                 baseList = maintenances.filter(m => m.status === 'Verificado' /* && isToday(m.verification.date) */ ); // Lógica de data não implementada aqui
+                 console.warn("Filtro 'Verificados Hoje' não implementado completamente (requer data de verificação). Mostrando todos 'Verificados'.");
+                 break;
+            case 'completed':
+                baseList = maintenances.filter(m => m.status === 'Concluído' || m.status === 'Concluido');
+                break;
+            case 'all':
+            default:
+                 baseList = [...maintenances]; // Todos os status
+                break;
         }
 
-
+        // Aplica a busca textual sobre a lista filtrada por status
         return baseList.filter(m => {
             if (searchLower) {
                  return (m.id && m.id.toString().includes(searchLower)) ||
@@ -3441,7 +3495,12 @@
                         (m.maintenanceType && m.maintenanceType.toLowerCase().includes(searchLower));
             }
             return true;
-        }).sort((a, b) => new Date(a.registrationDate || a.date) - new Date(b.registrationDate || b.date)); // Ordenar pendentes mais antigas primeiro? Ou mais recentes? Ajustar.
+        }).sort((a, b) => { // Ordenação diferente para pendentes
+             if (filter === 'pending') {
+                 return new Date(a.registrationDate || a.date) - new Date(b.registrationDate || b.date); // Pendentes mais antigas primeiro
+             }
+             return new Date(b.registrationDate || b.date) - new Date(a.registrationDate || a.date); // Outros status, mais recentes primeiro
+        });
     }
 
 
