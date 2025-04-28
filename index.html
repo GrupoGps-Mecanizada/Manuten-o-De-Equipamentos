@@ -1820,7 +1820,9 @@
       });
     }
 
-    // SUBSTITUIR: Função callAPI melhorada
+    // SUBSTITUIR: Função callAPI melhorada (MANTIDA A VERSÃO ORIGINAL DO SEU CÓDIGO - VERIFICAR SE ERA PARA MANTER OU SUBSTITUIR PELA NOVA ESTRATÉGIA SEQUENCIAL)
+    // Nota: A atualização pediu para substituir submitMaintenance, mas não explicitamente callAPI. A nova submitMaintenance usa sequentialAPICall.
+    // Mantendo a função callAPI original por enquanto. Se precisar usar a nova lógica, ela está nas funções adicionadas abaixo.
     function callAPI(action, data = {}) {
       // Para debug
       console.log(`Chamando API: ${action}`);
@@ -1994,404 +1996,287 @@
       });
     }
 
+    // ADICIONAR: Função para chamadas de API sequenciais
+    function sequentialAPICall(action, data = {}) {
+      return new Promise((resolve, reject) => {
+        const callbackName = 'jsonpCallback_' + Date.now() + '_' + Math.floor(Math.random() * 1000000);
+        let scriptElement = null; // Variável para o script dentro do escopo da Promise
 
-    // SUBSTITUIR: Função melhorada para abrir a câmera
-    function openCamera(videoId, placeholderId) {
-      const video = document.getElementById(videoId);
-      const placeholder = document.getElementById(placeholderId);
-      const takePhotoBtn = document.getElementById(videoId === 'camera-stream' ? 'take-photo' : 'verification-take-photo');
-
-      console.log("Tentando abrir câmera para " + videoId);
-
-      // Certificar-se de fechar TODOS os streams anteriores
-      stopAllCameraStreams();
-
-      // Verificar se o navegador suporta getUserMedia
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        showNotification('Seu navegador não suporta acesso à câmera.', 'error');
-        return;
-      }
-
-      // Adicionar um pequeno delay antes de solicitar a câmera novamente
-      setTimeout(() => {
-        console.log("Solicitando acesso à câmera para " + videoId + " após delay...");
-
-        // Solicitar acesso à câmera
-        navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'environment',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+        // Criar função de callback global
+        window[callbackName] = function(response) {
+          // Limpar
+          if (scriptElement && scriptElement.parentNode) {
+            scriptElement.parentNode.removeChild(scriptElement);
           }
-        })
-        .then(stream => {
-          // Guardar referência ao stream
-          if (videoId === 'camera-stream') {
-            cameraStream = stream;
+          delete window[callbackName];
+
+          if (response && response.error) {
+            reject(new Error(response.message || response.error)); // Usa a mensagem do erro se existir
           } else {
-            verificationCameraStream = stream;
+            resolve(response);
           }
+        };
 
-          // Exibir vídeo
-          video.srcObject = stream;
-          video.style.display = 'block';
-          placeholder.style.display = 'none';
+        // Criar URL para a chamada
+        let url = `${API_URL}?action=${action}&callback=${callbackName}&nocache=${Date.now()}`;
 
-          console.log("Câmera " + videoId + " acessada com sucesso. Stream ID: " + stream.id);
-
-          // Habilitar botão após o carregamento completo do vídeo
-          video.onloadedmetadata = function() {
-            console.log("Metadados do vídeo " + videoId + " carregados, botão de foto habilitado.");
-            takePhotoBtn.disabled = false;
-          };
-        })
-        .catch(error => {
-          console.error("Erro ao acessar câmera " + videoId + ":", error);
-
-          // Mensagem de erro mais específica
-          if (error.name === 'NotReadableError') {
-            showNotification('Erro: Câmera já está em uso. Feche outros aplicativos que possam estar usando a câmera.', 'error');
-          } else if (error.name === 'NotAllowedError') {
-            showNotification('Permissão para acessar câmera negada. Por favor, conceda permissão nas configurações.', 'error');
-          } else {
-            showNotification('Erro ao acessar câmera: ' + error.message, 'error');
-          }
-          // Garantir que o botão de foto permaneça desabilitado e placeholder visível
-           takePhotoBtn.disabled = true;
-           video.style.display = 'none';
-           placeholder.style.display = 'flex'; // Use flex se for o estilo padrão do placeholder
-        });
-      }, 300); // Delay de 300ms para garantir que a câmera foi liberada
-    }
-
-    // SUBSTITUIR: Função melhorada para parar stream da câmera principal
-    function stopCameraStream() {
-      if (cameraStream) {
-        console.log("Parando stream principal...");
-        cameraStream.getTracks().forEach(track => {
-          track.stop();
-          console.log(`Track ${track.kind} (${track.label || 'N/A'}) parada.`);
-        });
-        cameraStream = null;
-         // Resetar visualização associada
-        const video = document.getElementById('camera-stream');
-        if(video) video.srcObject = null;
-        const btn = document.getElementById('take-photo');
-        if(btn) btn.disabled = true;
-      }
-    }
-
-    // SUBSTITUIR: Função melhorada para parar stream da câmera de verificação
-    function stopVerificationCameraStream() {
-      if (verificationCameraStream) {
-        console.log("Parando stream de verificação...");
-        verificationCameraStream.getTracks().forEach(track => {
-          track.stop();
-          console.log(`Track ${track.kind} (${track.label || 'N/A'}) parada.`);
-        });
-        verificationCameraStream = null;
-         // Resetar visualização associada
-        const video = document.getElementById('verification-camera-stream');
-        if(video) video.srcObject = null;
-        const btn = document.getElementById('verification-take-photo');
-        if(btn) btn.disabled = true;
-      }
-    }
-
-    // SUBSTITUIR: Função melhorada para parar todos os streams
-    function stopAllCameraStreams() {
-      // Parar streams específicos primeiro
-      stopCameraStream();
-      stopVerificationCameraStream();
-
-      // Garantir que todos os streams em elementos de vídeo sejam parados
-      // Isso ajuda caso algum stream não tenha sido atribuído às variáveis globais
-      const videoElements = document.querySelectorAll('video');
-      videoElements.forEach(video => {
-        if (video.srcObject) {
-          const tracks = video.srcObject.getTracks();
-          if (tracks.length > 0) {
-              console.warn(`Parando stream encontrado diretamente no vídeo ${video.id}`);
-              tracks.forEach(track => {
-                  if (track.readyState === 'live') { // Só parar se estiver ativa
-                      track.stop();
-                  }
-              });
-              video.srcObject = null; // Limpa a referência
-              video.style.display = 'none'; // Esconde o vídeo
-
-              // Tenta resetar placeholder e botões associados
-              const placeholderId = video.id.replace('-stream', '-placeholder');
-              const placeholder = document.getElementById(placeholderId);
-              if (placeholder) placeholder.style.display = 'flex'; // Ou 'block'
-
-              const btnId = video.id.replace('-stream', '-take-photo');
-              const btn = document.getElementById(btnId);
-              if (btn) btn.disabled = true;
-
-              const imgId = video.id.replace('-stream', '-captured-image');
-              const img = document.getElementById(imgId);
-              if (img) {
-                  img.style.display = 'none';
-                  img.src = ''; // Limpa imagem anterior
-              }
+        // Adicionar dados se houver
+        if (data && Object.keys(data).length > 0) {
+          try {
+             const dataStr = JSON.stringify(data);
+             // Verificar tamanho antes de adicionar à URL
+             if(dataStr.length > 150000) { // Limite para dados no GET (~150KB), chunks de imagem são maiores
+                 console.warn(`Dados para ${action} podem ser grandes demais para GET (${(dataStr.length / 1024).toFixed(1)} KB), mas tentando...`);
+                 // Chunked uploads lidam com dados grandes na própria 'data'
+                 if (action !== 'uploadImageChunk') {
+                    // Ações normais com dados grandes podem falhar aqui.
+                 }
+             }
+             url += `&data=${encodeURIComponent(dataStr)}`;
+          } catch (e) {
+              delete window[callbackName]; // Limpar callback
+              reject(new Error(`Erro ao serializar dados para ${action}: ${e.message}`));
+              return;
           }
         }
+
+        // Criar elemento de script
+        scriptElement = document.createElement('script'); // Atribui à variável de escopo
+        scriptElement.src = url;
+
+        // Verificar o comprimento final da URL (limite de navegador ~2048, mas JSONP pode ser mais)
+        if (url.length > 2000000) { // Limite alto, mas ajuda a pegar casos extremos
+             console.error(`URL da requisição sequencial para ${action} é muito longa: ${url.length} caracteres.`);
+             delete window[callbackName];
+             reject(new Error(`URL de requisição para ${action} muito longa (${url.length}).`));
+             return;
+        }
+
+        // Configurar tratamento de erro de carregamento do script
+        scriptElement.onerror = function(event) {
+          console.error(`Falha ao carregar script JSONP sequencial para ação: ${action}`, event);
+          if (scriptElement && scriptElement.parentNode) {
+            scriptElement.parentNode.removeChild(scriptElement);
+          }
+          delete window[callbackName];
+          reject(new Error(`Falha na comunicação com o servidor para ação: ${action} (script error)`));
+        };
+
+         // Adicionar um timeout para a chamada sequencial
+         const timeoutId = setTimeout(() => {
+            console.warn(`Timeout na chamada sequencial para ${action} após 90 segundos.`);
+             if (scriptElement && scriptElement.parentNode) {
+                 scriptElement.parentNode.removeChild(scriptElement);
+             }
+             delete window[callbackName];
+             reject(new Error(`Timeout na requisição sequencial para ${action}.`));
+         }, 90000); // 90 segundos para permitir uploads de chunks
+
+         // Modificar callback para limpar o timeout
+         const originalCallback = window[callbackName];
+         window[callbackName] = function(response) {
+             clearTimeout(timeoutId);
+             originalCallback(response);
+         };
+
+        // Adicionar ao documento
+        document.body.appendChild(scriptElement);
       });
-
-      console.log("Todos os streams de câmera conhecidos foram parados.");
     }
 
-    // SUBSTITUIR: Função melhorada para tirar foto
-    function takePhoto(videoId, imgId) {
-      const video = document.getElementById(videoId);
-      const img = document.getElementById(imgId); // Elemento <img> para exibir temporariamente (se necessário)
-      const galleryId = videoId === 'camera-stream' ? 'image-gallery' : 'verification-image-gallery';
+    // ADICIONAR: Função para enviar imagens sequencialmente
+    function uploadImagesSequentially(maintenanceId, folderId, images) {
+      return new Promise((resolve, reject) => {
+        console.log(`Iniciando upload sequencial de ${images.length} imagens...`);
 
-      // Verificar se o vídeo está ativo e tem dimensões
-      if (video.style.display !== 'block' || !video.srcObject || video.readyState < video.HAVE_METADATA || video.videoWidth === 0 || video.videoHeight === 0) {
-        showNotification('A câmera não está ativa ou pronta. Tente abrir novamente.', 'error');
-         console.warn("Tentativa de tirar foto com vídeo inativo ou não pronto. State:", video.readyState, "W:", video.videoWidth, "H:", video.videoHeight);
-        return;
-      }
+        // Contador para acompanhar o progresso
+        let uploadedCount = 0;
+        const totalImages = images.length;
+        const imageUrls = [];
+        const uploadErrors = []; // Array para armazenar erros
 
-      // Criar canvas para capturar imagem
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      // Desenhar frame do vídeo no canvas
-      const ctx = canvas.getContext('2d');
-      try {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      } catch (error) {
-           console.error("Erro ao desenhar imagem no canvas:", error);
-           showNotification('Erro ao capturar frame da câmera. Tente novamente.', 'error');
-           return;
-      }
-
-
-      // Converter para base64 JPEG com qualidade (0.9 = 90%)
-      let dataUrl;
-      try {
-        dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-      } catch (error) {
-        console.error("Erro ao converter canvas para base64:", error);
-        // Isso pode acontecer se o canvas estiver "tainted" (ex: por CORS), improvável com getUserMedia
-        showNotification('Erro ao gerar imagem. Tente novamente.', 'error');
-        return;
-      }
-
-      // Verificar se o dataUrl é válido (não vazio ou 'data:,')
-      if (!dataUrl || dataUrl === 'data:,') {
-        console.error("DataURL inválido gerado pelo canvas");
-        showNotification('Erro ao capturar imagem (DataURL inválido). Tente novamente.', 'error');
-        return;
-      }
-
-      // Não precisa mais exibir no <img> placeholder (imgId), vai direto pra galeria
-      // img.src = dataUrl;
-      // img.style.display = 'block';
-      // video.style.display = 'none'; // Esconder vídeo após tirar a foto
-
-      // Adicionar à galeria
-      addImageToGallery(dataUrl, galleryId);
-
-      // Parar o stream após tirar a foto para liberar a câmera
-      if (videoId === 'camera-stream') {
-          stopCameraStream();
-      } else {
-          stopVerificationCameraStream();
-      }
-      // Mostrar o placeholder novamente
-      const placeholderId = videoId.replace('-stream', '-placeholder');
-      document.getElementById(placeholderId).style.display = 'flex'; // ou 'block'
-      video.style.display = 'none'; // Garantir que o vídeo está escondido
-    }
-
-    // SUBSTITUIR: Função melhorada para adicionar imagem à galeria
-    function addImageToGallery(dataUrl, galleryId) {
-        const gallery = document.getElementById(galleryId);
-        const imageArray = galleryId === 'image-gallery' ? capturedImages : verificationImages;
-
-        // Criar elemento de imagem
-        const imgContainer = document.createElement('div');
-        imgContainer.className = 'image-item';
-
-        const img = document.createElement('img');
-        img.src = dataUrl;
-        img.alt = 'Imagem capturada'; // Alt text
-
-        const removeBtn = document.createElement('div');
-        removeBtn.className = 'image-remove';
-        removeBtn.innerHTML = '&times;';
-        removeBtn.title = 'Remover imagem'; // Tooltip
-        removeBtn.addEventListener('click', function(e) {
-            e.stopPropagation(); // Impedir que o click no botão dispare o click no container (modal)
-            imgContainer.remove(); // Remove o elemento visual
-
-            // Remover da lista de imagens capturadas correta
-            const index = imageArray.indexOf(dataUrl);
-            if (index > -1) {
-                imageArray.splice(index, 1);
-                 console.log(`Imagem removida. ${galleryId} agora tem ${imageArray.length} imagens.`);
-            } else {
-                console.warn("Imagem não encontrada no array correspondente para remoção.");
-            }
-
-            // Mostrar aviso se a galeria principal (manutenção) ficar vazia
-            if (galleryId === 'image-gallery') {
-                const photoWarning = document.getElementById('photo-warning');
-                if (photoWarning) {
-                    photoWarning.style.display = imageArray.length === 0 ? 'block' : 'none';
-                }
-            }
-        });
-
-        // Adicionar evento para visualizar em tamanho maior ao clicar no container
-        imgContainer.addEventListener('click', function() {
-            openImageModal(dataUrl);
-        });
-
-        imgContainer.appendChild(img);
-        imgContainer.appendChild(removeBtn);
-        gallery.appendChild(imgContainer);
-
-        // Adicionar à lista de imagens correta
-        imageArray.push(dataUrl);
-        console.log(`Imagem adicionada. ${galleryId} agora tem ${imageArray.length} imagens.`);
-
-        // Se for o formulário principal, esconder aviso de foto obrigatória
-        if (galleryId === 'image-gallery') {
-            const photoWarning = document.getElementById('photo-warning');
-            if (photoWarning) {
-                photoWarning.style.display = 'none';
-            }
-        }
-    }
-
-
-    // SUBSTITUIR: Função handleFileUpload corrigida para verificar elementos null
-    function handleFileUpload(event, imgId) {
-      try {
-        const file = event.target.files[0];
-        if (!file) {
-            console.log("Nenhum arquivo selecionado.");
+        // Função para enviar uma imagem
+        function uploadNextImage(index) {
+          // Verificar se terminamos
+          if (index >= totalImages) {
+            console.log("Todas as imagens processadas. Sucesso:", uploadedCount, "Falhas:", uploadErrors.length);
+            // Resolve mesmo se houver erros parciais, mas informa
+            resolve({
+              success: uploadErrors.length === 0, // Sucesso geral apenas se nenhuma falha
+              message: uploadErrors.length > 0 ? `Falha ao enviar ${uploadErrors.length} de ${totalImages} imagens.` : 'Todas as imagens enviadas com sucesso.',
+              maintenanceId: maintenanceId,
+              folderId: folderId,
+              imageUrls: imageUrls,
+              errors: uploadErrors // Inclui detalhes dos erros
+            });
             return;
+          }
+
+          // Atualizar mensagem de loading
+          showLoading(true, `Enviando imagem ${index + 1} de ${totalImages}...`);
+
+          try {
+            // Dividir a imagem em chunks para evitar URLs muito longas
+            const imageData = images[index];
+            const chunks = splitBase64IntoChunks(imageData, 50000); // ~50KB por chunk
+
+            console.log(`Imagem ${index + 1} dividida em ${chunks.totalChunks} partes.`);
+
+            // Iniciar o upload desta imagem
+            uploadImageInChunks(maintenanceId, folderId, index, chunks, 0)
+              .then(result => {
+                console.log(`Imagem ${index + 1} enviada com sucesso:`, result);
+                if (result && result.url) {
+                    imageUrls.push(result.url);
+                } else {
+                    console.warn(`Upload da imagem ${index + 1} concluído, mas sem URL de retorno.`);
+                     uploadErrors.push({ index: index, error: 'Finalização do upload não retornou URL.' });
+                }
+                uploadedCount++;
+
+                // Passar para a próxima imagem
+                uploadNextImage(index + 1);
+              })
+              .catch(error => {
+                console.error(`Erro ao enviar imagem ${index + 1}:`, error);
+                uploadErrors.push({ index: index, error: error.message || 'Erro desconhecido no upload de chunks' });
+                // Continuar com as outras imagens mesmo em caso de erro
+                uploadNextImage(index + 1);
+              });
+          } catch (splitError) {
+             console.error(`Erro ao dividir a imagem ${index + 1} em chunks:`, splitError);
+             uploadErrors.push({ index: index, error: `Erro ao processar imagem base64: ${splitError.message}` });
+             // Pular para a próxima imagem
+             uploadNextImage(index + 1);
+          }
         }
 
-        // Verificar se é uma imagem
-        if (!file.type.startsWith('image/')) {
-          showNotification('Por favor, selecione um arquivo de imagem.', 'error');
+        // Iniciar o processo com a primeira imagem
+        uploadNextImage(0);
+      });
+    }
+
+    // ADICIONAR: Função para dividir uma string base64 em chunks
+    function splitBase64IntoChunks(base64String, chunkSize) {
+      // Extrair o prefixo e os dados
+      const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (!matches || matches.length !== 3) {
+        throw new Error('Formato de imagem base64 inválido');
+      }
+
+      const contentType = matches[1];
+      const base64Data = matches[2];
+      const chunks = [];
+
+      // Dividir os dados em chunks
+      for (let i = 0; i < base64Data.length; i += chunkSize) {
+        chunks.push(base64Data.substr(i, chunkSize));
+      }
+
+      // Retornar um objeto com todas as informações
+      return {
+        contentType: contentType,
+        totalChunks: chunks.length,
+        chunks: chunks // O array de strings de chunk
+      };
+    }
+
+    // ADICIONAR: Função para enviar uma imagem em chunks
+    function uploadImageInChunks(maintenanceId, folderId, imageIndex, imageChunks, currentChunk) {
+      return new Promise((resolve, reject) => {
+        // Verificar se terminamos todos os chunks
+        if (currentChunk >= imageChunks.totalChunks) {
+          console.log(`Todos os ${imageChunks.totalChunks} chunks da imagem ${imageIndex + 1} enviados. Finalizando...`);
+          // Finalizar o upload da imagem chamando a API
+          sequentialAPICall('finalizeImageUpload', {
+            maintenanceId: maintenanceId,
+            folderId: folderId,
+            imageIndex: imageIndex, // Enviar índice original da imagem
+            contentType: imageChunks.contentType,
+            totalChunks: imageChunks.totalChunks // Informar quantos chunks foram enviados
+          })
+          .then(finalizationResult => {
+             console.log(`Finalização da imagem ${imageIndex + 1} concluída:`, finalizationResult);
+             resolve(finalizationResult); // Resolve com o resultado da finalização (deve conter a URL)
+          })
+          .catch(finalizationError => {
+             console.error(`Erro ao finalizar upload da imagem ${imageIndex + 1}:`, finalizationError);
+             reject(new Error(`Erro na finalização do upload da imagem ${imageIndex + 1}: ${finalizationError.message}`));
+          });
           return;
         }
 
-        // Não precisamos mais do elemento <img> placeholder (imgId)
-        // const img = document.getElementById(imgId);
-        // if (!img) {
-        //   console.error(`Elemento de imagem com ID ${imgId} não encontrado`);
-        //   showNotification('Erro interno: elemento de imagem não encontrado', 'error');
-        //   return;
-        // }
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          try {
-            const dataUrl = e.target.result;
-
-            // // Exibir imagem carregada no placeholder - REMOVIDO
-            // img.src = dataUrl;
-            // img.style.display = 'block';
-
-            // Ocultar vídeo se estiver visível
-            const videoId = imgId === 'captured-image' ? 'camera-stream' : 'verification-camera-stream';
-            const videoElement = document.getElementById(videoId);
-            if (videoElement) {
-              videoElement.style.display = 'none';
-              if(videoElement.srcObject) { // Parar stream se estava ativo
-                 videoElement.srcObject.getTracks().forEach(track => track.stop());
-                 videoElement.srcObject = null;
-                 // Desabilitar botão de tirar foto associado
-                  const btnId = videoId.replace('-stream', '-take-photo');
-                  const btn = document.getElementById(btnId);
-                  if (btn) btn.disabled = true;
-              }
-            }
-
-            // Ocultar placeholder
-            const placeholderId = imgId === 'captured-image' ? 'camera-placeholder' : 'verification-camera-placeholder';
-            const placeholderElement = document.getElementById(placeholderId);
-            if (placeholderElement) {
-              placeholderElement.style.display = 'none';
-            }
-
-            // Adicionar diretamente à galeria correta
-            const galleryId = imgId === 'captured-image' ? 'image-gallery' : 'verification-image-gallery';
-            addImageToGallery(dataUrl, galleryId);
-
-            // // Se for o formulário principal, esconder aviso de foto obrigatória - JÁ FEITO DENTRO DE addImageToGallery
-            // if (imgId === 'captured-image') {
-            //   const photoWarning = document.getElementById('photo-warning');
-            //   if (photoWarning) {
-            //     photoWarning.style.display = 'none';
-            //   }
-            // }
-          } catch (error) {
-            console.error("Erro ao processar imagem carregada:", error);
-            showNotification('Erro ao processar imagem: ' + error.message, 'error');
-          }
+        // Enviar o chunk atual
+        const chunkData = {
+          maintenanceId: maintenanceId,
+          folderId: folderId,
+          imageIndex: imageIndex, // Enviar índice original da imagem
+          chunkIndex: currentChunk,
+          totalChunks: imageChunks.totalChunks,
+          contentType: imageChunks.contentType,
+          data: imageChunks.chunks[currentChunk] // O chunk base64
         };
 
-        reader.onerror = function(error) {
-          console.error("Erro ao ler arquivo:", error);
-          showNotification('Erro ao ler arquivo: ' + error.message, 'error');
-        };
+         //console.log(`Enviando chunk ${currentChunk + 1}/${imageChunks.totalChunks} da imagem ${imageIndex + 1}...`);
 
-        reader.readAsDataURL(file);
-      } catch (error) {
-        console.error("Erro em handleFileUpload:", error);
-        showNotification('Erro ao processar upload: ' + error.message, 'error');
-      } finally {
-          // Resetar o input de arquivo para permitir selecionar o mesmo arquivo novamente
-          event.target.value = null;
-      }
+        sequentialAPICall('uploadImageChunk', chunkData)
+        .then((chunkResult) => {
+          // Atualizar progresso
+          const progress = Math.round(((currentChunk + 1) / imageChunks.totalChunks) * 100);
+          showLoading(true, `Enviando imagem ${imageIndex + 1} - ${progress}% concluído...`);
+           //console.log(`Chunk ${currentChunk + 1}/${imageChunks.totalChunks} da imagem ${imageIndex + 1} enviado com sucesso.`);
+
+          // Passar para o próximo chunk (recursivamente)
+          // Adiciona um pequeno delay para não sobrecarregar o servidor/navegador
+          setTimeout(() => {
+            uploadImageInChunks(maintenanceId, folderId, imageIndex, imageChunks, currentChunk + 1)
+              .then(resolve) // Propaga a resolução final
+              .catch(reject); // Propaga a rejeição
+          }, 50); // Pequeno delay entre chunks
+
+        })
+        .catch(error => {
+          console.error(`Erro ao enviar chunk ${currentChunk + 1}/${imageChunks.totalChunks} da imagem ${imageIndex + 1}:`, error);
+          // Rejeitar a promessa para esta imagem inteira
+          reject(new Error(`Erro no chunk ${currentChunk + 1}: ${error.message}`));
+        });
+      });
     }
 
 
-    // SUBSTITUIR: Função para enviar manutenção com compressão de imagens
+    // SUBSTITUIR: Nova abordagem para envio de manutenção em etapas
     function submitMaintenance() {
       // Mostrar loading
-      showLoading(true, 'Processando imagens...');
+      showLoading(true, 'Preparando dados...');
 
       // Verificar se há imagens
       if (capturedImages.length === 0) {
         showLoading(false);
         document.getElementById('photo-warning').style.display = 'block';
-        goToFormStep('maintenance', 3); // Leva o usuário para a etapa da foto
+        goToFormStep('maintenance', 3); // Leva usuário para etapa de fotos
         showNotification('Por favor, adicione pelo menos uma foto na Etapa 3.', 'error');
         return;
-      } else {
-         document.getElementById('photo-warning').style.display = 'none';
       }
+      document.getElementById('photo-warning').style.display = 'none';
 
+      console.log("Iniciando processamento de " + capturedImages.length + " imagens...");
 
-      console.log(`Iniciando compressão de ${capturedImages.length} imagens...`);
-
-      // Comprimir todas as imagens capturadas
+      // Comprimir todas as imagens para menor tamanho
       const compressPromises = capturedImages.map((image, index) => {
-          console.log(`Comprimindo imagem ${index+1}...`);
-          return compressImage(image, 600, 0.6) // Reduzir para 600px e 60% de qualidade
-             .catch(error => {
-                console.error(`Erro ao comprimir imagem ${index + 1}:`, error);
-                showNotification(`Erro ao comprimir imagem ${index + 1}. A imagem original será enviada.`, 'warning');
-                return image; // Retorna a original em caso de erro na compressão
-             });
+        console.log("Comprimindo imagem " + (index + 1) + "...");
+        // Usar compressão definida anteriormente (ex: 600px, 0.6) ou a nova (400px, 0.5)?
+        // Usando a nova especificada na atualização:
+        return compressImage(image, 400, 0.5) // Reduzir para 400px e 50% de qualidade
+           .catch(error => {
+              console.error(`Erro ao comprimir imagem ${index + 1}:`, error);
+              showNotification(`Erro ao comprimir imagem ${index + 1}. A imagem original será enviada.`, 'warning');
+              return image; // Retorna a original em caso de erro
+           });
       });
-
 
       Promise.all(compressPromises)
         .then(compressedImages => {
-          console.log(`${compressedImages.length} imagens prontas para envio (comprimidas ou originais).`);
+          console.log(compressedImages.length + " imagens prontas para envio (comprimidas ou originais).");
 
           // Coletar dados do formulário
           const formData = {
@@ -2405,47 +2290,98 @@
             problemCategory: document.getElementById('problem-category').value,
             problemDescription: document.getElementById('problem-description').value,
             solutionDescription: document.getElementById('solution-description').value,
-            partsReplaced: document.getElementById('parts-replaced').value || "", // Enviar string vazia se não preenchido
-            additionalNotes: document.getElementById('additional-notes').value || "", // Enviar string vazia
-            images: compressedImages // Enviar imagens comprimidas (ou originais se falhou)
+            partsReplaced: document.getElementById('parts-replaced').value || "", // Garantir string vazia se nulo
+            additionalNotes: document.getElementById('additional-notes').value || "", // Garantir string vazia se nulo
+            // Não incluir imagens neste objeto inicial
           };
 
-          showLoading(true, 'Enviando dados da manutenção...');
-          console.log("Enviando manutenção com imagens processadas...");
+          showLoading(true, 'Enviando dados de manutenção...');
+          console.log("Enviando manutenção (Etapa 1: Criar Registro)...");
 
-          // Enviar para a API (usando a callAPI atualizada que lida com JSONP)
-          return callAPI('saveMaintenance', formData);
-        })
-        .then(result => {
-          showLoading(false);
+          // ETAPA 1: Criar o registro de manutenção sem imagens
+          sequentialAPICall('createMaintenanceRecord', formData)
+            .then(result => {
+              if (!result || !result.success || !result.id || !result.folderId) {
+                 // Tentar pegar mensagem de erro, senão, mensagem genérica
+                 const errorMsg = result ? (result.message || 'Resposta inválida ao criar registro.') : 'Nenhuma resposta ao criar registro.';
+                throw new Error(errorMsg);
+              }
 
-          if (result && result.success) {
-            showNotification('Manutenção registrada com sucesso! ID: ' + result.id, 'success');
-            closeMaintenanceForm();
-            loadDashboardData(); // Recarregar tudo para refletir a nova manutenção
-          } else {
-             // Usa a mensagem de erro da API se disponível
-            showNotification('Erro ao registrar manutenção: ' + (result ? result.message : 'Erro desconhecido retornado pela API'), 'error');
-             console.error("Erro retornado pelo saveMaintenance:", result);
-          }
+              console.log("Registro de manutenção criado com sucesso. ID: " + result.id + ", Folder ID: " + result.folderId);
+              const maintenanceId = result.id;
+              const folderId = result.folderId;
+
+              // ETAPA 2: Enviar cada imagem separadamente (sequencialmente e em chunks)
+              showLoading(true, 'Iniciando envio de imagens...'); // Mensagem inicial para upload
+              return uploadImagesSequentially(maintenanceId, folderId, compressedImages);
+            })
+            .then(uploadResults => {
+               // uploadResults contém { success, message, maintenanceId, folderId, imageUrls, errors }
+              console.log("Resultado do upload sequencial:", uploadResults);
+
+               if (!uploadResults.success) {
+                   // Mostrar aviso de que algumas imagens falharam, mas continuar para finalizar
+                   showNotification(`Aviso: ${uploadResults.message || 'Algumas imagens falharam ao enviar.'}`, 'warning');
+                   console.warn("Erros de upload detalhados:", uploadResults.errors);
+               } else {
+                   console.log("Todas as imagens enviadas com sucesso!");
+               }
+
+              // ETAPA 3: Finalizar o registro (mesmo que algumas imagens tenham falhado)
+              console.log("Finalizando registro de manutenção (Etapa 3)...");
+              showLoading(true, 'Finalizando registro...');
+              return sequentialAPICall('finalizeMaintenanceRecord', { id: uploadResults.maintenanceId });
+            })
+            .then(finalResult => {
+              showLoading(false);
+
+              if (finalResult && finalResult.success) {
+                // Se a finalização foi sucesso, verificar se houve erros no upload de imagens (passo anterior)
+                // Nota: A lógica anterior já mostrava o warning de falha no upload. Aqui confirmamos o sucesso geral.
+                if (finalResult.warningImages) { // Se a API de finalização retornar um aviso sobre imagens
+                     showNotification(`Manutenção registrada (ID: ${finalResult.id}), mas houve problemas com algumas imagens. Verifique os detalhes.`, 'warning');
+                } else {
+                    showNotification('Manutenção registrada com sucesso! ID: ' + finalResult.id, 'success');
+                }
+                closeMaintenanceForm();
+                loadDashboardData(); // Recarregar dados
+              } else {
+                // Se a própria finalização falhou OU se o upload falhou E a finalização também falhou
+                 const errorMsg = finalResult ? (finalResult.message || 'Erro desconhecido ao finalizar.') : 'Nenhuma resposta na finalização.';
+                 // Mesmo se a finalização falhar, a manutenção PODE ter sido salva (sem o status final).
+                 // É mais seguro avisar o usuário e recarregar.
+                showNotification(`Aviso: Manutenção pode ter sido parcialmente salva (ID: ${formData.equipmentId}), mas ocorreu um erro ao finalizar: ${errorMsg}. Verifique a lista.`, 'warning');
+                 console.error("Erro na finalização:", finalResult);
+                 closeMaintenanceForm();
+                 loadDashboardData(); // Recarregar dados mesmo assim
+              }
+            })
+            .catch(error => { // Captura erros de createMaintenanceRecord, uploadImagesSequentially ou finalizeMaintenanceRecord
+              console.error("Erro no processo de submissão da manutenção:", error);
+              showLoading(false);
+              // Tenta dar uma mensagem mais específica baseada no erro
+              let userMessage = `Erro ao registrar manutenção: ${error.message}`;
+              if (error.message.includes("criar registro")) {
+                  userMessage = "Erro ao salvar os dados iniciais da manutenção. Tente novamente.";
+              } else if (error.message.includes("upload")) {
+                   userMessage = "Erro durante o envio das imagens. A manutenção pode não ter sido salva corretamente.";
+              } else if (error.message.includes("finalizar")) {
+                   userMessage = "Erro ao finalizar o registro da manutenção após o envio das imagens.";
+              } else if (error.message.includes("Timeout")) {
+                   userMessage = "A operação demorou muito para responder. Verifique sua conexão e a lista de manutenções.";
+              } else if (error.message.includes("comunicação com o servidor")) {
+                  userMessage = "Falha de comunicação com o servidor. Verifique sua conexão.";
+              }
+              showNotification(userMessage, 'error');
+            });
         })
-        .catch(error => { // Captura erros da compressão (Promise.all) ou da callAPI
-          console.error("Erro no processo de submissão da manutenção:", error);
+        .catch(error => { // Captura erros da compressão inicial (Promise.all)
+          console.error("Erro ao processar imagens:", error);
           showLoading(false);
-          // Tenta mostrar uma mensagem de erro útil
-          let userMessage = 'Ocorreu um erro inesperado.';
-          if (error.message.includes("muito grandes") || error.message.includes("URL de requisição muito longa")) {
-             userMessage = "Erro: Os dados da manutenção (incluindo fotos) são muito grandes para enviar. Tente usar menos fotos ou fotos de menor resolução.";
-          } else if (error.message.includes("Falha na requisição JSONP")) {
-             userMessage = "Erro de comunicação com o servidor. Verifique sua conexão ou tente novamente mais tarde.";
-          } else if (error.message.includes("Timeout na requisição")) {
-             userMessage = "O servidor demorou muito para responder. Tente novamente mais tarde.";
-          } else {
-             userMessage = 'Erro ao processar ou enviar manutenção: ' + error.message;
-          }
-          showNotification(userMessage, 'error');
+          showNotification('Erro ao processar imagens antes do envio: ' + error.message, 'error');
         });
     }
+
 
     // --- FIM DAS FUNÇÕES ATUALIZADAS/ADICIONADAS ---
 
@@ -2688,7 +2624,7 @@
       // Envio dos formulários
       document.getElementById('maintenance-form').addEventListener('submit', function(e) {
         e.preventDefault(); // Impedir envio padrão HTML
-        submitMaintenance(); // Chama a função JS que agora inclui validação de fotos
+        submitMaintenance(); // Chama a NOVA função JS que usa a estratégia sequencial
       });
 
       document.getElementById('verification-form').addEventListener('submit', function(e) {
@@ -2761,7 +2697,7 @@
       showLoading(true);
       const period = document.getElementById('period-filter').value;
 
-      callAPI('getDashboardData', { period: period })
+      callAPI('getDashboardData', { period: period }) // Usa a callAPI original aqui
         .then(data => {
           if (!data || data.error) {
              showNotification('Erro ao carregar dados do dashboard: ' + (data ? data.message : 'Resposta inválida'), 'error');
@@ -2786,7 +2722,7 @@
     // Carregar dados de manutenções
     function loadMaintenanceData() {
       // Opcional: Mostrar loading específico para a lista, se demorar
-      callAPI('getMaintenanceList')
+      callAPI('getMaintenanceList') // Usa a callAPI original aqui
         .then(data => {
            if (!data || data.error) {
               showNotification('Erro ao carregar lista de manutenções: ' + (data ? data.message : 'Resposta inválida'), 'error');
@@ -3258,7 +3194,367 @@
         // Adicionar lógica similar para verificação se tivesse múltiplas etapas com câmera
     }
 
+    // SUBSTITUIR: Função melhorada para abrir a câmera
+    function openCamera(videoId, placeholderId) {
+      const video = document.getElementById(videoId);
+      const placeholder = document.getElementById(placeholderId);
+      const takePhotoBtn = document.getElementById(videoId === 'camera-stream' ? 'take-photo' : 'verification-take-photo');
 
+      console.log("Tentando abrir câmera para " + videoId);
+
+      // Certificar-se de fechar TODOS os streams anteriores
+      stopAllCameraStreams();
+
+      // Verificar se o navegador suporta getUserMedia
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showNotification('Seu navegador não suporta acesso à câmera.', 'error');
+        return;
+      }
+
+      // Adicionar um pequeno delay antes de solicitar a câmera novamente
+      setTimeout(() => {
+        console.log("Solicitando acesso à câmera para " + videoId + " após delay...");
+
+        // Solicitar acesso à câmera
+        navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        })
+        .then(stream => {
+          // Guardar referência ao stream
+          if (videoId === 'camera-stream') {
+            cameraStream = stream;
+          } else {
+            verificationCameraStream = stream;
+          }
+
+          // Exibir vídeo
+          video.srcObject = stream;
+          video.style.display = 'block';
+          placeholder.style.display = 'none';
+
+          console.log("Câmera " + videoId + " acessada com sucesso. Stream ID: " + stream.id);
+
+          // Habilitar botão após o carregamento completo do vídeo
+          video.onloadedmetadata = function() {
+            console.log("Metadados do vídeo " + videoId + " carregados, botão de foto habilitado.");
+            takePhotoBtn.disabled = false;
+          };
+        })
+        .catch(error => {
+          console.error("Erro ao acessar câmera " + videoId + ":", error);
+
+          // Mensagem de erro mais específica
+          if (error.name === 'NotReadableError') {
+            showNotification('Erro: Câmera já está em uso. Feche outros aplicativos que possam estar usando a câmera.', 'error');
+          } else if (error.name === 'NotAllowedError') {
+            showNotification('Permissão para acessar câmera negada. Por favor, conceda permissão nas configurações.', 'error');
+          } else {
+            showNotification('Erro ao acessar câmera: ' + error.message, 'error');
+          }
+          // Garantir que o botão de foto permaneça desabilitado e placeholder visível
+           takePhotoBtn.disabled = true;
+           video.style.display = 'none';
+           placeholder.style.display = 'flex'; // Use flex se for o estilo padrão do placeholder
+        });
+      }, 300); // Delay de 300ms para garantir que a câmera foi liberada
+    }
+
+    // SUBSTITUIR: Função melhorada para parar stream da câmera principal
+    function stopCameraStream() {
+      if (cameraStream) {
+        console.log("Parando stream principal...");
+        cameraStream.getTracks().forEach(track => {
+          track.stop();
+          console.log(`Track ${track.kind} (${track.label || 'N/A'}) parada.`);
+        });
+        cameraStream = null;
+         // Resetar visualização associada
+        const video = document.getElementById('camera-stream');
+        if(video) video.srcObject = null;
+        const btn = document.getElementById('take-photo');
+        if(btn) btn.disabled = true;
+      }
+    }
+
+    // SUBSTITUIR: Função melhorada para parar stream da câmera de verificação
+    function stopVerificationCameraStream() {
+      if (verificationCameraStream) {
+        console.log("Parando stream de verificação...");
+        verificationCameraStream.getTracks().forEach(track => {
+          track.stop();
+          console.log(`Track ${track.kind} (${track.label || 'N/A'}) parada.`);
+        });
+        verificationCameraStream = null;
+         // Resetar visualização associada
+        const video = document.getElementById('verification-camera-stream');
+        if(video) video.srcObject = null;
+        const btn = document.getElementById('verification-take-photo');
+        if(btn) btn.disabled = true;
+      }
+    }
+
+    // SUBSTITUIR: Função melhorada para parar todos os streams
+    function stopAllCameraStreams() {
+      // Parar streams específicos primeiro
+      stopCameraStream();
+      stopVerificationCameraStream();
+
+      // Garantir que todos os streams em elementos de vídeo sejam parados
+      // Isso ajuda caso algum stream não tenha sido atribuído às variáveis globais
+      const videoElements = document.querySelectorAll('video');
+      videoElements.forEach(video => {
+        if (video.srcObject) {
+          const tracks = video.srcObject.getTracks();
+          if (tracks.length > 0) {
+              console.warn(`Parando stream encontrado diretamente no vídeo ${video.id}`);
+              tracks.forEach(track => {
+                  if (track.readyState === 'live') { // Só parar se estiver ativa
+                      track.stop();
+                  }
+              });
+              video.srcObject = null; // Limpa a referência
+              video.style.display = 'none'; // Esconde o vídeo
+
+              // Tenta resetar placeholder e botões associados
+              const placeholderId = video.id.replace('-stream', '-placeholder');
+              const placeholder = document.getElementById(placeholderId);
+              if (placeholder) placeholder.style.display = 'flex'; // Ou 'block'
+
+              const btnId = video.id.replace('-stream', '-take-photo');
+              const btn = document.getElementById(btnId);
+              if (btn) btn.disabled = true;
+
+              const imgId = video.id.replace('-stream', '-captured-image');
+              const img = document.getElementById(imgId);
+              if (img) {
+                  img.style.display = 'none';
+                  img.src = ''; // Limpa imagem anterior
+              }
+          }
+        }
+      });
+
+      console.log("Todos os streams de câmera conhecidos foram parados.");
+    }
+
+    // SUBSTITUIR: Função melhorada para tirar foto
+    function takePhoto(videoId, imgId) {
+      const video = document.getElementById(videoId);
+      const img = document.getElementById(imgId); // Elemento <img> para exibir temporariamente (se necessário)
+      const galleryId = videoId === 'camera-stream' ? 'image-gallery' : 'verification-image-gallery';
+
+      // Verificar se o vídeo está ativo e tem dimensões
+      if (video.style.display !== 'block' || !video.srcObject || video.readyState < video.HAVE_METADATA || video.videoWidth === 0 || video.videoHeight === 0) {
+        showNotification('A câmera não está ativa ou pronta. Tente abrir novamente.', 'error');
+         console.warn("Tentativa de tirar foto com vídeo inativo ou não pronto. State:", video.readyState, "W:", video.videoWidth, "H:", video.videoHeight);
+        return;
+      }
+
+      // Criar canvas para capturar imagem
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      // Desenhar frame do vídeo no canvas
+      const ctx = canvas.getContext('2d');
+      try {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      } catch (error) {
+           console.error("Erro ao desenhar imagem no canvas:", error);
+           showNotification('Erro ao capturar frame da câmera. Tente novamente.', 'error');
+           return;
+      }
+
+
+      // Converter para base64 JPEG com qualidade (0.9 = 90%)
+      let dataUrl;
+      try {
+        dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      } catch (error) {
+        console.error("Erro ao converter canvas para base64:", error);
+        // Isso pode acontecer se o canvas estiver "tainted" (ex: por CORS), improvável com getUserMedia
+        showNotification('Erro ao gerar imagem. Tente novamente.', 'error');
+        return;
+      }
+
+      // Verificar se o dataUrl é válido (não vazio ou 'data:,')
+      if (!dataUrl || dataUrl === 'data:,') {
+        console.error("DataURL inválido gerado pelo canvas");
+        showNotification('Erro ao capturar imagem (DataURL inválido). Tente novamente.', 'error');
+        return;
+      }
+
+      // Não precisa mais exibir no <img> placeholder (imgId), vai direto pra galeria
+      // img.src = dataUrl;
+      // img.style.display = 'block';
+      // video.style.display = 'none'; // Esconder vídeo após tirar a foto
+
+      // Adicionar à galeria
+      addImageToGallery(dataUrl, galleryId);
+
+      // Parar o stream após tirar a foto para liberar a câmera
+      if (videoId === 'camera-stream') {
+          stopCameraStream();
+      } else {
+          stopVerificationCameraStream();
+      }
+      // Mostrar o placeholder novamente
+      const placeholderId = videoId.replace('-stream', '-placeholder');
+      document.getElementById(placeholderId).style.display = 'flex'; // ou 'block'
+      video.style.display = 'none'; // Garantir que o vídeo está escondido
+    }
+
+    // SUBSTITUIR: Função melhorada para adicionar imagem à galeria
+    function addImageToGallery(dataUrl, galleryId) {
+        const gallery = document.getElementById(galleryId);
+        const imageArray = galleryId === 'image-gallery' ? capturedImages : verificationImages;
+
+        // Criar elemento de imagem
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'image-item';
+
+        const img = document.createElement('img');
+        img.src = dataUrl;
+        img.alt = 'Imagem capturada'; // Alt text
+
+        const removeBtn = document.createElement('div');
+        removeBtn.className = 'image-remove';
+        removeBtn.innerHTML = '&times;';
+        removeBtn.title = 'Remover imagem'; // Tooltip
+        removeBtn.addEventListener('click', function(e) {
+            e.stopPropagation(); // Impedir que o click no botão dispare o click no container (modal)
+            imgContainer.remove(); // Remove o elemento visual
+
+            // Remover da lista de imagens capturadas correta
+            const index = imageArray.indexOf(dataUrl);
+            if (index > -1) {
+                imageArray.splice(index, 1);
+                 console.log(`Imagem removida. ${galleryId} agora tem ${imageArray.length} imagens.`);
+            } else {
+                console.warn("Imagem não encontrada no array correspondente para remoção.");
+            }
+
+            // Mostrar aviso se a galeria principal (manutenção) ficar vazia
+            if (galleryId === 'image-gallery') {
+                const photoWarning = document.getElementById('photo-warning');
+                if (photoWarning) {
+                    photoWarning.style.display = imageArray.length === 0 ? 'block' : 'none';
+                }
+            }
+        });
+
+        // Adicionar evento para visualizar em tamanho maior ao clicar no container
+        imgContainer.addEventListener('click', function() {
+            openImageModal(dataUrl);
+        });
+
+        imgContainer.appendChild(img);
+        imgContainer.appendChild(removeBtn);
+        gallery.appendChild(imgContainer);
+
+        // Adicionar à lista de imagens correta
+        imageArray.push(dataUrl);
+        console.log(`Imagem adicionada. ${galleryId} agora tem ${imageArray.length} imagens.`);
+
+        // Se for o formulário principal, esconder aviso de foto obrigatória
+        if (galleryId === 'image-gallery') {
+            const photoWarning = document.getElementById('photo-warning');
+            if (photoWarning) {
+                photoWarning.style.display = 'none';
+            }
+        }
+    }
+
+
+    // SUBSTITUIR: Função handleFileUpload corrigida para verificar elementos null
+    function handleFileUpload(event, imgId) {
+      try {
+        const file = event.target.files[0];
+        if (!file) {
+            console.log("Nenhum arquivo selecionado.");
+            return;
+        }
+
+        // Verificar se é uma imagem
+        if (!file.type.startsWith('image/')) {
+          showNotification('Por favor, selecione um arquivo de imagem.', 'error');
+          return;
+        }
+
+        // Não precisamos mais do elemento <img> placeholder (imgId)
+        // const img = document.getElementById(imgId);
+        // if (!img) {
+        //   console.error(`Elemento de imagem com ID ${imgId} não encontrado`);
+        //   showNotification('Erro interno: elemento de imagem não encontrado', 'error');
+        //   return;
+        // }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          try {
+            const dataUrl = e.target.result;
+
+            // // Exibir imagem carregada no placeholder - REMOVIDO
+            // img.src = dataUrl;
+            // img.style.display = 'block';
+
+            // Ocultar vídeo se estiver visível
+            const videoId = imgId === 'captured-image' ? 'camera-stream' : 'verification-camera-stream';
+            const videoElement = document.getElementById(videoId);
+            if (videoElement) {
+              videoElement.style.display = 'none';
+              if(videoElement.srcObject) { // Parar stream se estava ativo
+                 videoElement.srcObject.getTracks().forEach(track => track.stop());
+                 videoElement.srcObject = null;
+                 // Desabilitar botão de tirar foto associado
+                  const btnId = videoId.replace('-stream', '-take-photo');
+                  const btn = document.getElementById(btnId);
+                  if (btn) btn.disabled = true;
+              }
+            }
+
+            // Ocultar placeholder
+            const placeholderId = imgId === 'captured-image' ? 'camera-placeholder' : 'verification-camera-placeholder';
+            const placeholderElement = document.getElementById(placeholderId);
+            if (placeholderElement) {
+              placeholderElement.style.display = 'none';
+            }
+
+            // Adicionar diretamente à galeria correta
+            const galleryId = imgId === 'captured-image' ? 'image-gallery' : 'verification-image-gallery';
+            addImageToGallery(dataUrl, galleryId);
+
+            // // Se for o formulário principal, esconder aviso de foto obrigatória - JÁ FEITO DENTRO DE addImageToGallery
+            // if (imgId === 'captured-image') {
+            //   const photoWarning = document.getElementById('photo-warning');
+            //   if (photoWarning) {
+            //     photoWarning.style.display = 'none';
+            //   }
+            // }
+          } catch (error) {
+            console.error("Erro ao processar imagem carregada:", error);
+            showNotification('Erro ao processar imagem: ' + error.message, 'error');
+          }
+        };
+
+        reader.onerror = function(error) {
+          console.error("Erro ao ler arquivo:", error);
+          showNotification('Erro ao ler arquivo: ' + error.message, 'error');
+        };
+
+        reader.readAsDataURL(file);
+      } catch (error) {
+        console.error("Erro em handleFileUpload:", error);
+        showNotification('Erro ao processar upload: ' + error.message, 'error');
+      } finally {
+          // Resetar o input de arquivo para permitir selecionar o mesmo arquivo novamente
+          event.target.value = null;
+      }
+    }
 
     // Submeter formulário de verificação
     function submitVerification() {
@@ -3313,7 +3609,12 @@
 
             showLoading(true, 'Enviando dados da verificação...');
             console.log("Enviando verificação com imagens processadas...");
-            // Chama a API para salvar a verificação
+            // Chama a API para salvar a verificação (usando callAPI original ou sequentialAPICall?)
+            // IMPORTANTE: A nova estratégia usa sequentialAPICall. A função original callAPI não suporta chunks.
+            // É necessário adaptar saveVerification no backend ou usar uma chamada única (se o tamanho permitir).
+            // ASSUMINDO que saveVerification NO BACKEND foi adaptado para receber TUDO de uma vez e não precisa de chunks.
+            // Se saveVerification PRECISA de chunks, esta função submitVerification precisa ser reescrita usando sequentialAPICall.
+            // Usando callAPI original por enquanto, conforme estrutura existente:
             return callAPI('saveVerification', formData);
         })
         .then(result => {
@@ -3351,7 +3652,7 @@
        showLoading(true, 'Carregando detalhes...');
        selectedMaintenanceId = maintenanceId; // Armazena o ID atual
 
-      callAPI('getMaintenanceDetails', { id: maintenanceId })
+      callAPI('getMaintenanceDetails', { id: maintenanceId }) // Usa callAPI original
         .then(details => {
           if (details.error) {
             showNotification('Erro ao carregar detalhes: ' + details.message, 'error');
@@ -3509,7 +3810,7 @@
       }
 
       showLoading(true, 'Gerando relatório...');
-      callAPI('generateReport', { startDate, endDate })
+      callAPI('generateReport', { startDate, endDate }) // Usa callAPI original
         .then(data => {
           if (data.error) {
             showNotification('Erro ao gerar relatório: ' + data.message, 'error');
@@ -3541,7 +3842,7 @@
       }
 
       showLoading(true, `Exportando para ${format}...`);
-      callAPI('exportData', { startDate, endDate, format })
+      callAPI('exportData', { startDate, endDate, format }) // Usa callAPI original
         .then(result => {
           if (result.error) {
             showNotification('Erro na exportação: ' + result.message, 'error');
