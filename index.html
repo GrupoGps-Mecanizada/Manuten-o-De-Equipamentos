@@ -1763,8 +1763,8 @@
 
     // --- INÍCIO DAS FUNÇÕES ATUALIZADAS/ADICIONADAS ---
 
-    // ADICIONAR: Função para comprimir imagens antes do envio
-    function compressImage(base64Data, maxSize = 300, quality = 0.7) {
+    // ATUALIZAÇÃO 1.a: Modificar a função de compressão de imagem
+    function compressImage(base64Data, maxSize = 300, quality = 0.5) { // Qualidade alterada para 0.5
       return new Promise((resolve, reject) => {
         try {
           // Criar uma imagem temporária
@@ -1820,9 +1820,7 @@
       });
     }
 
-    // SUBSTITUIR: Função callAPI melhorada (MANTIDA A VERSÃO ORIGINAL DO SEU CÓDIGO - VERIFICAR SE ERA PARA MANTER OU SUBSTITUIR PELA NOVA ESTRATÉGIA SEQUENCIAL)
-    // Nota: A atualização pediu para substituir submitMaintenance, mas não explicitamente callAPI. A nova submitMaintenance usa sequentialAPICall.
-    // Mantendo a função callAPI original por enquanto. Se precisar usar a nova lógica, ela está nas funções adicionadas abaixo.
+    // Função callAPI original (mantida para outras chamadas que não precisam de chunking/retry)
     function callAPI(action, data = {}) {
       // Para debug
       console.log(`Chamando API: ${action}`);
@@ -1854,69 +1852,28 @@
             resolve(response);
           };
 
-          // Se a ação for saveMaintenance e tiver imagens, tentar comprimir mais se necessário
-          if (action === 'saveMaintenance' && data.images && data.images.length > 0) {
-            console.log("Preparando envio de manutenção com imagens...");
+          // Se a ação for saveMaintenance ou saveVerification com imagens, verificar tamanho
+          if ((action === 'saveMaintenance' || action === 'saveVerification') && data.images && data.images.length > 0) {
+             console.log(`Preparando envio para ${action} com imagens...`);
 
-            let dataToSend = { ...data };
+             let dataToSend = { ...data };
+             let jsonSize;
+             try {
+                jsonSize = JSON.stringify(dataToSend).length;
+                console.log("Tamanho inicial estimado dos dados:", (jsonSize / 1024 / 1024).toFixed(2), "MB");
+             } catch (e) {
+                 console.error("Erro ao estimar tamanho dos dados:", e);
+                 reject(new Error("Erro ao processar dados para envio."));
+                 return;
+             }
 
-            // Verificar o tamanho aproximado dos dados JSON antes de enviar
-            let jsonSize;
-            try {
-               jsonSize = JSON.stringify(dataToSend).length;
-               console.log("Tamanho inicial estimado dos dados (com imagens já comprimidas):", (jsonSize / 1024 / 1024).toFixed(2), "MB");
-            } catch (e) {
-                console.error("Erro ao estimar tamanho dos dados:", e);
-                reject(new Error("Erro ao processar dados para envio."));
-                return;
-            }
+             // Ajuste: A lógica de compressão adicional foi movida para dentro de submitMaintenance/submitVerification
+             // A callAPI agora apenas envia o que recebe, assumindo que já foi processado.
+             // Se a chamada ainda for muito grande (apesar da compressão e chunking), ela pode falhar no sendRequest.
+             sendRequest(dataToSend, action, callbackName);
 
-
-            if (jsonSize > 1800000) { // Limite mais seguro para JSONP (~1.8MB)
-              console.warn("Dados muito grandes (" + (jsonSize / 1024 / 1024).toFixed(2) + " MB), tentando comprimir mais as imagens...");
-
-              // Comprimir ainda mais as imagens
-              const compressMorePromises = data.images.map(image =>
-                compressImage(image, 400, 0.4) // Reduzir ainda mais (400px, 40% qualidade)
-                  .catch(err => {
-                     console.error("Erro ao recomprimir imagem individual:", err);
-                     return image; // Retorna a imagem original se a recompressão falhar
-                  })
-              );
-
-              Promise.all(compressMorePromises)
-                .then(moreCompressedImages => {
-                  console.log("Imagens recomprimidas (ou originais em caso de erro).");
-                  dataToSend.images = moreCompressedImages;
-                  // Verificar tamanho novamente
-                  try {
-                      const finalJsonSize = JSON.stringify(dataToSend).length;
-                      console.log("Tamanho final estimado dos dados:", (finalJsonSize / 1024 / 1024).toFixed(2), "MB");
-                       if (finalJsonSize > 1800000) {
-                            console.error("Mesmo após recompressão, dados ainda são muito grandes!");
-                            // Opcional: Enviar sem imagens ou com menos imagens?
-                            // dataToSend.images = []; // Exemplo: Enviar sem imagens
-                            reject(new Error("Os dados da manutenção, mesmo com imagens recomprimidas, são muito grandes para enviar. Tente com menos fotos."));
-                            return;
-                       }
-                       sendRequest(dataToSend, action, callbackName); // Envia os dados recomprimidos
-                  } catch(e) {
-                       console.error("Erro ao verificar tamanho final ou enviar:", e);
-                       reject(new Error("Erro ao processar dados finais para envio."));
-                  }
-                })
-                .catch(error => { // Catch do Promise.all
-                  console.error("Erro geral ao recomprimir imagens:", error);
-                  // Decide se tenta enviar os dados originais ou falha
-                  // sendRequest(data, action, callbackName); // Opção: Tentar enviar original mesmo assim
-                  reject(new Error("Erro ao tentar reduzir o tamanho das imagens."));
-                });
-            } else {
-              // Enviar normalmente (tamanho aceitável)
-              sendRequest(dataToSend, action, callbackName);
-            }
           } else {
-            // Para outras ações ou saveMaintenance sem imagens, enviar normalmente
+            // Para outras ações ou sem imagens, enviar normalmente
             sendRequest(data, action, callbackName);
           }
 
@@ -1929,10 +1886,14 @@
                 // Construir URL com parâmetros
                 const url = `${API_URL}?action=${apiAction}&data=${encodeURIComponent(dataStr)}&callback=${cbName}&nocache=${Date.now()}`;
 
-                if(url.length > 2000000) { // Um limite mais realista para URLs em geral, embora JSONP seja mais restrito
-                    console.error("URL da requisição JSONP perigosamente longa:", url.length, "caracteres.");
+                // AVISO: JSONP tem limites de tamanho de URL (geralmente ~2KB, mas varia).
+                // Dados grandes (mesmo após compressão) enviados via GET desta forma podem falhar.
+                // A estratégia sequentialAPICall é MELHOR para dados grandes como chunks de imagem.
+                // Esta função callAPI original é problemática para grandes payloads no parâmetro 'data'.
+                if (url.length > 1800000) { // Limite mais seguro para JSONP GET payload
+                    console.error("URL da requisição JSONP perigosamente longa (payload grande demais para GET):", url.length, "caracteres.");
                     delete window[cbName]; // Limpar callback
-                    reject(new Error('URL de requisição muito longa. Tente enviar menos dados ou fotos.'));
+                    reject(new Error('Payload de dados muito grande para a requisição JSONP.'));
                     return;
                 }
 
@@ -1996,7 +1957,7 @@
       });
     }
 
-    // ADICIONAR: Função para chamadas de API sequenciais
+    // Função para chamadas de API sequenciais (usada para chunks)
     function sequentialAPICall(action, data = {}) {
       return new Promise((resolve, reject) => {
         const callbackName = 'jsonpCallback_' + Date.now() + '_' + Math.floor(Math.random() * 1000000);
@@ -2023,15 +1984,14 @@
         // Adicionar dados se houver
         if (data && Object.keys(data).length > 0) {
           try {
+             // IMPORTANTE: Para uploadImageChunk, o 'data' (chunk) é grande e NÃO PODE ir na URL.
+             // O backend precisa ser capaz de ler o payload da requisição (o que JSONP não faz diretamente).
+             // UMA ABORDAGEM COMUM: Enviar metadados na URL e o chunk de dados como parte do nome da função callback ou outro parâmetro.
+             // OU (MELHOR): Mudar a estratégia de backend para aceitar POST requests com o chunk no corpo (requer CORS).
+             // OU (GAMBIARRA JSONP): Codificar o chunk na URL. EXTREMAMENTE LIMITADO PELO TAMANHO DA URL!
+             // A implementação atual assume que o backend consegue lidar com o 'data' grande na URL ( improvável para chunks de 30KB+).
+             // VAMOS MANTER A ESTRUTURA ATUAL, MAS ESTE É UM PONTO CRÍTICO DE FALHA POTENCIAL.
              const dataStr = JSON.stringify(data);
-             // Verificar tamanho antes de adicionar à URL
-             if(dataStr.length > 150000) { // Limite para dados no GET (~150KB), chunks de imagem são maiores
-                 console.warn(`Dados para ${action} podem ser grandes demais para GET (${(dataStr.length / 1024).toFixed(1)} KB), mas tentando...`);
-                 // Chunked uploads lidam com dados grandes na própria 'data'
-                 if (action !== 'uploadImageChunk') {
-                    // Ações normais com dados grandes podem falhar aqui.
-                 }
-             }
              url += `&data=${encodeURIComponent(dataStr)}`;
           } catch (e) {
               delete window[callbackName]; // Limpar callback
@@ -2044,12 +2004,11 @@
         scriptElement = document.createElement('script'); // Atribui à variável de escopo
         scriptElement.src = url;
 
-        // Verificar o comprimento final da URL (limite de navegador ~2048, mas JSONP pode ser mais)
-        if (url.length > 2000000) { // Limite alto, mas ajuda a pegar casos extremos
-             console.error(`URL da requisição sequencial para ${action} é muito longa: ${url.length} caracteres.`);
-             delete window[callbackName];
-             reject(new Error(`URL de requisição para ${action} muito longa (${url.length}).`));
-             return;
+        // Verificar o comprimento final da URL (limite de navegador ~2048, JSONP GET ~2KB)
+        // Chunks de 30KB via GET são impraticáveis. A API precisa ser ajustada ou a estratégia mudada.
+        if (url.length > 2000) { // Usar limite conservador para GET
+             console.warn(`URL da requisição sequencial para ${action} MUITO LONGA: ${url.length} caracteres. Provavelmente falhará.`);
+             // Não rejeitar ainda, mas logar o aviso. A falha ocorrerá no browser/servidor.
         }
 
         // Configurar tratamento de erro de carregamento do script
@@ -2059,7 +2018,8 @@
             scriptElement.parentNode.removeChild(scriptElement);
           }
           delete window[callbackName];
-          reject(new Error(`Falha na comunicação com o servidor para ação: ${action} (script error)`));
+          // Erro comum aqui pode ser URL muito longa ou falha de rede.
+          reject(new Error(`Falha na comunicação com o servidor para ação: ${action} (script error). Verifique o tamanho dos dados e a conexão.`));
         };
 
          // Adicionar um timeout para a chamada sequencial
@@ -2084,7 +2044,7 @@
       });
     }
 
-    // ADICIONAR: Função para enviar imagens sequencialmente
+    // Função para enviar imagens sequencialmente
     function uploadImagesSequentially(maintenanceId, folderId, images) {
       return new Promise((resolve, reject) => {
         console.log(`Iniciando upload sequencial de ${images.length} imagens...`);
@@ -2118,7 +2078,8 @@
           try {
             // Dividir a imagem em chunks para evitar URLs muito longas
             const imageData = images[index];
-            const chunks = splitBase64IntoChunks(imageData, 50000); // ~50KB por chunk
+            // ATUALIZAÇÃO 1.b: Reduzir o tamanho dos chunks
+            const chunks = splitBase64IntoChunks(imageData, 30000); // Reduz de 50KB para 30KB
 
             console.log(`Imagem ${index + 1} dividida em ${chunks.totalChunks} partes.`);
 
@@ -2156,12 +2117,24 @@
       });
     }
 
-    // ADICIONAR: Função para dividir uma string base64 em chunks
+    // Função para dividir uma string base64 em chunks
     function splitBase64IntoChunks(base64String, chunkSize) {
       // Extrair o prefixo e os dados
       const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
       if (!matches || matches.length !== 3) {
-        throw new Error('Formato de imagem base64 inválido');
+        // Tentar lidar com base64 puro (sem prefixo)
+        if (base64String.length > 100 && /^[A-Za-z0-9+/=]+$/.test(base64String)) {
+            console.warn("Base64 sem prefixo detectado. Assumindo image/jpeg.");
+             const contentType = 'image/jpeg'; // Ou um padrão mais seguro?
+             const base64Data = base64String;
+             const chunks = [];
+              for (let i = 0; i < base64Data.length; i += chunkSize) {
+                chunks.push(base64Data.substr(i, chunkSize));
+              }
+              return { contentType, totalChunks: chunks.length, chunks };
+        } else {
+            throw new Error('Formato de imagem base64 inválido');
+        }
       }
 
       const contentType = matches[1];
@@ -2181,7 +2154,7 @@
       };
     }
 
-    // ADICIONAR: Função para enviar uma imagem em chunks
+    // Função para enviar uma imagem em chunks
     function uploadImageInChunks(maintenanceId, folderId, imageIndex, imageChunks, currentChunk) {
       return new Promise((resolve, reject) => {
         // Verificar se terminamos todos os chunks
@@ -2206,20 +2179,9 @@
           return;
         }
 
-        // Enviar o chunk atual
-        const chunkData = {
-          maintenanceId: maintenanceId,
-          folderId: folderId,
-          imageIndex: imageIndex, // Enviar índice original da imagem
-          chunkIndex: currentChunk,
-          totalChunks: imageChunks.totalChunks,
-          contentType: imageChunks.contentType,
-          data: imageChunks.chunks[currentChunk] // O chunk base64
-        };
-
-         //console.log(`Enviando chunk ${currentChunk + 1}/${imageChunks.totalChunks} da imagem ${imageIndex + 1}...`);
-
-        sequentialAPICall('uploadImageChunk', chunkData)
+        // ATUALIZAÇÃO 1.d: Usar a nova função com retry
+        // Substituir a chamada direta 'sequentialAPICall' pela função de retry
+        uploadImageChunkWithRetry(maintenanceId, folderId, imageIndex, imageChunks, currentChunk)
         .then((chunkResult) => {
           // Atualizar progresso
           const progress = Math.round(((currentChunk + 1) / imageChunks.totalChunks) * 100);
@@ -2236,15 +2198,61 @@
 
         })
         .catch(error => {
-          console.error(`Erro ao enviar chunk ${currentChunk + 1}/${imageChunks.totalChunks} da imagem ${imageIndex + 1}:`, error);
+          // Este catch agora pega o erro final após as tentativas falharem
+          console.error(`Erro final ao enviar chunk ${currentChunk + 1}/${imageChunks.totalChunks} da imagem ${imageIndex + 1} após retentativas:`, error);
           // Rejeitar a promessa para esta imagem inteira
-          reject(new Error(`Erro no chunk ${currentChunk + 1}: ${error.message}`));
+          reject(new Error(`Falha no envio do chunk ${currentChunk + 1} (após retentativas): ${error.message}`));
+        });
+      });
+    }
+
+    // ATUALIZAÇÃO 1.c: Adicionar função de retentativa para upload de chunks
+    function uploadImageChunkWithRetry(maintenanceId, folderId, imageIndex, imageChunks, currentChunk, attempts = 0) {
+      return new Promise((resolve, reject) => {
+        const maxAttempts = 3; // Número máximo de tentativas
+
+        if (attempts >= maxAttempts) {
+          console.error(`Falha definitiva após ${maxAttempts} tentativas para o chunk ${currentChunk + 1} da imagem ${imageIndex + 1}.`);
+          return reject(new Error(`Falha após ${maxAttempts} tentativas para o chunk ${currentChunk + 1}`));
+        }
+
+        // Dados do chunk para enviar
+        const chunkData = {
+          maintenanceId: maintenanceId,
+          folderId: folderId,
+          imageIndex: imageIndex,
+          chunkIndex: currentChunk,
+          totalChunks: imageChunks.totalChunks,
+          contentType: imageChunks.contentType,
+          data: imageChunks.chunks[currentChunk] // O chunk base64
+        };
+
+        // Tentar fazer a chamada
+        sequentialAPICall('uploadImageChunk', chunkData)
+        .then(result => {
+           // Sucesso na tentativa atual
+           // console.log(`Chunk ${currentChunk + 1} (tentativa ${attempts + 1}) enviado com sucesso.`);
+           resolve(result);
+        })
+        .catch(error => {
+          // Falha na tentativa atual
+          console.warn(`Tentativa ${attempts + 1} falhou para chunk ${currentChunk + 1} da imagem ${imageIndex + 1}. Erro: ${error.message}. Tentando novamente...`);
+
+          // Calcular delay com backoff exponencial
+          const delay = 1000 * Math.pow(2, attempts); // 1s, 2s, 4s...
+
+          // Agendar próxima tentativa
+          setTimeout(() => {
+            uploadImageChunkWithRetry(maintenanceId, folderId, imageIndex, imageChunks, currentChunk, attempts + 1)
+              .then(resolve) // Se a próxima tentativa funcionar, resolve a promessa original
+              .catch(reject); // Se a próxima tentativa falhar (e atingir maxAttempts), rejeita a original
+          }, delay);
         });
       });
     }
 
 
-    // SUBSTITUIR: Nova abordagem para envio de manutenção em etapas
+    // Função para submeter manutenção usando a nova estratégia sequencial
     function submitMaintenance() {
       // Mostrar loading
       showLoading(true, 'Preparando dados...');
@@ -2261,12 +2269,11 @@
 
       console.log("Iniciando processamento de " + capturedImages.length + " imagens...");
 
-      // Comprimir todas as imagens para menor tamanho
+      // Comprimir todas as imagens antes de enviar
       const compressPromises = capturedImages.map((image, index) => {
         console.log("Comprimindo imagem " + (index + 1) + "...");
-        // Usar compressão definida anteriormente (ex: 600px, 0.6) ou a nova (400px, 0.5)?
-        // Usando a nova especificada na atualização:
-        return compressImage(image, 400, 0.5) // Reduzir para 400px e 50% de qualidade
+        // Usar compressão definida (300px default, 0.5 quality)
+        return compressImage(image) // Usa os defaults (maxSize=300, quality=0.5)
            .catch(error => {
               console.error(`Erro ao comprimir imagem ${index + 1}:`, error);
               showNotification(`Erro ao comprimir imagem ${index + 1}. A imagem original será enviada.`, 'warning');
@@ -2298,11 +2305,10 @@
           showLoading(true, 'Enviando dados de manutenção...');
           console.log("Enviando manutenção (Etapa 1: Criar Registro)...");
 
-          // ETAPA 1: Criar o registro de manutenção sem imagens
+          // ETAPA 1: Criar o registro de manutenção sem imagens (usando sequentialAPICall)
           sequentialAPICall('createMaintenanceRecord', formData)
             .then(result => {
               if (!result || !result.success || !result.id || !result.folderId) {
-                 // Tentar pegar mensagem de erro, senão, mensagem genérica
                  const errorMsg = result ? (result.message || 'Resposta inválida ao criar registro.') : 'Nenhuma resposta ao criar registro.';
                 throw new Error(errorMsg);
               }
@@ -2311,7 +2317,7 @@
               const maintenanceId = result.id;
               const folderId = result.folderId;
 
-              // ETAPA 2: Enviar cada imagem separadamente (sequencialmente e em chunks)
+              // ETAPA 2: Enviar cada imagem separadamente (sequencialmente e em chunks com retry)
               showLoading(true, 'Iniciando envio de imagens...'); // Mensagem inicial para upload
               return uploadImagesSequentially(maintenanceId, folderId, compressedImages);
             })
@@ -2336,9 +2342,8 @@
               showLoading(false);
 
               if (finalResult && finalResult.success) {
-                // Se a finalização foi sucesso, verificar se houve erros no upload de imagens (passo anterior)
-                // Nota: A lógica anterior já mostrava o warning de falha no upload. Aqui confirmamos o sucesso geral.
-                if (finalResult.warningImages) { // Se a API de finalização retornar um aviso sobre imagens
+                // Verificar se houve erros no upload de imagens (informado no passo anterior)
+                if (finalResult.warningImages) { // Se a API de finalização retornar aviso
                      showNotification(`Manutenção registrada (ID: ${finalResult.id}), mas houve problemas com algumas imagens. Verifique os detalhes.`, 'warning');
                 } else {
                     showNotification('Manutenção registrada com sucesso! ID: ' + finalResult.id, 'success');
@@ -2346,10 +2351,7 @@
                 closeMaintenanceForm();
                 loadDashboardData(); // Recarregar dados
               } else {
-                // Se a própria finalização falhou OU se o upload falhou E a finalização também falhou
                  const errorMsg = finalResult ? (finalResult.message || 'Erro desconhecido ao finalizar.') : 'Nenhuma resposta na finalização.';
-                 // Mesmo se a finalização falhar, a manutenção PODE ter sido salva (sem o status final).
-                 // É mais seguro avisar o usuário e recarregar.
                 showNotification(`Aviso: Manutenção pode ter sido parcialmente salva (ID: ${formData.equipmentId}), mas ocorreu um erro ao finalizar: ${errorMsg}. Verifique a lista.`, 'warning');
                  console.error("Erro na finalização:", finalResult);
                  closeMaintenanceForm();
@@ -2363,14 +2365,16 @@
               let userMessage = `Erro ao registrar manutenção: ${error.message}`;
               if (error.message.includes("criar registro")) {
                   userMessage = "Erro ao salvar os dados iniciais da manutenção. Tente novamente.";
-              } else if (error.message.includes("upload")) {
-                   userMessage = "Erro durante o envio das imagens. A manutenção pode não ter sido salva corretamente.";
+              } else if (error.message.includes("upload") || error.message.includes("chunk")) {
+                   userMessage = "Erro durante o envio das imagens. A manutenção pode não ter sido salva corretamente. Verifique sua conexão.";
               } else if (error.message.includes("finalizar")) {
                    userMessage = "Erro ao finalizar o registro da manutenção após o envio das imagens.";
               } else if (error.message.includes("Timeout")) {
                    userMessage = "A operação demorou muito para responder. Verifique sua conexão e a lista de manutenções.";
               } else if (error.message.includes("comunicação com o servidor")) {
                   userMessage = "Falha de comunicação com o servidor. Verifique sua conexão.";
+              } else if (error.message.includes("URL") && error.message.includes("longa")) {
+                   userMessage = "Erro: Dados da imagem muito grandes para envio via URL. Contate o suporte."; // Erro específico de URL longa
               }
               showNotification(userMessage, 'error');
             });
@@ -3194,7 +3198,7 @@
         // Adicionar lógica similar para verificação se tivesse múltiplas etapas com câmera
     }
 
-    // SUBSTITUIR: Função melhorada para abrir a câmera
+    // Função melhorada para abrir a câmera
     function openCamera(videoId, placeholderId) {
       const video = document.getElementById(videoId);
       const placeholder = document.getElementById(placeholderId);
@@ -3263,7 +3267,7 @@
       }, 300); // Delay de 300ms para garantir que a câmera foi liberada
     }
 
-    // SUBSTITUIR: Função melhorada para parar stream da câmera principal
+    // Função melhorada para parar stream da câmera principal
     function stopCameraStream() {
       if (cameraStream) {
         console.log("Parando stream principal...");
@@ -3280,7 +3284,7 @@
       }
     }
 
-    // SUBSTITUIR: Função melhorada para parar stream da câmera de verificação
+    // Função melhorada para parar stream da câmera de verificação
     function stopVerificationCameraStream() {
       if (verificationCameraStream) {
         console.log("Parando stream de verificação...");
@@ -3297,7 +3301,7 @@
       }
     }
 
-    // SUBSTITUIR: Função melhorada para parar todos os streams
+    // Função melhorada para parar todos os streams
     function stopAllCameraStreams() {
       // Parar streams específicos primeiro
       stopCameraStream();
@@ -3341,7 +3345,7 @@
       console.log("Todos os streams de câmera conhecidos foram parados.");
     }
 
-    // SUBSTITUIR: Função melhorada para tirar foto
+    // Função melhorada para tirar foto
     function takePhoto(videoId, imgId) {
       const video = document.getElementById(videoId);
       const img = document.getElementById(imgId); // Elemento <img> para exibir temporariamente (se necessário)
@@ -3408,7 +3412,7 @@
       video.style.display = 'none'; // Garantir que o vídeo está escondido
     }
 
-    // SUBSTITUIR: Função melhorada para adicionar imagem à galeria
+    // Função melhorada para adicionar imagem à galeria
     function addImageToGallery(dataUrl, galleryId) {
         const gallery = document.getElementById(galleryId);
         const imageArray = galleryId === 'image-gallery' ? capturedImages : verificationImages;
@@ -3470,7 +3474,7 @@
     }
 
 
-    // SUBSTITUIR: Função handleFileUpload corrigida para verificar elementos null
+    // Função handleFileUpload corrigida para verificar elementos null
     function handleFileUpload(event, imgId) {
       try {
         const file = event.target.files[0];
@@ -3486,21 +3490,11 @@
         }
 
         // Não precisamos mais do elemento <img> placeholder (imgId)
-        // const img = document.getElementById(imgId);
-        // if (!img) {
-        //   console.error(`Elemento de imagem com ID ${imgId} não encontrado`);
-        //   showNotification('Erro interno: elemento de imagem não encontrado', 'error');
-        //   return;
-        // }
 
         const reader = new FileReader();
         reader.onload = function(e) {
           try {
             const dataUrl = e.target.result;
-
-            // // Exibir imagem carregada no placeholder - REMOVIDO
-            // img.src = dataUrl;
-            // img.style.display = 'block';
 
             // Ocultar vídeo se estiver visível
             const videoId = imgId === 'captured-image' ? 'camera-stream' : 'verification-camera-stream';
@@ -3528,13 +3522,6 @@
             const galleryId = imgId === 'captured-image' ? 'image-gallery' : 'verification-image-gallery';
             addImageToGallery(dataUrl, galleryId);
 
-            // // Se for o formulário principal, esconder aviso de foto obrigatória - JÁ FEITO DENTRO DE addImageToGallery
-            // if (imgId === 'captured-image') {
-            //   const photoWarning = document.getElementById('photo-warning');
-            //   if (photoWarning) {
-            //     photoWarning.style.display = 'none';
-            //   }
-            // }
           } catch (error) {
             console.error("Erro ao processar imagem carregada:", error);
             showNotification('Erro ao processar imagem: ' + error.message, 'error');
@@ -3570,7 +3557,7 @@
         console.log(`Iniciando compressão de ${verificationImages.length} imagens de verificação...`);
         const compressPromises = verificationImages.map((image, index) => {
             console.log(`Comprimindo imagem de verificação ${index+1}...`);
-            // Usar uma compressão talvez menos agressiva para verificação, se necessário
+            // Usar uma compressão talvez menos agressiva para verificação (500px, 0.7 quality)
             return compressImage(image, 500, 0.7)
              .catch(error => {
                 console.error(`Erro ao comprimir imagem de verificação ${index + 1}:`, error);
@@ -3591,12 +3578,12 @@
                 images: compressedVerificationImages // Envia imagens comprimidas/originais
             };
 
-             // Verificar tamanho antes de chamar API (similar à manutenção)
+             // Verificar tamanho antes de chamar API (usando callAPI original, que tem limites)
              let jsonSize;
              try {
                 jsonSize = JSON.stringify(formData).length;
                 console.log("Tamanho estimado dos dados de verificação:", (jsonSize / 1024 / 1024).toFixed(2), "MB");
-                 if (jsonSize > 1800000) { // Mesmo limite JSONP
+                 if (jsonSize > 1800000) { // Limite JSONP GET payload
                      throw new Error("Dados da verificação (incluindo fotos) são muito grandes. Tente com menos fotos.");
                  }
              } catch (e) {
@@ -3609,12 +3596,10 @@
 
             showLoading(true, 'Enviando dados da verificação...');
             console.log("Enviando verificação com imagens processadas...");
-            // Chama a API para salvar a verificação (usando callAPI original ou sequentialAPICall?)
-            // IMPORTANTE: A nova estratégia usa sequentialAPICall. A função original callAPI não suporta chunks.
-            // É necessário adaptar saveVerification no backend ou usar uma chamada única (se o tamanho permitir).
-            // ASSUMINDO que saveVerification NO BACKEND foi adaptado para receber TUDO de uma vez e não precisa de chunks.
-            // Se saveVerification PRECISA de chunks, esta função submitVerification precisa ser reescrita usando sequentialAPICall.
-            // Usando callAPI original por enquanto, conforme estrutura existente:
+            // IMPORTANTE: A função callAPI original pode falhar aqui se o payload for grande.
+            // Se as verificações também precisarem de chunking/retry, a lógica de `submitMaintenance`
+            // precisaria ser replicada aqui para `submitVerification`.
+            // Assumindo por enquanto que `saveVerification` aceita tudo via callAPI.
             return callAPI('saveVerification', formData);
         })
         .then(result => {
@@ -3629,11 +3614,11 @@
             }
         })
         .catch(error => {
-            // Captura erros da compressão (Promise.all) ou da callAPI ou da verificação de tamanho
+            // Captura erros da compressão, verificação de tamanho ou da callAPI
             console.error("Erro no processo de submissão da verificação:", error);
             showLoading(false);
              let userMessage = 'Ocorreu um erro inesperado ao salvar a verificação.';
-             if (error.message.includes("muito grandes") || error.message.includes("URL de requisição muito longa")) {
+             if (error.message.includes("muito grandes") || error.message.includes("Payload de dados muito grande")) {
                 userMessage = "Erro: Os dados da verificação (incluindo fotos) são muito grandes. Tente com menos fotos.";
              } else if (error.message.includes("Falha na requisição JSONP")) {
                 userMessage = "Erro de comunicação com o servidor ao salvar verificação.";
@@ -4010,7 +3995,7 @@
       const autoCloseTime = (type === 'error' || type === 'warning') ? 8000 : 5000;
       setTimeout(close, autoCloseTime);
     }
-    
+
     // Mostrar/esconder indicador de carregamento global
     function showLoading(show, message = 'Carregando...') {
       const loaderId = 'global-loader';
@@ -4055,7 +4040,7 @@
         }
       }
     }
-    
+
     // Formatar data (Brasileiro)
     function formatDate(dateString, includeTime = false) {
         if (!dateString) return '-';
