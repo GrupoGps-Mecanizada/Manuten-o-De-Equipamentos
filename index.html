@@ -284,6 +284,11 @@
       background-color: rgba(40, 167, 69, 0.2);
       color: var(--accent-color);
     }
+    /* Adicionado para Reprovado/Danger */
+    .status-danger {
+      background-color: rgba(220, 53, 69, 0.1);
+      color: var(--danger-color);
+    }
 
     .tabs {
       display: flex;
@@ -828,6 +833,14 @@
       border-left: 4px solid #17a2b8;
       color: #0c5460;
     }
+
+    /* Adicionado tipo warning */
+    .notification-popup.warning {
+      background-color: #fff3cd;
+      border-left: 4px solid var(--warning-color);
+      color: #856404;
+    }
+
 
     .notification-popup .close-btn {
       position: absolute;
@@ -1797,36 +1810,39 @@
         }
       });
 
+      // --- INÍCIO DA MODIFICAÇÃO 3 ---
       // Configurar cliente OAuth2
       try {
           tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: '987788711566-n9428umkv1noqtt09ib6scg4mqvjfo99.apps.googleusercontent.com', // SEU CLIENT ID OAUTH 2.0 (Credenciais -> ID do Cliente OAuth 2.0 -> Tipo: Aplicativo da Web)
-            scope: 'https://www.googleapis.com/auth/drive.file', // Escopo para criar e gerenciar arquivos criados pelo app
-            callback: (resp) => { // Este callback é chamado QUANDO o token é obtido/renovado via requestAccessToken()
+            client_id: '987788711566-n9428umkv1noqtt09ib6scg4mqvjfo99.apps.googleusercontent.com',
+            scope: 'https://www.googleapis.com/auth/drive.file',
+            callback: (resp) => {
               if (resp.error !== undefined) {
                 console.error("Erro na autenticação/obtenção de token:", resp);
                 // Possivelmente desabilitar funcionalidades ou mostrar erro persistente
                 accessToken = null; // Garante que não usemos um token antigo ou inválido
                 showNotification("Falha na autenticação com o Google Drive. Funcionalidades de upload podem não funcionar.", "error");
-                // Lidar com erros comuns como 'popup_closed_by_user' ou 'access_denied'
+
+                // Verificar tipos específicos de erro
                 if (resp.error === 'popup_closed_by_user') {
                     showNotification("Janela de permissão do Google fechada. Tente a ação novamente.", "info");
                 } else if (resp.error === 'access_denied') {
                      showNotification("Acesso ao Google Drive negado. Permissão é necessária para salvar fotos.", "warning");
                 }
-                // Rejeita promessas pendentes que dependiam deste token
-                 // (Implementação mais avançada poderia ter uma fila de espera)
                 return;
               }
               console.log("Token de acesso obtido/atualizado com sucesso.");
               accessToken = resp.access_token;
-              // Se houver operações esperando pelo token, podem prosseguir agora.
-              // (Pode ser necessário um mecanismo de Promise/resolve aqui se houver espera ativa)
             },
-            // error_callback: (err) => { // Opcional: Callback específico para erros durante initTokenClient (raro)
-            //   console.error("Erro na inicialização do cliente de token Google:", err);
-            //   showNotification("Erro crítico ao configurar autenticação Google.", "error");
-            // }
+            error_callback: (err) => { // Adicionado callback de erro para capturar problemas na inicialização
+              console.error("Erro na inicialização do cliente de token Google:", err);
+              showNotification("Erro crítico ao configurar autenticação Google.", "error");
+              gisInited = false; // Marca como não inicializado para nova tentativa futura
+            },
+            // Adicionado parâmetros adicionais para melhorar compatibilidade
+            prompt: '', // Vazio inicialmente para tentar autenticação silenciosa
+            hint: '', // Adicionar email do usuário se disponível tornaria o processo mais suave
+            state: 'auth_flow', // Identificador para o fluxo de autenticação
           });
           console.log("Google Sign-In (GIS) Token Client inicializado.");
           gisInited = true;
@@ -1834,8 +1850,14 @@
       } catch (gisError){
            console.error("Erro fatal ao inicializar Google Sign-In (GIS):", gisError);
            showNotification("Erro grave ao inicializar a autenticação Google. Upload de fotos indisponível.", "error");
-           // Desabilitar funcionalidades que dependem do GIS/Token
+           gisInited = false;
+           // Tentativa de recuperação
+           setTimeout(() => {
+               showNotification("Tentando reinicializar conexão com Google...", "info");
+               initGoogleAPI(); // Tenta inicializar novamente após um tempo
+           }, 5000);
       }
+      // --- FIM DA MODIFICAÇÃO 3 ---
     }
 
     function maybeEnableButtons() {
@@ -1915,6 +1937,7 @@
       });
     }
 
+    // --- INÍCIO DA MODIFICAÇÃO 1 ---
     // Função para upload para o Drive
     async function uploadFileToDrive(fileBlob, folderId, fileName) {
       try {
@@ -1929,13 +1952,40 @@
           console.log("Token de acesso não disponível. Solicitando ao usuário...");
           showLoading(true, 'Aguardando permissão do Google...'); // Informar usuário
 
-          // Pedir token ao Google (dispara o callback configurado em initGoogleAPI)
-          // Envolve a solicitação em uma Promise para esperar o callback
+          // Modificação: usando Promise com timeout e verificação de bloqueio de popup
           const tokenObtained = await new Promise((resolve) => {
-              // O callback configurado no initTokenClient será chamado.
-              // Modificamos ele temporariamente para resolver esta Promise.
               const originalCallback = tokenClient.callback;
+              let popupBlocked = false;
+              let popupCheckTimeout;
+
+              // Função para detectar bloqueio de popup
+              const checkPopupBlocked = () => {
+                  popupBlocked = true;
+                  console.warn("Possível bloqueio de popup detectado. Tentando método alternativo...");
+                  // Cancelar o timeout existente
+                  clearTimeout(popupCheckTimeout);
+
+                  // Mostrar mensagem ao usuário
+                  showNotification("O popup de autorização do Google foi bloqueado. Clique no botão 'Autorizar Google Drive' que aparecerá para continuar.", "warning", 10000);
+
+                  // Criar um botão de autorização explícito
+                  showGoogleAuthButton(() => {
+                      tokenClient.requestAccessToken({prompt: 'consent'});
+                  });
+
+                  resolve(false); // Resolver como falha para que o fluxo atual pare
+              };
+
+              // Definir timeout para detectar bloqueio de popup (300ms é geralmente suficiente)
+              popupCheckTimeout = setTimeout(checkPopupBlocked, 300);
+
               tokenClient.callback = (resp) => {
+                  // Limpar o timeout quando o callback for chamado
+                  clearTimeout(popupCheckTimeout);
+
+                  // Remover o botão de autorização se existir
+                  removeGoogleAuthButton();
+
                   originalCallback(resp); // Chama o callback original para logar e setar accessToken
                   if (resp.error !== undefined) {
                       console.error("Erro durante a solicitação do token:", resp);
@@ -1944,20 +1994,27 @@
                       resolve(true); // Resolve como sucesso
                   }
               };
-              // Iniciar o fluxo de solicitação de token (abre popup do Google se necessário)
-              tokenClient.requestAccessToken({prompt: ''}); // prompt: '' tenta silencioso, senão mostra popup
-              // prompt: 'consent' força o popup de consentimento
-              // prompt: 'select_account' força seleção de conta
+
+              // Iniciar o fluxo de solicitação de token
+              try {
+                  tokenClient.requestAccessToken({prompt: ''}); // prompt: '' tenta silencioso
+              } catch (e) {
+                  // Se ocorrer uma exceção aqui, provavelmente é um bloqueio de popup
+                  console.error("Exceção ao solicitar token:", e);
+                  checkPopupBlocked();
+              }
           });
 
           showLoading(false); // Esconder loading após tentativa
 
           if (!tokenObtained || !accessToken) {
             console.error("Falha ao obter token de acesso após solicitação.");
-            throw new Error("Falha ao obter autorização do Google. Tente novamente.");
+            throw new Error("Falha ao obter autorização do Google. Tente novamente usando o botão de autorização.");
           }
            console.log("Token obtido, continuando upload...");
         }
+
+        // Restante da função permanece igual
 
         // Verificar se o folderId é válido
         if (!folderId || typeof folderId !== 'string' || folderId.length < 10) {
@@ -2048,6 +2105,75 @@
         };
       }
     }
+    // --- FIM DA MODIFICAÇÃO 1 ---
+
+    // --- INÍCIO DA MODIFICAÇÃO 2 ---
+    // Funções auxiliares para gerenciar o botão de autenticação explícito
+    function showGoogleAuthButton(clickHandler) {
+        // Remover botão existente se houver
+        removeGoogleAuthButton();
+
+        // Criar o container para o botão
+        const container = document.createElement('div');
+        container.id = 'google-auth-button-container';
+        container.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 3000;
+            text-align: center;
+        `;
+
+        // Criar o botão
+        const button = document.createElement('button');
+        button.id = 'google-auth-button';
+        button.textContent = 'Autorizar Google Drive';
+        button.style.cssText = `
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            display: block;
+            margin: 10px auto;
+        `;
+        button.onclick = (e) => {
+            e.preventDefault();
+            clickHandler();
+            // Não remover o botão aqui - será removido quando o callback for chamado
+        };
+
+        // Adicionar explicação
+        const explanation = document.createElement('p');
+        explanation.textContent = 'É necessário autorizar o acesso ao Google Drive para fazer upload das imagens. Clique no botão acima para continuar.';
+        explanation.style.cssText = `
+            margin-bottom: 15px;
+            color: #555;
+        `;
+
+        // Montar e adicionar ao DOM
+        container.appendChild(explanation);
+        container.appendChild(button);
+        document.body.appendChild(container);
+
+        return button;
+    }
+
+    function removeGoogleAuthButton() {
+        const container = document.getElementById('google-auth-button-container');
+        if (container) {
+            container.remove();
+        }
+    }
+    // --- FIM DA MODIFICAÇÃO 2 ---
+
 
     // Configurar permissões do arquivo
     async function setFilePermissions(fileId) {
@@ -2109,9 +2235,15 @@
             const uploadErrors = []; // Array para armazenar erros de upload individuais
 
             for (let i = 0; i < images.length; i++) {
+                // Usar filter para pular imagens marcadas como null (se usar essa estratégia na remoção)
                 const imageData = images[i];
+                if (!imageData) {
+                    console.log(`Pulando imagem índice ${i} pois está marcada como removida/nula.`);
+                    continue;
+                }
+
                 const imageNumber = i + 1;
-                const totalImages = images.length;
+                const totalImages = images.length; // Total original, não as válidas
                 const fileName = `imagem_${maintenanceId}_${imageNumber}.jpg`; // Nome do arquivo no Drive
 
                 try {
@@ -2147,14 +2279,17 @@
 
             } // Fim do loop for
 
+            const successfulUploads = imageUrls.length;
+            const totalAttempted = images.filter(img => img !== null).length; // Conta apenas as não nulas
+
             // Processo concluído (com ou sem erros individuais)
-            console.log(`Upload sequencial concluído: ${imageUrls.length}/${images.length} imagens enviadas com sucesso para a pasta ${folderId}.`);
+            console.log(`Upload sequencial concluído: ${successfulUploads}/${totalAttempted} imagens enviadas com sucesso para a pasta ${folderId}.`);
 
             // Resolver a Promise com o resultado agregado
             resolve({
                 success: uploadErrors.length === 0, // Sucesso geral apenas se NENHUM erro ocorreu
                 message: uploadErrors.length > 0
-                ? `Falha ao enviar ${uploadErrors.length} de ${images.length} imagens.`
+                ? `Falha ao enviar ${uploadErrors.length} de ${totalAttempted} imagens.`
                 : 'Todas as imagens enviadas com sucesso.',
                 maintenanceId: maintenanceId,
                 folderId: folderId,
@@ -2528,8 +2663,11 @@
       // Mostrar loading
       showLoading(true, 'Preparando dados...');
 
-      // Verificar se há imagens
-      if (capturedImages.length === 0) {
+      // Pega imagens VÁLIDAS (não nulas) do array global
+      const validImages = capturedImages.filter(img => img !== null);
+
+      // Verificar se há imagens VÁLIDAS
+      if (validImages.length === 0) {
         showLoading(false);
         document.getElementById('photo-warning').style.display = 'block';
         goToFormStep('maintenance', 3); // Leva usuário para etapa de fotos
@@ -2538,10 +2676,10 @@
       }
       document.getElementById('photo-warning').style.display = 'none';
 
-      console.log("Iniciando processamento de " + capturedImages.length + " imagens...");
+      console.log("Iniciando processamento de " + validImages.length + " imagens válidas...");
 
-      // Comprimir todas as imagens para menor tamanho
-      const compressPromises = capturedImages.map((image, index) => {
+      // Comprimir todas as imagens VÁLIDAS para menor tamanho
+      const compressPromises = validImages.map((image, index) => {
         console.log("Comprimindo imagem " + (index + 1) + "...");
         // Usar compressão mais forte (200px, 30% qualidade) - AJUSTE DE ACORDO COM O PASSO 6
         return compressImage(image, 200, 0.3)
@@ -2590,6 +2728,7 @@
 
           // ETAPA 1: Criar o registro de manutenção sem imagens (usando sequentialAPICall JSONP)
           sequentialAPICall('createMaintenanceRecord', formData)
+            // --- INÍCIO DA MODIFICAÇÃO 4 ---
             .then(result => {
               // Verificar se a criação foi bem-sucedida e retornou IDs necessários
               if (!result || !result.success || !result.id || !result.folderId) {
@@ -2602,34 +2741,115 @@
               const maintenanceId = result.id;
               const folderId = result.folderId;
 
-              // ETAPA 2: Usar o novo método de upload direto para o Drive
+              // ETAPA 2: Usar o método de upload direto para o Drive
               showLoading(true, 'Iniciando upload de imagens para o Drive...');
-              // Chama a função uploadImagesSequentially que agora faz o upload direto
-              return uploadImagesSequentially(maintenanceId, folderId, compressedImages);
+
+              // Adicionar tratamento melhorado de falha de autenticação
+              return uploadImagesSequentially(maintenanceId, folderId, compressedImages)
+                .catch(err => {
+                  // Capturar especificamente erros de autenticação
+                  if (err.message && (
+                      err.message.includes('autorização do Google') ||
+                      err.message.includes('autenticação') ||
+                      err.message.includes('token') ||
+                      err.message.includes('popup')
+                  )) {
+                    // Oferecer alternativa ao usuário
+                    console.warn("Falha na autenticação do Google durante upload. Oferecendo alternativa.");
+                    showNotification("Problema na autenticação com Google Drive. Clique em 'Tentar Novamente' para fazer uma nova tentativa com autorização explícita.", "warning", 8000);
+
+                    // Mostrar diálogo de confirmação
+                    if (confirm("Houve um problema ao conectar com o Google Drive. Deseja tentar novamente com autorização explícita?")) {
+                      // Apresentar botão de autorização explícito e tentar novamente após autorização
+                      return new Promise((resolve) => {
+                        showGoogleAuthButton(() => {
+                          // Esta função será chamada quando o botão for clicado
+                          tokenClient.requestAccessToken({prompt: 'consent'});
+
+                          // Verificar token a cada 1s (poderia usar um mecanismo de callback mais elegante)
+                          const checkToken = setInterval(() => {
+                            if (accessToken) {
+                              clearInterval(checkToken);
+                              removeGoogleAuthButton();
+                              showNotification("Autorizado! Tentando upload novamente...", "success");
+                              // Tentar o upload novamente após obter o token
+                              setTimeout(() => {
+                                uploadImagesSequentially(maintenanceId, folderId, compressedImages)
+                                  .then(uploadResults => resolve(uploadResults)) // Resolve com o resultado da SEGUNDA tentativa
+                                  .catch(e => {
+                                    console.error("Falha na segunda tentativa de upload:", e);
+                                    // Resolve com falha parcial mesmo se a segunda tentativa falhar
+                                    resolve({
+                                      maintenanceId,
+                                      folderId, // Incluir folderId aqui também
+                                      partialFailure: true,
+                                      success: false, // Indica falha no upload
+                                      message: `Falha na segunda tentativa de upload após autenticação: ${e.message}`
+                                    });
+                                  });
+                              }, 1000);
+                            }
+                          }, 1000);
+
+                          // Timeout após 30s de espera
+                          setTimeout(() => {
+                            if(accessToken) return; // Já resolveu pelo setInterval
+                            clearInterval(checkToken);
+                            removeGoogleAuthButton();
+                            resolve({
+                              maintenanceId,
+                              folderId, // Incluir folderId
+                              partialFailure: true,
+                              success: false, // Indica falha no upload
+                              message: "Tempo esgotado aguardando autorização."
+                            });
+                          }, 30000);
+                        });
+                      });
+                    } else {
+                      // Usuário optou por não tentar novamente
+                      console.log("Usuário optou por não tentar nova autorização. Continuando sem imagens (ou com as que já foram enviadas se o erro não foi na primeira).");
+                      // Resolve com um objeto indicando falha parcial para prosseguir para finalização
+                      return Promise.resolve({ // Usar Promise.resolve para manter a cadeia
+                        maintenanceId,
+                        folderId, // Incluir folderId
+                        partialFailure: true,
+                        success: false, // Indica falha no upload
+                        imageUrls: [], // Sem URLs de sucesso nesta tentativa
+                        errors: [{ index: -1, name: 'AuthRetryCancelled', error: 'Upload cancelado pelo usuário após falha de autenticação.'}],
+                        message: "Upload de imagens cancelado pelo usuário após falha de autenticação."
+                      });
+                    }
+                  }
+
+                  // Se não for erro de autenticação, propaga normalmente
+                  throw err; // Rejeita a promise com o erro original
+                });
             })
-            .then(uploadResults => {
-              // uploadResults = { success: bool, message: string, maintenanceId, folderId, imageUrls: [], errors: [] }
-              console.log("Resultado do upload direto para o Drive:", uploadResults);
+            // --- FIM DA MODIFICAÇÃO 4 (Início do Bloco) ---
+
+            .then(uploadResults => { // Este .then recebe o resultado de uploadImagesSequentially (ou da lógica de retry)
+              // uploadResults = { success: bool, message: string, maintenanceId, folderId, imageUrls: [], errors: [], partialFailure?: bool }
+              console.log("Resultado do upload (após retry se houve):", uploadResults);
 
               // Mesmo que haja falhas no upload, prosseguir para finalizar o registro.
               // O backend (finalizeMaintenanceRecord) pode opcionalmente usar as imageUrls que deram certo.
-              if (!uploadResults.success) {
+              const partialFailure = uploadResults.errors && uploadResults.errors.length > 0 || uploadResults.partialFailure;
+
+              if (partialFailure) {
                  // Informar o usuário sobre falhas parciais
                 showNotification(`Aviso: ${uploadResults.message || 'Algumas imagens falharam ao enviar.'}`, 'warning');
                 console.warn("Erros de upload detalhados:", uploadResults.errors);
-                // Guardar o ID da manutenção para a próxima etapa
-                 return { maintenanceId: uploadResults.maintenanceId, partialFailure: true };
               } else {
                 console.log("Todas as imagens enviadas com sucesso para o Drive!");
-                 // Guardar o ID da manutenção para a próxima etapa
-                 return { maintenanceId: uploadResults.maintenanceId, partialFailure: false };
               }
-            })
-            .then(finalizationData => {
-               // finalizationData contém { maintenanceId, partialFailure }
 
               // ETAPA 3: Finalizar o registro (chama API via JSONP)
-              const maintenanceIdToFinalize = finalizationData.maintenanceId;
+              const maintenanceIdToFinalize = uploadResults.maintenanceId; // Pega o ID do resultado do upload
+               if (!maintenanceIdToFinalize) {
+                   throw new Error("ID da manutenção não encontrado após etapa de upload para finalizar.");
+               }
+
               console.log(`Finalizando registro de manutenção ${maintenanceIdToFinalize} (Etapa 3)...`);
               showLoading(true, 'Finalizando registro...');
 
@@ -2638,7 +2858,7 @@
               return sequentialAPICall('finalizeMaintenanceRecord', { id: maintenanceIdToFinalize })
                   .then(finalResult => ({ // Encapsula o resultado da finalização junto com o status de falha parcial
                       ...finalResult, // Inclui { success, id, message? } da finalização
-                      partialImageFailure: finalizationData.partialFailure
+                      partialImageFailure: partialFailure // Adiciona o status de falha parcial das imagens
                   }));
             })
             .then(finalResultWithStatus => {
@@ -2659,35 +2879,37 @@
                     const errorMsg = finalResultWithStatus ? (finalResultWithStatus.message || 'Erro desconhecido ao finalizar.') : 'Nenhuma resposta na finalização.';
                     console.error("Erro na finalização:", finalResultWithStatus);
                     // Informar que pode ter sido parcialmente salvo
-                    showNotification(`Aviso: Manutenção PODE ter sido parcialmente salva (dados e algumas imagens), mas ocorreu um erro ao finalizar: ${errorMsg}. Verifique a lista.`, 'warning');
+                    showNotification(`Aviso: Manutenção PODE ter sido parcialmente salva (dados e talvez algumas imagens), mas ocorreu um erro ao finalizar: ${errorMsg}. Verifique a lista.`, 'warning');
                     closeMaintenanceForm();
                     loadDashboardData(); // Recarregar dados mesmo assim
                 }
             })
-            .catch(error => { // Captura erros de CADA ETAPA (create, upload, finalize)
+            .catch(error => { // Captura erros de CADA ETAPA (create, upload, finalize OU o erro propagado do catch específico de auth)
               console.error("Erro no processo de submissão da manutenção:", error);
               showLoading(false);
 
               // Tenta dar uma mensagem mais útil ao usuário
               let userMessage = `Erro ao registrar manutenção: ${error.message || 'Erro desconhecido'}`;
-              if (error.message && error.message.includes("autorização do Google")) {
-                userMessage = "Erro de autenticação com o Google Drive. Por favor, tente a operação novamente para permitir o acesso.";
+              if (error.message && (error.message.includes("autorização do Google") || error.message.includes("autenticação") || error.message.includes("popup"))) {
+                userMessage = "Erro de autenticação com o Google Drive. Por favor, tente a operação novamente para permitir o acesso ou use o botão de autorização.";
               } else if (error.message && error.message.includes("criar registro inicial")) {
                  userMessage = "Falha ao salvar os dados iniciais da manutenção. Tente novamente.";
-              } else if (error.message && error.message.includes("upload para o Drive")) {
+              } else if (error.message && (error.message.includes("upload para o Drive") || error.message.includes("upload") )) {
                  userMessage = `Erro durante o envio das imagens para o Google Drive: ${error.message}. A manutenção pode não ter sido salva corretamente.`;
-              } else if (error.message && error.message.includes("API Sequencial") || error.message.includes("API (JSONP)")) {
+              } else if (error.message && (error.message.includes("API Sequencial") || error.message.includes("API (JSONP)"))) {
                  userMessage = `Erro de comunicação com o servidor durante o registro: ${error.message}. Verifique sua conexão.`;
               } else if (error.message && error.message.includes("Timeout")) {
                  userMessage = "A operação demorou muito para responder (Timeout). Verifique sua conexão e a lista de manutenções.";
               } else if (error.message && error.message.includes("Validação")) {
                    userMessage = "Erro: Formulário inválido. Verifique os campos marcados.";
+              } else if (error.message && error.message.includes("finalizar")) {
+                   userMessage = `Erro ao finalizar o registro (ID pode ter sido criado): ${error.message}`;
               }
 
               showNotification(userMessage, 'error');
               // Não fechar o formulário automaticamente em caso de erro, permitir ao usuário tentar novamente?
-              // Ou fechar para evitar submissões duplicadas? A instrução original fecha.
-              // closeMaintenanceForm(); // Comentado - deixar usuário decidir?
+              // A instrução original fecha. Mantendo o fechamento.
+              closeMaintenanceForm();
               loadDashboardData(); // Tenta recarregar dados para ver se algo foi salvo parcialmente
             });
         })
@@ -2791,11 +3013,11 @@
       });
 
       document.getElementById('refresh-maintenance-list').addEventListener('click', function() {
-        loadMaintenanceData(); // Força recarga dos dados da API
+        loadMaintenanceDataIfNeeded(true); // Força recarga dos dados da API
       });
 
       document.getElementById('refresh-verification-list').addEventListener('click', function() {
-        loadMaintenanceData(); // Força recarga dos dados (a lista de verificação depende deles)
+        loadMaintenanceDataIfNeeded(true); // Força recarga dos dados (a lista de verificação depende deles)
       });
 
       // Botões de exportação e relatório
@@ -2996,7 +3218,7 @@
              // Ou recarregar se a lógica exigir (ex: dashboard depende de dados frescos das listas)
              // Se o dashboard já inclui dados recentes, talvez não precise recarregar as listas aqui sempre.
               if (maintenanceList.length === 0) {
-                  loadMaintenanceData(); // Carrega se estiver vazia
+                  loadMaintenanceDataIfNeeded(true); // Carrega se estiver vazia (força para garantir dados)
               } else {
                   // Atualiza tabelas do dashboard com os dados já existentes em maintenanceList
                   updateRecentMaintenanceTable();
@@ -3572,6 +3794,9 @@
          if (lowerStatus === 'concluido') {
              return 'Concluído';
          }
+         if (lowerStatus === 'reprovado') {
+              return 'Reprovado'; // Garante capitalização
+         }
           // Capitaliza a primeira letra para consistência
           return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
      }
@@ -3602,7 +3827,6 @@
            charts.problemTypeChart = null;
        }
 
-       const defaultData = { 'Motor': 0, 'Transmissão': 0, 'Hidráulico': 0, 'Elétrico': 0, 'Freios': 0, 'Outro': 0 };
        const dataToUse = (problemData && Object.keys(problemData).length > 0) ? problemData : null; // Usa dados reais só se não forem vazios
 
         if (!dataToUse) {
@@ -3613,7 +3837,14 @@
 
         // Garantir que o canvas exista após limpar o container
         if (!document.getElementById('problem-type-chart')) {
-            canvas.parentElement.innerHTML = '<canvas id="problem-type-chart"></canvas>'; // Recria se foi removido
+            // Se o elemento pai foi limpo, recria o canvas dentro dele
+            const container = document.getElementById('tab-reports').querySelector('.section:nth-child(2) .chart-container'); // Encontra o container
+            if (container) {
+                container.innerHTML = '<canvas id="problem-type-chart"></canvas>';
+            } else {
+                console.error("Container do gráfico de problemas não encontrado para recriar canvas.");
+                return;
+            }
         }
         const finalCanvas = document.getElementById('problem-type-chart');
         const finalCtx = finalCanvas.getContext('2d');
@@ -3670,7 +3901,14 @@
 
         // Garantir que o canvas exista
          if (!document.getElementById('resolution-time-chart')) {
-             canvas.parentElement.innerHTML = '<canvas id="resolution-time-chart"></canvas>';
+             // Se o elemento pai foi limpo, recria o canvas dentro dele
+             const container = document.getElementById('tab-reports').querySelector('.section:nth-child(3) .chart-container'); // Encontra o container
+             if(container){
+                container.innerHTML = '<canvas id="resolution-time-chart"></canvas>';
+             } else {
+                 console.error("Container do gráfico de tempo não encontrado para recriar canvas.");
+                 return;
+             }
          }
          const finalCanvas = document.getElementById('resolution-time-chart');
          const finalCtx = finalCanvas.getContext('2d');
@@ -3805,6 +4043,9 @@
        if (form) {
             form.querySelectorAll('.form-control.is-invalid').forEach(el => el.classList.remove('is-invalid'));
             form.querySelectorAll('input[style*="border-color: red"], select[style*="border-color: red"], textarea[style*="border-color: red"]').forEach(el => el.style.borderColor = '');
+             // Resetar cor do label do radio
+             const radioGroupLabel = document.querySelector('#verification-form label[for="verification-approved"]')?.parentElement.querySelector('label');
+             if(radioGroupLabel) radioGroupLabel.style.color = '';
        }
 
 
@@ -3828,7 +4069,7 @@
 
         const formId = 'maintenance-form';
         const stepContentPrefix = 'step-'; // ID base do conteúdo da etapa
-        const stepIndicatorSelector = `.${formType}-step`; // Classe dos indicadores visuais
+        const stepIndicatorSelector = `.form-step`; // Classe dos indicadores visuais (simplificado)
 
         console.log(`Navegando para Etapa ${step} do formulário ${formType}`);
 
@@ -3854,7 +4095,7 @@
         if (stepContentElement) {
             stepContentElement.style.display = 'block';
              // Focar no primeiro campo da etapa (melhora usabilidade)
-             const firstInput = stepContentElement.querySelector('input, select, textarea');
+             const firstInput = stepContentElement.querySelector('input:not([type=hidden]):not([type=button]):not([type=submit]):not([type=reset]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
              if (firstInput) {
                  // Usar setTimeout para garantir que o elemento esteja visível antes de focar
                  setTimeout(() => firstInput.focus(), 50);
@@ -3971,12 +4212,33 @@
           } else if (error.name === 'AbortError') {
               userMessage = 'Acesso à câmera abortado.'; // Pode acontecer se o usuário interagir rapidamente
           } else if (error.name === 'OverconstrainedError') {
-               userMessage = 'A câmera não suporta as configurações solicitadas (resolução, etc.).';
+               userMessage = 'A câmera não suporta as configurações solicitadas (resolução, etc.). Tentando configuração padrão...';
                console.warn("OverconstrainedError - tentando sem constraints específicas...");
                // Tentar novamente com constraints mais simples (sem especificar resolução)
                 navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment'}, audio: false })
-                    .then(/* ... Lógica de sucesso ... */)
-                    .catch(/* ... Lógica de erro final ...*/);
+                    .then(stream => { // Copia da lógica de sucesso
+                        console.log("Stream da câmera (fallback) obtido para " + videoId);
+                        if (videoId === 'camera-stream') cameraStream = stream;
+                        else verificationCameraStream = stream;
+                        video.srcObject = stream;
+                        video.style.display = 'block';
+                        placeholder.style.display = 'none';
+                        video.onloadedmetadata = () => { takePhotoBtn.disabled = false; };
+                        stream.getVideoTracks()[0].onended = () => { console.warn(`Stream (fallback) ${videoId} ended.`); stopAllCameraStreams(); };
+                     })
+                    .catch(fallbackError => { // Lógica de erro final
+                        console.error("Erro ao acessar câmera (fallback):", fallbackError.name, fallbackError.message);
+                        let finalMessage = `Falha ao abrir câmera: ${fallbackError.name}`;
+                         if (fallbackError.name === 'NotAllowedError' || fallbackError.name === 'PermissionDeniedError') {
+                             finalMessage = 'Permissão para acessar câmera negada. Verifique as configurações do navegador/site.';
+                         } else if (fallbackError.name === 'NotFoundError' || fallbackError.name === 'DevicesNotFoundError') {
+                             finalMessage = 'Nenhuma câmera compatível encontrada.';
+                         }
+                        showNotification(finalMessage, 'error');
+                        takePhotoBtn.disabled = true;
+                        video.style.display = 'none'; video.srcObject = null;
+                        placeholder.textContent = "Falha ao abrir câmera."; placeholder.style.display = 'flex';
+                    });
                 return; // Sai da execução atual, a nova tentativa tratará o resultado
           } else {
               userMessage = `Erro ao acessar câmera: ${error.name}`;
@@ -4185,8 +4447,8 @@
              // Remover do array de dados usando o índice guardado
              if (indexToRemove >= 0 && indexToRemove < imageArray.length && imageArray[indexToRemove]) {
                  // Marcar como null ou undefined em vez de splice para não bagunçar índices de outros elementos visuais
-                 // Ou, se preferir reconstruir a galeria visual, usar splice.
-                 // Optando por marcar como null por simplicidade aqui.
+                 // Se precisar realmente remover (ex: antes de submit), use splice e atualize índices.
+                 // Marcando como null para a lógica de remoção visual simples.
                  imageArray[indexToRemove] = null; // Marca como removida no array
                  console.log(`Imagem índice ${indexToRemove} marcada como removida no array ${galleryId}.`);
              } else {
@@ -4382,7 +4644,7 @@
                 showNotification('Verificação registrada com sucesso!', 'success');
                 closeVerificationForm();
                 loadDashboardData(); // Recarrega tudo para refletir a mudança de status
-                loadMaintenanceData(); // Força recarga da lista tbm
+                loadMaintenanceDataIfNeeded(true); // Força recarga da lista tbm
             } else {
                 // Erro retornado pela API
                 console.error("Erro retornado pela API saveVerification:", result);
@@ -4496,8 +4758,8 @@
                        // Assume que img é string (URL) ou objeto {url: string}
                        const imgSrc = (typeof img === 'object' && img !== null) ? img.url : img;
                        // Validação básica da URL
-                       if (typeof imgSrc !== 'string' || !imgSrc.startsWith('https://')) {
-                           console.warn(`URL de imagem inválida encontrada:`, imgSrc);
+                       if (typeof imgSrc !== 'string' || !(imgSrc.startsWith('https://') || imgSrc.startsWith('data:image'))) { // Aceita data URL também
+                           console.warn(`URL/Data URL de imagem inválida encontrada:`, imgSrc?.substring(0, 50) + '...');
                            return `<div class="detail-image-item" title="Imagem inválida" style="background:#eee; display:flex; align-items:center; justify-content:center; color:var(--danger-color);">Inválida</div>`; // Placeholder para URL inválida
                        }
                        return `<div class="detail-image-item view-full-image" data-src="${imgSrc}" title="Clique para ampliar">
@@ -4628,17 +4890,14 @@
       container.innerHTML = finalHtml;
 
       // Reatribuir listeners para as imagens recém-criadas NO DETALHE (usando delegação)
-       const detailGallery = container.querySelector('.detail-image-gallery');
-       if (detailGallery) {
-           // Remover listener antigo para evitar duplicação
-           detailGallery.removeEventListener('click', handleDetailImageClick);
-           detailGallery.addEventListener('click', handleDetailImageClick);
+       const detailGalleries = container.querySelectorAll('.detail-image-gallery');
+       if (detailGalleries.length > 0) {
+           detailGalleries.forEach(gallery => {
+               // Remover listener antigo para evitar duplicação
+               gallery.removeEventListener('click', handleDetailImageClick);
+               gallery.addEventListener('click', handleDetailImageClick);
+           });
        }
-       const verificationGallery = container.querySelector('.detail-section .detail-image-gallery'); // Seleciona a galeria de verificação
-        if (verificationGallery && verificationGallery !== detailGallery) { // Garante que é a galeria de verificação
-            verificationGallery.removeEventListener('click', handleDetailImageClick);
-            verificationGallery.addEventListener('click', handleDetailImageClick);
-        }
     }
 
      // Handler para clique em imagens dentro do modal de detalhes
@@ -4960,12 +5219,8 @@
         case 'warning': icon = '⚠️'; title = 'Aviso'; duration = duration < 6000 ? 6000 : duration; break; // Mínimo 6s para aviso
         default: icon = 'ℹ'; title = 'Informação'; type = 'info'; break;
       }
-       // Adiciona estilo específico para warning se não for feito por CSS
-       if (type === 'warning' && !notification.classList.contains('warning')) { // Exemplo se classe 'warning' não definir tudo
-            notification.style.backgroundColor = '#fff3cd';
-            notification.style.borderLeft = '4px solid var(--warning-color)';
-            notification.style.color = '#856404';
-       }
+       // Certificar que a classe correta está aplicada para o estilo CSS
+       notification.classList.add(type);
 
 
       notification.innerHTML = `
@@ -5023,7 +5278,7 @@
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: rgba(255, 255, 255, 0.8); /* Fundo branco semitransparente */
             display: flex; align-items: center;
-            justify-content: center; z-index: 2100; /* Acima das notificações */
+            justify-content: center; z-index: 2100; /* Acima das notificações e do botão auth */
             color: var(--primary-color); /* Cor do texto */
             flex-direction: column;
             gap: 15px; text-align: center; padding: 20px; box-sizing: border-box;
@@ -5163,14 +5418,14 @@
              // Verifica se campos chave foram preenchidos ou se há imagens
              if (document.getElementById('equipment-id')?.value ||
                  document.getElementById('technician-name')?.value ||
-                 capturedImages.length > 0) {
+                 capturedImages.filter(img => img !== null).length > 0) { // Conta imagens válidas
                  return true;
              }
          } else if (formType === 'verification') {
              // Verifica se campos chave foram preenchidos ou se há imagens
              if (document.getElementById('verifier-name')?.value ||
                  document.querySelector('input[name="verification-result"]:checked') ||
-                 verificationImages.length > 0) {
+                 verificationImages.filter(img => img !== null).length > 0) { // Conta imagens válidas
                  return true;
              }
          }
@@ -5182,6 +5437,7 @@
         let fieldsToValidate = [];
         let formId = '';
         let isValid = true;
+        let firstInvalidField = null; // Para focar no primeiro erro
 
         if (formType === 'maintenance') {
             formId = 'maintenance-form';
@@ -5189,7 +5445,15 @@
                 case 1: fieldsToValidate = ['equipment-id', 'equipment-type', 'technician-name', 'maintenance-date', 'location', 'maintenance-type']; break;
                 case 2: fieldsToValidate = ['problem-category', 'problem-description', 'solution-description']; break;
                 case 3: // Validação da etapa 3 é ter pelo menos uma imagem (feita em submitMaintenance)
-                    return true;
+                    const validImages = capturedImages.filter(img => img != null).length;
+                    if (validImages === 0) {
+                        document.getElementById('photo-warning').style.display = 'block';
+                        showNotification('Adicione pelo menos uma foto.', 'error');
+                        isValid = false;
+                    } else {
+                         document.getElementById('photo-warning').style.display = 'none';
+                    }
+                    return isValid;
                 default: // Validar tudo se step for null
                     fieldsToValidate = [
                         'equipment-id', 'equipment-type', 'technician-name', 'maintenance-date', 'location', 'maintenance-type',
@@ -5202,13 +5466,12 @@
             // Valida todos os campos obrigatórios da verificação
             fieldsToValidate = ['verifier-name', 'verification-comments']; // IDs dos inputs
              // Validar radios separadamente
+             const radioGroupLabel = document.querySelector('#verification-form label[for="verification-approved"]')?.parentElement.querySelector('label:first-of-type'); // Pega o label principal do grupo
              if (!document.querySelector('input[name="verification-result"]:checked')) {
-                 // Indicar erro no grupo de radios (pode ser visualmente no label ou com notificação)
-                 const radioGroupLabel = document.querySelector('#verification-form label[for="verification-approved"]')?.parentElement.querySelector('label'); // Tenta pegar o label do grupo
-                  if(radioGroupLabel) radioGroupLabel.style.color = 'var(--danger-color)'; // Exemplo de highlight
+                 if(radioGroupLabel) radioGroupLabel.style.color = 'var(--danger-color)'; // Exemplo de highlight
                  isValid = false;
+                 if (!firstInvalidField) firstInvalidField = document.getElementById('verification-approved'); // Define foco no grupo de radios
              } else {
-                 const radioGroupLabel = document.querySelector('#verification-form label[for="verification-approved"]')?.parentElement.querySelector('label');
                  if(radioGroupLabel) radioGroupLabel.style.color = ''; // Reset color
              }
 
@@ -5225,22 +5488,24 @@
         fieldsToValidate.forEach(id => {
             const input = document.getElementById(id);
             if (input && !input.value.trim()) { // Verifica se está vazio ou só tem espaços
-                // Adicionar classe de erro ou mudar estilo
-                 // input.classList.add('is-invalid'); // Se usar Bootstrap ou CSS similar
                 input.style.borderColor = 'red'; // Estilo simples
                 isValid = false;
-                 // Focar no primeiro campo inválido (opcional)
-                 // if (isValid === false && !document.querySelector(`#${formId} .is-invalid:focus`)) {
-                 //    input.focus();
-                 // }
+                if (!firstInvalidField) { // Guarda o primeiro campo inválido
+                     firstInvalidField = input;
+                 }
             } else if (input) {
-                 // input.classList.remove('is-invalid');
                  input.style.borderColor = ''; // Reseta borda se válido
             }
         });
 
         if (!isValid) {
             showNotification('Por favor, preencha todos os campos obrigatórios (*).', 'error');
+             // Focar no primeiro campo inválido encontrado
+             if (firstInvalidField) {
+                 firstInvalidField.focus();
+                 // Se for um select, talvez rolar a página para ele
+                 // firstInvalidField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+             }
         }
 
         return isValid;
