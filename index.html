@@ -2585,15 +2585,15 @@
       });
     }
 
-
+    
     // !!! SUBSTITUIR: Nova abordagem para envio de manutenção em etapas (Usando a versão da atualização) !!!
     // Esta função USA a lógica de CHUNKS via sequentialAPICall para o Apps Script.
     // Ela NÃO usa as funções gapi.client.drive diretamente.
     function submitMaintenance() {
       // Mostrar loading
       showLoading(true, 'Preparando dados...');
-
-      // Verificar se há imagens (Etapa 3)
+    
+      // Verificar se há imagens
       if (capturedImages.length === 0) {
         showLoading(false);
         document.getElementById('photo-warning').style.display = 'block';
@@ -2601,38 +2601,63 @@
         showNotification('Por favor, adicione pelo menos uma foto na Etapa 3.', 'error');
         return;
       }
-      document.getElementById('photo-warning').style.display = 'none';
-
-      // Validar Etapas 1 e 2 antes de prosseguir
-      const fieldsStep1 = ['equipment-id', 'equipment-type', 'technician-name', 'maintenance-date', 'location', 'maintenance-type'];
-      const fieldsStep2 = ['problem-category', 'problem-description', 'solution-description'];
-      let valid = true;
-
-      fieldsStep1.forEach(id => {
-          const input = document.getElementById(id);
-          if (!input.value) {
-              input.style.borderColor = 'red'; valid = false;
-          } else { input.style.borderColor = ''; }
+      
+      console.log("Validação OK. Iniciando processamento de " + capturedImages.length + " imagens...");
+    
+      // Comprimir todas as imagens para menor tamanho
+      const compressPromises = capturedImages.map((image, index) => {
+        console.log("Comprimindo imagem " + (index + 1) + "...");
+        return compressImage(image, 400, 0.5) // Reduzir para 400px e 50% de qualidade
+           .catch(error => {
+              console.error(`Erro ao comprimir imagem ${index + 1}:`, error);
+              showNotification(`Erro ao comprimir imagem ${index + 1}. A imagem original será enviada.`, 'warning');
+              return image; // Retorna a original em caso de erro
+           });
       });
-      if (!valid) {
+    
+      Promise.all(compressPromises)
+        .then(compressedImages => {
+          console.log(compressedImages.length + " imagens prontas para envio (comprimidas ou originais).");
+    
+          // Coletar dados do formulário
+          const formData = {
+            equipmentId: document.getElementById('equipment-id').value,
+            equipmentType: document.getElementById('equipment-type').value,
+            technician: document.getElementById('technician-name').value,
+            date: document.getElementById('maintenance-date').value,
+            location: document.getElementById('location').value,
+            maintenanceType: document.getElementById('maintenance-type').value,
+            isCritical: document.getElementById('is-critical').checked,
+            problemCategory: document.getElementById('problem-category').value,
+            problemDescription: document.getElementById('problem-description').value,
+            solutionDescription: document.getElementById('solution-description').value,
+            partsReplaced: document.getElementById('parts-replaced').value || "", // Garantir string vazia se nulo
+            additionalNotes: document.getElementById('additional-notes').value || "", // Garantir string vazia se nulo
+            images: compressedImages // Incluir imagens comprimidas
+          };
+    
+          showLoading(true, 'Enviando manutenção...');
+          console.log("Enviando manutenção (método antigo: saveMaintenance)...");
+    
+          // Usar a versão antiga saveMaintenance até implementar completamente o upload direto
+          return callAPI('saveMaintenance', formData);
+        })
+        .then(result => {
           showLoading(false);
-          goToFormStep('maintenance', 1);
-          showNotification('Preencha os campos obrigatórios (*) na Etapa 1.', 'error');
-          return;
-      }
-
-      fieldsStep2.forEach(id => {
-          const input = document.getElementById(id);
-          if (!input.value) {
-              input.style.borderColor = 'red'; valid = false;
-          } else { input.style.borderColor = ''; }
-      });
-       if (!valid) {
+          if (result && result.success) {
+            showNotification('Manutenção registrada com sucesso! ID: ' + result.id, 'success');
+            closeMaintenanceForm();
+            loadDashboardData(); // Recarregar dados
+          } else {
+            showNotification('Erro ao registrar manutenção: ' + (result ? result.message : 'Erro desconhecido'), 'error');
+          }
+        })
+        .catch(error => {
+          console.error("Erro no processo de submissão da manutenção:", error);
           showLoading(false);
-          goToFormStep('maintenance', 2);
-          showNotification('Preencha os campos obrigatórios (*) na Etapa 2.', 'error');
-          return;
-      }
+          showNotification('Erro ao registrar manutenção: ' + error.message, 'error');
+        });
+    }
 
       console.log("Validação OK. Iniciando processamento de " + capturedImages.length + " imagens...");
 
