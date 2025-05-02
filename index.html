@@ -737,13 +737,122 @@
     <div id="global-loader-message">Carregando...</div>
   </div>
 
+  <!-- ****** INÍCIO DA ATUALIZAÇÃO ****** -->
   <!-- JavaScript -->
-  <script src="js/utilities.js"></script>
-  <script src="js/api.js"></script>
-  <script src="js/dashboard.js"></script>
-  <script src="js/maintenance.js"></script>
-  <script src="js/verification.js"></script>
-  <script src="js/reports.js"></script>
-  <script src="js/main.js"></script>
+  <script>
+  // Função para verificar se os scripts essenciais foram carregados
+  function checkDependencies() {
+    // Assume-se que os scripts api.js e utilities.js definirão estas flags
+    // Ex: no final de api.js adicionar: window.API_LOADED = true;
+    // Ex: no final de utilities.js adicionar: window.UTILITIES_LOADED = true;
+    if (window.API_LOADED && window.UTILITIES_LOADED) {
+      console.log("Dependências carregadas com sucesso!");
+      loadRemainingScripts();
+    } else {
+      console.error("Dependências não carregadas completamente. Tentando novamente...");
+      // console.error("API.js carregado:", window.API_LOADED || false); // Descomente para debug detalhado
+      // console.error("Utilities.js carregado:", window.UTILITIES_LOADED || false); // Descomente para debug detalhado
+
+      // Tentar novamente após um pequeno atraso
+      setTimeout(checkDependencies, 150); // Aumentei um pouco o timeout para dar mais margem
+    }
+  }
+
+  // Carregar os scripts restantes quando as dependências estiverem prontas
+  function loadRemainingScripts() {
+    // Carregar scripts restantes em ordem
+    const scriptsToLoad = [
+      'js/dashboard.js',
+      'js/maintenance.js',
+      'js/verification.js',
+      'js/reports.js',
+      'js/main.js' // main.js geralmente depende dos outros, então vem por último
+    ];
+
+    loadScriptsSequentially(scriptsToLoad, 0);
+  }
+
+  // Carregar scripts em sequência para garantir a ordem correta
+  function loadScriptsSequentially(scripts, index) {
+    if (index >= scripts.length) {
+      console.log("Todos os scripts restantes foram carregados.");
+      // Disparar evento ou chamar função inicializadora principal, se necessário
+      if (typeof initializeApp === 'function') {
+           initializeApp(); // Exemplo: chamar uma função global de inicialização
+       } else {
+           console.warn("Função initializeApp não encontrada após carregar scripts.");
+       }
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = scripts[index];
+    // script.async = false; // Adicionar 'async = false' pode ajudar a reforçar a ordem em alguns navegadores, embora o onload já cuide disso.
+    script.onload = function() {
+      console.log(`Script ${scripts[index]} carregado com sucesso.`);
+      loadScriptsSequentially(scripts, index + 1);
+    };
+    script.onerror = function() {
+      console.error(`Erro ao carregar script: ${scripts[index]}`);
+      // Decidir se quer parar ou continuar. Aqui, continua.
+      loadScriptsSequentially(scripts, index + 1);
+    };
+
+    document.body.appendChild(script);
+  }
+
+  // Função para carregar um script e retornar uma Promise
+  function loadScript(src) {
+      return new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = src;
+          // script.async = false; // Pode ser útil
+          script.onload = () => {
+              console.log(`Dependência ${src} carregada.`);
+              resolve();
+          };
+          script.onerror = () => {
+              console.error(`Erro ao carregar dependência: ${src}`);
+              reject(new Error(`Falha ao carregar ${src}`));
+          };
+          document.body.appendChild(script);
+      });
+  }
+
+  // Iniciar o carregamento das dependências essenciais
+  console.log("Iniciando carregamento das dependências...");
+  Promise.all([
+      loadScript('js/api.js'),
+      loadScript('js/utilities.js')
+  ])
+  .then(() => {
+      console.log("Dependências essenciais (api.js, utilities.js) carregadas via Promise.all.");
+      // As flags window.API_LOADED e window.UTILITIES_LOADED devem ser setadas DENTRO dos respectivos arquivos .js
+      // A verificação aqui é uma redundância ou alternativa se as flags não forem usadas.
+      // Garantir que as flags estejam setadas antes de prosseguir
+      if (!window.API_LOADED) console.warn("Flag window.API_LOADED não definida em api.js!"); else window.API_LOADED = true; // Seta a flag caso o script não o faça (mas idealmente faria)
+      if (!window.UTILITIES_LOADED) console.warn("Flag window.UTILITIES_LOADED não definida em utilities.js!"); else window.UTILITIES_LOADED = true; // Seta a flag caso o script não o faça
+
+      checkDependencies(); // Inicia a verificação/carregamento dos scripts restantes
+  })
+  .catch(error => {
+      console.error("Falha crítica ao carregar dependências essenciais:", error);
+      // Informar o usuário ou tomar uma ação de fallback
+      const loader = document.getElementById('global-loader');
+      if (loader) {
+          loader.innerText = "Erro ao carregar recursos essenciais. Tente recarregar a página.";
+          loader.style.display = 'block'; // Garante que o loader esteja visível com a mensagem de erro
+      }
+  });
+
+  // NOTA IMPORTANTE:
+  // Certifique-se de que no final do arquivo 'js/api.js' você tenha a linha:
+  // window.API_LOADED = true;
+  // E no final do arquivo 'js/utilities.js' você tenha a linha:
+  // window.UTILITIES_LOADED = true;
+  // Isso é crucial para que a função checkDependencies funcione como esperado.
+  </script>
+  <!-- ****** FIM DA ATUALIZAÇÃO ****** -->
+
 </body>
 </html>
