@@ -1,0 +1,37 @@
+Plano de Repaginação do Sistema de Dupla Checagem de Manutenção
+Entendi que você precisa fazer uma repaginação completa do sistema atual que utiliza Google Apps Script + Google Sheets como backend e GitHub Pages como frontend. Vou preparar uma proposta modularizada com foco nas melhorias solicitadas.
+Estrutura Modular para o Projeto
+Vou reorganizar o código em módulos independentes, facilitando a manutenção e evolução:
+Arquivos Backend (Google Apps Script):
+1. config.gs - Configuração e inicialização automática
+2. dataAccess.gs - Funções de acesso e manipulação de dados
+3. dashboardLogic.gs - Lógica do dashboard e gráficos avançados
+4. maintenanceLogic.gs - Funções de manutenção (sem imagens)
+5. verificationLogic.gs - Funções de verificação
+6. reportLogic.gs - Funções de relatórios e exportação
+7. utilities.gs - Funções utilitárias e de apoio
+8. main.gs - Endpoints da API e funções principais
+Arquivos Frontend (GitHub Pages):
+/css/
+  - styles.css (estilos principais)
+  - dashboard.css (estilos específicos dashboard)
+  - maintenance.css (estilos específicos manutenção)
+
+/js/
+  - config.js (configurações e inicialização)
+  - api.js (comunicação com backend)
+  - dashboard.js (lógica do dashboard e gráficos)
+  - maintenance.js (lógica de manutenção)
+  - verification.js (lógica de verificação)
+  - reports.js (lógica de relatórios)
+  - utils.js (utilidades e helpers)
+
+/pages/
+  - dashboard.html
+  - maintenance.html
+  - verification.html
+  - reports.html
+
+index.html (página principal)
+Implementação dos Arquivos Backend
+Vou implementar os arquivos backend conforme solicitado. Abaixo está a estrutura e código para cada módulo:
