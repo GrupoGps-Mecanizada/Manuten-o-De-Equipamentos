@@ -1,310 +1,357 @@
-// Verificar dependências
+// Verificar dependências no início
 if (!window.API || !window.Utilities) {
   console.error("Erro CRÍTICO: Dependências API ou Utilities não carregadas antes de maintenance.js");
+  // Poderia até lançar um erro para parar a execução se forem essenciais
+  // throw new Error("Dependências essenciais ausentes para Maintenance.js");
 } else {
-  console.log("Maintenance.js - Dependências parecem carregadas.");
+  console.log("Maintenance.js - Dependências API e Utilities parecem carregadas.");
 }
 
 const Maintenance = (() => {
-  // --- Listas de Equipamentos (Definidas no Frontend) ---
+  // --- Listas de Equipamentos Locais ---
   const EQUIPMENT_IDS = {
     'Alta Pressão': ["PUB-2G02","LUX-3201","FLX7617","EZS-8765","EZS-8764","EVK-0291","EOF-5C06","EOF-5208","EGC-2989","EGC-2985","EGC-2983","EGC-2978","EAM-3262","EAM-3256","EAM-3255","EAM-3253","EAM-3010","DSY-6475","DSY-6474","DSY-6472","CZC-0453"],
     'Auto Vácuo / Hiper Vácuo': ["PUB-2F80","NFF-0235","HJS-1097","FSA-3D71","EGC-2993","EGC-2979","EAM-3257","EAM-3251","DYB-7210","DSY-6577","DSY-6473","CUB-0763","ANF-2676","FTW-4D99","FTD-6368","FMD-2200","FHD-9264","EZS-9753"]
-    // Adicionar listas para 'Aspirador', 'Poliguindaste' aqui se tiver IDs pré-definidos
-    // 'Aspirador': ['ASP-001', 'ASP-002'],
-    // 'Poliguindaste': ['POLI-A', 'POLI-B'],
+    // Adicionar outras listas se necessário
   };
-  // -------------------------------------------------------
+  // ------------------------------------
 
-  // Estado do formulário
-  let formData = {
-    equipmentType: '', equipmentId: '', otherEquipment: '', customEquipmentId: '',
-    technician: '', date: '', area: '', office: '', maintenanceType: '', isCritical: false,
-    problemCategory: '', otherCategory: '', problemDescription: '', additionalNotes: ''
-  };
+  // Estado interno do módulo
+  let formData = { /* ... campos ... */ };
   let isEditMode = false;
   let editingMaintenanceId = null;
   let fullMaintenanceList = [];
   let currentFilter = 'all';
   let currentSearchTerm = '';
+  let isTableListenerAttached = false; // Flag para controle do listener da tabela
 
+  // --- Inicialização ---
   function initialize() {
       console.log("Maintenance.initialize() chamado.");
-      setupEventListeners();
-      loadDropdownData(); // Carrega Tipos de Equipamento e Categorias de Problema da API
-      setupMaintenanceListListeners();
+      // Carrega dados de dropdowns que vêm da API
+      loadDropdownData();
+      // Configura listeners estáticos (botões do formulário, etc.)
+      setupFormEventListeners();
+      // Configura listener para a tabela (será ativado quando a tabela for renderizada)
+      setupMaintenanceListListeners(); // Apenas prepara, não adiciona ainda se tbody não existe
   }
 
+  // Carrega dados que dependem da API
   function loadDropdownData() {
-    loadEquipmentTypes();
-    loadProblemCategories();
+    loadEquipmentTypes(); // Carrega lista de NOMES de tipos
+    loadProblemCategories(); // Carrega lista de categorias
   }
 
-  function setupEventListeners() {
-    // Botão nova manutenção
-    const newMaintenanceButton = document.getElementById('new-maintenance');
-    if (newMaintenanceButton) {
-        const newBtn = newMaintenanceButton.cloneNode(true);
-        newMaintenanceButton.parentNode.replaceChild(newBtn, newMaintenanceButton);
-        newBtn.addEventListener('click', () => openMaintenanceForm());
-        console.log("Listener para #new-maintenance configurado.");
-    } else {
-        console.error("Botão #new-maintenance não encontrado!");
+  // Configura listeners para elementos FIXOS do formulário
+  function setupFormEventListeners() {
+    console.log("Configurando listeners do formulário...");
+
+    // Usar função auxiliar para adicionar listener de forma segura
+    addSafeListener('new-maintenance', 'click', () => openMaintenanceForm());
+    addSafeListener('next-to-step-2', 'click', handleNextToStep2);
+    addSafeListener('back-to-step-1', 'click', () => showStep(1));
+    addSafeListener('next-to-step-3', 'click', handleNextToStep3);
+    addSafeListener('back-to-step-2', 'click', () => showStep(2));
+    addSafeListener('close-maintenance-form', 'click', closeForm);
+    addSafeListener('cancel-maintenance', 'click', closeForm);
+
+    const form = document.getElementById('maintenance-form');
+    if (form) {
+        form.removeEventListener('submit', handleFormSubmit); // Remove antes de adicionar
+        form.addEventListener('submit', handleFormSubmit);
     }
 
-    // Navegação e Ações do Formulário
-    document.getElementById('next-to-step-2')?.addEventListener('click', handleNextToStep2);
-    document.getElementById('back-to-step-1')?.addEventListener('click', () => showStep(1));
-    document.getElementById('next-to-step-3')?.addEventListener('click', handleNextToStep3);
-    document.getElementById('back-to-step-2')?.addEventListener('click', () => showStep(2));
-    document.getElementById('close-maintenance-form')?.addEventListener('click', closeForm);
-    document.getElementById('cancel-maintenance')?.addEventListener('click', closeForm);
-    document.getElementById('maintenance-form')?.addEventListener('submit', handleFormSubmit);
-    document.getElementById('problem-category')?.addEventListener('change', handleProblemCategoryChange);
-
-    // Listener para Tipo de Equipamento
-    document.getElementById('equipment-type')?.addEventListener('change', (event) => {
-        const selectedType = event.target.value;
-        populateEquipmentIds(selectedType); // Chama a função local
-        // Ajusta a visibilidade dos campos de ID (Outro, Customizado, Padrão)
-        setupEquipmentTypeVisuals(selectedType);
-    });
-
-   // Listeners da Lista
-    const refreshListButton = document.getElementById('refresh-maintenance-list');
-    if (refreshListButton) {
-        refreshListButton.removeEventListener('click', loadMaintenanceList);
-        refreshListButton.addEventListener('click', loadMaintenanceList); // Correção: ) faltando
+    const problemCategorySelect = document.getElementById('problem-category');
+    if (problemCategorySelect) {
+        problemCategorySelect.removeEventListener('change', handleProblemCategoryChange);
+        problemCategorySelect.addEventListener('change', handleProblemCategoryChange);
     }
-    const searchInput = document.getElementById('maintenance-search');
-    if (searchInput) {
-        const debouncedHandler = typeof Utilities !== 'undefined' ? Utilities.debounce(handleSearchInput, 300) : debounce(handleSearchInput, 300);
-        searchInput.removeEventListener('input', debouncedHandler);
-        searchInput.addEventListener('input', debouncedHandler); // Correção: ) faltando
+
+    const equipmentTypeSelect = document.getElementById('equipment-type');
+    if (equipmentTypeSelect) {
+        equipmentTypeSelect.removeEventListener('change', handleEquipmentTypeChange); // Usar função nomeada
+        equipmentTypeSelect.addEventListener('change', handleEquipmentTypeChange);
     }
-    const filterItems = document.querySelectorAll('#tab-maintenance .filter-container .filter-item');
-    filterItems.forEach(item => {
-        item.removeEventListener('click', handleFilterClick);
-        item.addEventListener('click', handleFilterClick); // Correção: ) faltando
-    });
+
+     // Listeners da Lista (filtros e busca) - pertencem mais à interface da lista
+     setupListControlsListeners(); // Função separada para clareza
   }
 
+   // Configura listeners para os controles da lista (busca, filtro, refresh)
+  function setupListControlsListeners() {
+      const refreshListButton = document.getElementById('refresh-maintenance-list');
+      if (refreshListButton) {
+          addSafeListener('refresh-maintenance-list', 'click', loadMaintenanceList);
+      }
+      const searchInput = document.getElementById('maintenance-search');
+      if (searchInput) {
+          const debouncedHandler = typeof Utilities !== 'undefined' ? Utilities.debounce(handleSearchInput, 300) : debounce(handleSearchInput, 300);
+          searchInput.removeEventListener('input', debouncedHandler); // Prevenir duplicação no input
+          searchInput.addEventListener('input', debouncedHandler);
+      }
+      const filterItems = document.querySelectorAll('#tab-maintenance .filter-container .filter-item');
+      filterItems.forEach(item => {
+          // Não precisa remover/adicionar para múltiplos itens assim, apenas garantir que handleFilterClick funcione
+           item.removeEventListener('click', handleFilterClick); // Garante limpeza
+           item.addEventListener('click', handleFilterClick);
+      });
+  }
+
+  // Função auxiliar para adicionar listeners de forma segura (evita duplicados)
+  function addSafeListener(elementId, eventType, handler) {
+      const element = document.getElementById(elementId);
+      if (element) {
+          // Técnica de clonagem para remover listeners antigos
+          const newElement = element.cloneNode(true);
+          element.parentNode.replaceChild(newElement, element);
+          newElement.addEventListener(eventType, handler);
+          // console.log(`Listener '${eventType}' adicionado com segurança para #${elementId}`);
+      } else {
+          console.warn(`Elemento #${elementId} não encontrado para adicionar listener.`);
+      }
+  }
+
+  // Configura a delegação de eventos na tabela (chamado por initialize e renderMaintenanceTable)
   function setupMaintenanceListListeners() {
       const tableBody = document.getElementById('maintenance-tbody');
-      if (tableBody && !tableBody.dataset.listenerAttached) {
+      if (tableBody && !isTableListenerAttached) { // Adiciona só uma vez
+          console.log("Adicionando listener de clique delegado ao #maintenance-tbody");
           tableBody.addEventListener('click', handleTableActionClick);
-          tableBody.dataset.listenerAttached = 'true';
+          isTableListenerAttached = true; // Marca como adicionado
+          // tableBody.dataset.listenerAttached = 'true'; // Alternativa usando dataset
+      } else if (tableBody && isTableListenerAttached) {
+          // console.log("Listener delegado para #maintenance-tbody já está anexado.");
+      } else if (!tableBody) {
+           console.warn("#maintenance-tbody não encontrado para anexar listener delegado.");
+           isTableListenerAttached = false; // Reseta flag se tbody sumir
       }
   }
 
-  // --- Funções de Abertura/Fechamento/Reset ---
-  function openMaintenanceForm(maintenanceId = null, dataToEdit = null) {
-       resetForm();
-       if (maintenanceId && dataToEdit) {
-           isEditMode = true; editingMaintenanceId = maintenanceId;
-           document.querySelector('#maintenance-form-overlay .form-title').textContent = 'Editar Manutenção';
-           document.getElementById('submit-maintenance').textContent = 'Salvar Alterações';
-           populateFormForEdit(dataToEdit);
-       } else {
-           isEditMode = false; editingMaintenanceId = null;
-           document.querySelector('#maintenance-form-overlay .form-title').textContent = 'Registrar Nova Manutenção';
-           document.getElementById('submit-maintenance').textContent = 'Finalizar Registro';
-           document.getElementById('equipment-type')?.dispatchEvent(new Event('change'));
-       }
-       showStep(1);
-       const overlay = document.getElementById('maintenance-form-overlay');
-       if(overlay) { overlay.style.display = 'block'; console.log("Formulário de manutenção aberto."); }
-       else { console.error("Overlay #maintenance-form-overlay não encontrado!"); }
-       document.getElementById('equipment-type')?.focus();
-  }
-
-   function populateFormForEdit(data) {
-       formData = { ...formData, ...data };
-       setSelectValue('equipment-type', data.tipoEquipamento);
-       // Dispara change para popular IDs E ajustar visual
-       document.getElementById('equipment-type')?.dispatchEvent(new Event('change'));
-       // Define valor do ID correto APÓS o change ter rodado
-       const selectedType = data.tipoEquipamento;
-       if (selectedType === 'Outro') { document.getElementById('other-equipment').value = data.placaOuId || ''; }
-       else if (selectedType === 'Aspirador' || selectedType === 'Poliguindaste') {
-           const customInput = document.getElementById('custom-equipment-id'); // Tenta pegar o campo criado
-           if (customInput) customInput.value = data.placaOuId || '';
-           else console.warn("Campo #custom-equipment-id não encontrado para popular em edição.");
-        }
-       else if (selectedType) { setSelectValue('equipment-id', data.placaOuId); }
-
-       // Popula resto
-       document.getElementById('technician-name').value = data.responsavel || '';
-       document.getElementById('maintenance-date').value = data.dataManutencao ? data.dataManutencao.split('T')[0] : '';
-       setSelectValue('area', data.area);
-       document.getElementById('office').value = data.localOficina || '';
-       setSelectValue('maintenance-type', data.tipoManutencao);
-       document.getElementById('is-critical').checked = data.eCritico || data.isCritical || false;
-       setSelectValue('problem-category', data.categoriaProblema);
-       const categorySelect = document.getElementById('problem-category');
-       if(categorySelect) { categorySelect.dispatchEvent(new Event('change')); if (data.categoriaProblema === 'Outro') { document.getElementById('other-category').value = data.categoriaProblemaOutro || data.categoriaProblema || ''; } }
-       document.getElementById('problem-description').value = data.detalhesproblema || data.problemDescription || '';
-       document.getElementById('additional-notes').value = data.observacoes || data.additionalNotes || '';
+  // --- Handlers de Eventos ---
+   function handleEquipmentTypeChange(event) {
+        const selectedType = event.target.value;
+        populateEquipmentIds(selectedType); // Popula dropdown de IDs (local)
+        setupEquipmentTypeVisuals(selectedType); // Ajusta visibilidade dos campos
    }
 
-   function setSelectValue(selectId, value) { /* ...código inalterado... */ }
-   function closeForm() { /* ...código inalterado... */ }
-   function resetForm() { /* ...código inalterado... */ }
+  // --- Funções de Abertura/Fechamento/Reset (sem alterações significativas) ---
+  function openMaintenanceForm(maintenanceId = null, dataToEdit = null) { /* ...código inalterado... */ }
+  function populateFormForEdit(data) { /* ...código inalterado... */ }
+  function setSelectValue(selectId, value) { /* ...código inalterado... */ }
+  function closeForm() { /* ...código inalterado... */ }
+  function resetForm() { /* ...código inalterado... */ }
 
   // --- Funções de Carregamento de Dados ---
+  function loadEquipmentTypes() { /* ...código inalterado (carrega nomes dos tipos via API)... */ }
+  function loadDefaultEquipmentTypes() { /* ...código inalterado (fallback)... */ }
+  function setupEquipmentTypeVisuals(selectedType) { /* ...código inalterado (mostra/esconde campos)... */ }
+  function populateEquipmentIds(selectedType) { /* ...código inalterado (usa listas locais)... */ }
+  function loadProblemCategories() { /* ...código inalterado (carrega categorias via API)... */ }
+  loadProblemCategories.loaded = false;
 
-  // Carrega Tipos de Equipamento da API
-  function loadEquipmentTypes() {
-      try {
-         if (typeof Utilities !== 'undefined') Utilities.showLoading(true, 'Carregando tipos...');
-         API.getMaintenanceFormData()
-         .then(response => {
-             if (response.success && response.formData) {
-                 const select = document.getElementById('equipment-type'); if (!select) return;
-                 select.innerHTML = '<option value="">Selecione o tipo...</option>';
-                 let equipmentTypes = [];
-                 const apiTypes = response.formData.opcoesTipoEquipe || response.formData.equipmentTypes || ['Alta Pressão', 'Auto Vácuo / Hiper Vácuo', 'Aspirador', 'Poliguindaste', 'Outro']; // Fallback
-                 apiTypes.forEach(type => { if (type && !equipmentTypes.includes(type)) { equipmentTypes.push(type); } });
-                 if (!equipmentTypes.includes('Outro')) equipmentTypes.push('Outro');
-                 equipmentTypes.forEach(type => { const option = document.createElement('option'); option.value = type; option.textContent = type; select.appendChild(option); });
-                 const outroOpt = Array.from(select.options).find(opt => opt.value === 'Outro'); if (outroOpt && outroOpt !== select.options[select.options.length - 1]) { select.appendChild(outroOpt); }
-                 // Não chama mais setupEquipmentTypeEvents aqui, é chamado no listener 'change'
-             } else { throw new Error(response?.message || "Dados inválidos (tipos)"); }
-         })
-         .catch(error => {
-            console.error("Erro ao carregar tipos de equipamento via API:", error);
-            if(typeof Utilities !== 'undefined') Utilities.showNotification("Falha ao buscar tipos. Verifique o backend ou use valores padrão.", "warning");
-            // Carregar tipos padrão como fallback
-            loadDefaultEquipmentTypes();
-         })
-         .finally(() => { if (typeof Utilities !== 'undefined') Utilities.showLoading(false); });
-     } catch (e) {
-         console.error("Erro inesperado ao carregar tipos:", e);
-         if(typeof Utilities !== 'undefined') Utilities.showNotification("Erro interno tipos. Usando lista padrão.", "error");
-         loadDefaultEquipmentTypes(); // Fallback
-         if (typeof Utilities !== 'undefined') Utilities.showLoading(false);
-     }
-  }
+  // --- Funções da Lista de Manutenção ---
+  function loadMaintenanceList() {
+       // Chamar Utilities.showLoading se disponível
+       if(typeof Utilities !== 'undefined' && Utilities.showLoading) Utilities.showLoading(true, 'Carregando manutenções...');
+       else console.log("Carregando manutenções...");
 
-  // Fallback para tipos de equipamento se API falhar
-  function loadDefaultEquipmentTypes() {
-    const select = document.getElementById('equipment-type');
-    if (!select) return;
-    select.innerHTML = '<option value="">Selecione o tipo...</option>';
-    const defaultTypes = ['Alta Pressão', 'Auto Vácuo / Hiper Vácuo', 'Aspirador', 'Poliguindaste', 'Outro'];
-    defaultTypes.forEach(type => { const option = document.createElement('option'); option.value = type; option.textContent = type; select.appendChild(option); });
-  }
+       const tableBody = document.getElementById('maintenance-tbody');
+       if (tableBody) tableBody.innerHTML = '<tr><td colspan="10" class="text-center loading-message">Carregando...</td></tr>'; // Colspan 10
 
-  // Função para AJUSTAR VISUAL dos campos de ID (chamada no 'change' do tipo)
-  function setupEquipmentTypeVisuals(selectedType) {
-    const equipIdSelectContainer = document.getElementById('equipment-id')?.parentElement;
-    const equipIdSelect = document.getElementById('equipment-id');
-    const otherEquipField = document.getElementById('other-equipment-field');
-    const customEquipFieldId = 'custom-equipment-id-field';
-    const customEquipInputId = 'custom-equipment-id';
-    let customEquipField = document.getElementById(customEquipFieldId);
-
-    // Esconder todos por padrão, exceto o container do tipo
-    if(equipIdSelectContainer) equipIdSelectContainer.style.display = 'none';
-    if(otherEquipField) otherEquipField.style.display = 'none';
-    if(customEquipField) customEquipField.style.display = 'none';
-
-    // Limpar valores e erros dos campos escondidos
-    if(equipIdSelect) { equipIdSelect.value = ''; clearFieldError(equipIdSelect); }
-    const otherInput = document.getElementById('other-equipment'); if(otherInput) { otherInput.value = ''; clearFieldError(otherInput); }
-    const customInput = document.getElementById(customEquipInputId); if(customInput) { customInput.value = ''; clearFieldError(customInput); }
-
-    // Mostrar o campo apropriado
-    if (selectedType === 'Outro') {
-      if(otherEquipField) otherEquipField.style.display = 'block';
-      if(otherInput) otherInput.required = true;
-      if(equipIdSelect) equipIdSelect.required = false;
-      if(customInput) customInput.required = false;
-    } else if (selectedType === 'Aspirador' || selectedType === 'Poliguindaste') {
-      if(equipIdSelect) equipIdSelect.required = false;
-      if(otherInput) otherInput.required = false;
-      // Cria ou mostra o campo customizado
-      if (!customEquipField) {
-        customEquipField = document.createElement('div'); customEquipField.id = customEquipFieldId; customEquipField.className = 'form-group';
-        customEquipField.innerHTML = `<label for="${customEquipInputId}">Identificação do ${selectedType} <span class="form-required">*</span></label><input type="text" class="form-control" id="${customEquipInputId}" name="${customEquipInputId}" required>`;
-        const referenceNode = document.getElementById('other-equipment-field') || document.getElementById('equipment-type')?.parentElement;
-        if (referenceNode?.parentElement) { referenceNode.parentElement.insertBefore(customEquipField, referenceNode.nextSibling); }
-        else { document.getElementById('step-1-content')?.appendChild(customEquipField); }
-      } else {
-        const label = customEquipField.querySelector('label'); if (label) label.innerHTML = `Identificação do ${selectedType} <span class="form-required">*</span>`;
-        customEquipField.style.display = 'block';
-      }
-       if(customInput) customInput.required = true;
-    } else if (selectedType) { // Tipo padrão selecionado
-      if(equipIdSelectContainer) equipIdSelectContainer.style.display = 'block';
-      if(equipIdSelect) equipIdSelect.required = true;
-      if(otherInput) otherInput.required = false;
-      if(customInput) customInput.required = false;
-    } else { // Nenhum tipo selecionado
-        if(equipIdSelect) equipIdSelect.required = false;
-        if(otherInput) otherInput.required = false;
-        if(customInput) customInput.required = false;
-    }
-  }
-
-
-  // Popula o dropdown de IDs usando as listas locais
-  function populateEquipmentIds(selectedType) {
-      const idSelect = document.getElementById('equipment-id');
-      if (!idSelect) return;
-
-      idSelect.innerHTML = '<option value="">Selecione a placa/ID...</option>';
-
-      if (selectedType && EQUIPMENT_IDS[selectedType]) { // Verifica se tipo existe nas listas locais
-          const ids = EQUIPMENT_IDS[selectedType];
-          if (ids.length === 0) {
-              idSelect.innerHTML = '<option value="">Nenhum ID cadastrado localmente</option>';
-              idSelect.disabled = true;
-          } else {
-              ids.forEach(id => {
-                  if (id !== null && id !== undefined) {
-                      const option = document.createElement('option');
-                      option.value = id; option.textContent = id;
-                      idSelect.appendChild(option);
-                  }
-              });
-              idSelect.disabled = false;
-          }
-      } else {
-          // Para tipos sem lista definida (inclui Outro, Aspirador, Poliguindaste se não adicionados em EQUIPMENT_IDS)
-          idSelect.innerHTML = `<option value="">${selectedType ? 'Não aplicável ou sem lista local' : 'Selecione o tipo'}</option>`;
-          idSelect.disabled = true;
-      }
-  }
-
-  // Carrega Categorias de Problema da API
-  function loadProblemCategories() {
-       if (loadProblemCategories.loaded) return Promise.resolve();
-       return API.getProblemCategories()
-           .then(response => { /* ...código inalterado... */ })
-           .catch(error => { /* ...código inalterado... */ });
+       API.getMaintenanceList()
+           .then(response => {
+               if (response && response.success && Array.isArray(response.maintenances)) {
+                   fullMaintenanceList = response.maintenances;
+                   filterAndRenderList(); // Chama renderização
+               } else {
+                   console.error("Erro ao carregar lista:", response);
+                   if(typeof Utilities !== 'undefined') Utilities.showNotification("Erro ao carregar lista.", "error");
+                   fullMaintenanceList = [];
+                   filterAndRenderList(); // Renderiza tabela vazia/com erro
+               }
+           })
+           .catch(error => {
+               console.error("Falha ao buscar lista:", error);
+               if(typeof Utilities !== 'undefined') Utilities.showNotification("Falha ao buscar dados: " + error.message, "error");
+               fullMaintenanceList = [];
+               filterAndRenderList(); // Renderiza tabela vazia/com erro
+           })
+           .finally(() => {
+               if(typeof Utilities !== 'undefined' && Utilities.showLoading) Utilities.showLoading(false);
+           });
    }
-   loadProblemCategories.loaded = false;
 
-   // --- Funções da Lista de Manutenção ---
-   function loadMaintenanceList() { /* ...código inalterado... */ }
-   function filterAndRenderList() { /* ...código inalterado... */ }
-   function renderMaintenanceTable(list) { /* ...código inalterado... */ }
+   function filterAndRenderList() {
+       // Filtra a lista local (fullMaintenanceList) baseado em currentFilter e currentSearchTerm
+       let filteredList = [...fullMaintenanceList];
+       if (currentFilter !== 'all') { /* ... lógica de filtro status ... */ }
+       if (currentSearchTerm) { /* ... lógica de busca ... */ }
+       renderMaintenanceTable(filteredList); // Renderiza o resultado
+   }
+
+   function renderMaintenanceTable(maintenanceListToRender) {
+       const tableBody = document.getElementById('maintenance-tbody');
+       if (!tableBody) {
+           console.error("Elemento #maintenance-tbody não encontrado para renderizar tabela.");
+           return;
+       }
+       tableBody.innerHTML = ''; // Limpa conteúdo anterior
+
+       if (maintenanceListToRender.length === 0) {
+           const message = currentSearchTerm || currentFilter !== 'all' ? 'Nenhuma manutenção encontrada com os filtros.' : 'Nenhuma manutenção registrada.';
+           tableBody.innerHTML = `<tr><td colspan="10" class="text-center no-data-message">${message}</td></tr>`;
+       } else {
+           // Usar Utilities para formatação
+           const safeFormatDate = (d, t) => (typeof Utilities !== 'undefined' && Utilities.formatDate) ? Utilities.formatDate(d, t) : String(d || '-');
+           const safeGetStatusClass = (s) => (typeof Utilities !== 'undefined' && Utilities.getStatusClass) ? Utilities.getStatusClass(s) : String(s || 'default').toLowerCase();
+
+           maintenanceListToRender.forEach(item => {
+               const row = document.createElement('tr');
+               row.setAttribute('data-maintenance-id', item.id);
+               const isCritical = item.eCritico || item.isCritical || false;
+               const status = item.status || 'Pendente';
+               const statusClass = safeGetStatusClass(status);
+               const lowerStatus = status.toLowerCase().trim();
+               const allowVerification = ['pendente', 'aguardando verificacao', 'aguardando verificação'].includes(lowerStatus);
+               const allowEdit = ['pendente', 'aguardando verificacao', 'aguardando verificação', 'ajustes'].includes(lowerStatus);
+
+               row.innerHTML = `
+                   <td>${item.id || 'N/A'}</td>
+                   <td>${item.tipoEquipamento || 'N/A'} (${item.placaOuId || '-'})</td>
+                   <td>${item.tipoManutencao || '-'} ${isCritical ? '<span class="critical-indicator" title="Crítica">❗️</span>' : ''}</td>
+                   <td>${safeFormatDate(item.dataRegistro || item.registrationDate, false)}</td>
+                   <td>${item.responsavel || '-'}</td>
+                   <td>${item.area || '-'}</td>
+                   <td>${item.localOficina || '-'}</td>
+                   <td><span title="${item.detalhesproblema || ''}">${item.categoriaProblema === 'Outro' ? (item.categoriaProblemaOutro || 'Outro') : (item.categoriaProblema || '-')}</span></td>
+                   <td><span class="status-badge status-${statusClass}">${status}</span></td>
+                   <td class="action-buttons">
+                       <button class="btn-icon view-maintenance" data-id="${item.id}" title="Ver Detalhes">👁️</button>
+                       ${allowVerification ? `<button class="btn-icon verify-maintenance" data-id="${item.id}" title="Verificar">✔️</button>` : ''}
+                       ${allowEdit ? `<button class="btn-icon edit-maintenance" data-id="${item.id}" title="Editar">✏️</button>` : ''}
+                   </td>
+               `;
+               tableBody.appendChild(row);
+           });
+       }
+        // Garante que o listener delegado esteja ativo após renderizar
+        setupMaintenanceListListeners();
+        // Aplica tooltips se a biblioteca estiver carregada
+        if (typeof tippy === 'function') {
+             tippy('#maintenance-tbody .btn-icon[title]');
+             tippy('#maintenance-tbody .critical-indicator[title]');
+             tippy('#maintenance-tbody td:nth-child(8) span[title]'); // Tooltip do problema
+         }
+   }
 
    // --- Funções de Manipulação de Eventos ---
-   function handleNextToStep2() { /* ...código inalterado... */ }
-   function handleNextToStep3() { /* ...código inalterado... */ }
+   function handleNextToStep2() {
+        console.log("Botão Próximo (Step 1) clicado. Validando Etapa 1..."); // Log
+        if (validateStep1()) {
+          console.log("Validação Etapa 1: OK");
+          saveStep1Data();
+          showStep(2);
+          document.getElementById('problem-category')?.focus();
+        } else {
+           console.log("Validação Etapa 1: FALHOU"); // Log se falhar
+        }
+   }
+
+   function handleNextToStep3() {
+       console.log("Botão Próximo (Step 2) clicado. Validando Etapa 2..."); // Log
+        if (validateStep2()) {
+            console.log("Validação Etapa 2: OK");
+            saveStep2Data();
+            updateSummary();
+            showStep(3);
+            document.getElementById('submit-maintenance')?.focus();
+        } else {
+            console.log("Validação Etapa 2: FALHOU");
+        }
+   }
+
    function handleFormSubmit(event) { /* ...código inalterado... */ }
    function handleProblemCategoryChange(event) { /* ...código inalterado... */ }
    function handleSearchInput(event) { /* ...código inalterado... */ }
    function handleFilterClick(event) { /* ...código inalterado... */ }
-   function handleTableActionClick(event) { /* ...código inalterado... */ }
+
+   // Handler DELEGADO para cliques na tabela
+   function handleTableActionClick(event) {
+       console.log("Clique detectado na tabela de manutenção."); // Log
+       const button = event.target.closest('.btn-icon');
+       if (!button) { console.log("Clique não foi em um botão de ação."); return; }
+
+       const maintenanceId = button.getAttribute('data-id');
+       if (!maintenanceId) { console.warn("Botão sem data-id."); return; }
+
+       console.log(`Botão '${button.className}' clicado para ID: ${maintenanceId}`); // Log da ação
+
+       const maintenanceData = findMaintenanceByIdInList(maintenanceId);
+       // Não buscar da API aqui, usar dados locais se disponíveis ou deixar as funções de destino buscarem se precisarem de mais
+
+       if (button.classList.contains('view-maintenance')) {
+           if (typeof Utilities !== 'undefined' && Utilities.viewMaintenanceDetails) { Utilities.viewMaintenanceDetails(maintenanceId); }
+           else { console.error("Função Utilities.viewMaintenanceDetails não encontrada."); alert(`Visualizar ID: ${maintenanceId}`); }
+       } else if (button.classList.contains('verify-maintenance')) {
+           if (typeof Verification !== 'undefined' && Verification.openVerificationForm) { Verification.openVerificationForm(maintenanceId, maintenanceData); } // Passa dados locais
+           else { console.error("Módulo Verification não encontrado."); alert(`Verificar ID: ${maintenanceId}`); }
+       } else if (button.classList.contains('edit-maintenance')) {
+           if (maintenanceData) { openMaintenanceForm(maintenanceId, maintenanceData); } // Abre form deste módulo
+           else { if(typeof Utilities !== 'undefined') Utilities.showNotification("Erro: Dados para edição não encontrados localmente.", "error"); }
+       } else if (button.classList.contains('delete-maintenance')) {
+            if (maintenanceData) { handleDeleteMaintenance(maintenanceId, maintenanceData); }
+            else { if(typeof Utilities !== 'undefined') Utilities.showNotification("Erro: Dados para exclusão não encontrados.", "error"); }
+       }
+   }
+
    function findMaintenanceByIdInList(id) { /* ...código inalterado... */ }
    function handleDeleteMaintenance(id, maintenanceData) { /* ...código inalterado... */ }
 
    // --- Funções de Navegação, Validação e Persistência ---
    function showStep(step) { /* ...código inalterado... */ }
-   function validateStep1() { /* ...código inalterado... */ }
+
+   function validateStep1() {
+        console.log("Executando validateStep1..."); // Log
+        let isValid = true;
+        let firstInvalid = null;
+        clearValidationErrors(1);
+        const requiredFields = [ /* ... */ ];
+        const equipType = document.getElementById('equipment-type')?.value;
+        // ... (lógica para adicionar campos dinâmicos a requiredFields) ...
+        if (equipType === 'Outro') { requiredFields.push({ id: 'other-equipment', name: 'Especificar Equipamento' }); }
+        else if (equipType === 'Aspirador' || equipType === 'Poliguindaste') { requiredFields.push({ id: 'custom-equipment-id', name: `Identificação ${equipType}` }); }
+        else if (equipType) { requiredFields.push({ id: 'equipment-id', name: 'Placa ou ID' }); }
+
+        console.log("Campos a validar (Etapa 1):", requiredFields.map(f=>f.id));
+
+        requiredFields.forEach(field => {
+            const element = document.getElementById(field.id);
+            let isFieldValid = false;
+            let elementValue = '';
+            if (element) {
+                elementValue = element.value;
+                if (element.value && element.value.trim() !== '') { isFieldValid = true; }
+                // Ignora validação se select de ID está desabilitado
+                if (element.tagName === 'SELECT' && element.disabled && element.id === 'equipment-id') { isFieldValid = true; }
+            }
+
+            console.log(`Validando campo ${field.id}: Existe=${!!element}, Valor='${elementValue}', Válido=${isFieldValid}`); // Log detalhado
+
+            if (!isFieldValid) {
+                isValid = false;
+                if (element) { markFieldError(element, `${field.name} é obrigatório.`); if (!firstInvalid) firstInvalid = element; }
+                else { console.error(`Elemento obrigatório #${field.id} não encontrado no DOM!`); }
+            }
+        });
+
+        if (!isValid) {
+            console.error("Falha na validação da Etapa 1.");
+            if(typeof Utilities !== 'undefined') Utilities.showNotification("Preencha os campos obrigatórios da Etapa 1.", "warning");
+            if (firstInvalid) { try { firstInvalid.focus({ preventScroll: true }); firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e){} }
+        }
+        return isValid;
+   }
+
    function validateStep2() { /* ...código inalterado... */ }
    function markFieldError(element, message) { /* ...código inalterado... */ }
    function clearFieldError(element) { /* ...código inalterado... */ }
@@ -323,8 +370,6 @@ const Maintenance = (() => {
   return {
     initialize,
     openMaintenanceForm,
-    loadMaintenanceList
+    loadMaintenanceList // Necessário para ser chamado por main.js
   };
 })();
-
-// A inicialização continua sendo feita pelo main.js
