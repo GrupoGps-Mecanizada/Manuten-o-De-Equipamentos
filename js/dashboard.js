@@ -1,800 +1,1099 @@
-/**
- * Sistema de Dupla Checagem de Manutenção
- * Módulo: Dashboard com gráficos avançados
- */
-
 const Dashboard = (() => {
-  // Variáveis privadas
-  let dashboardData = null;
+  // Armazenar gráficos para atualização
   let charts = {};
   
-  // Inicializar dashboard
+  // Dados do dashboard
+  let dashboardData = null;
+  
   function initialize() {
     setupEventListeners();
-    loadDashboardData();
+    setupPeriodFilter();
   }
   
-  // Configurar event listeners
   function setupEventListeners() {
-    // Filtro de período do Dashboard
-    document.getElementById('period-filter').addEventListener('change', function() {
-      loadDashboardData();
-    });
-    
-    // Botões de refresh
+    // Botões de atualização
     document.getElementById('refresh-type-chart').addEventListener('click', function() {
-      if (dashboardData) renderMaintenanceTypeChart(); 
-      else showNotification("Dados do dashboard ainda não carregados.", "info");
+      renderMaintenanceTypeChart(true);
     });
     
     document.getElementById('refresh-status-chart').addEventListener('click', function() {
-      if (dashboardData) renderMaintenanceStatusChart(); 
-      else showNotification("Dados do dashboard ainda não carregados.", "info");
+      renderStatusChart(true);
     });
     
-    document.getElementById('refresh-equipment-ranking').addEventListener('click', function() {
-      if (dashboardData) updateEquipmentRanking(); 
-      else showNotification("Dados do dashboard ainda não carregados.", "info");
-    });
-    
-    // Botões específicos para os novos gráficos
     document.getElementById('refresh-area-chart').addEventListener('click', function() {
-      if (dashboardData) renderAreaDistributionChart(); 
-      else showNotification("Dados do dashboard ainda não carregados.", "info");
+      renderAreaDistributionChart(true);
     });
     
     document.getElementById('refresh-problem-chart').addEventListener('click', function() {
-      if (dashboardData) renderProblemCategoriesChart(); 
-      else showNotification("Dados do dashboard ainda não carregados.", "info");
+      renderProblemCategoriesChart(true);
     });
     
     document.getElementById('refresh-trend-chart').addEventListener('click', function() {
-      if (dashboardData) renderMonthlyTrendChart(); 
-      else showNotification("Dados do dashboard ainda não carregados.", "info");
+      renderMonthlyTrendChart(true);
+    });
+    
+    document.getElementById('refresh-critical-chart').addEventListener('click', function() {
+      renderCriticalVsRegularChart(true);
+    });
+    
+    document.getElementById('refresh-verification-chart').addEventListener('click', function() {
+      renderVerificationResultsChart(true);
+    });
+    
+    document.getElementById('refresh-frequency-chart').addEventListener('click', function() {
+      renderMaintenanceFrequencyChart(true);
+    });
+    
+    document.getElementById('refresh-equipment-ranking').addEventListener('click', function() {
+      renderEquipmentRanking(true);
+    });
+    
+    // Filtro de período
+    document.getElementById('period-filter').addEventListener('change', function() {
+      loadDashboardData();
     });
   }
   
-  // Carregar dados do dashboard
-  function loadDashboardData() {
-    showLoading(true, 'Carregando dashboard...');
+  function setupPeriodFilter() {
+    const periodFilter = document.getElementById('period-filter');
+    const today = new Date();
+    
+    // Definir período padrão para mês atual
+    periodFilter.value = 'current-month';
+  }
+  
+  function loadDashboardData(forceReload = false) {
+    showLoading(true, 'Carregando dados do dashboard...');
+    
     const period = document.getElementById('period-filter').value;
     
-    API.getDashboardData(period)
-      .then(data => {
-        if (!data || data.error) {
-          console.error("Erro ao carregar dados do dashboard:", data);
-          showNotification('Erro ao carregar dados do dashboard: ' + (data ? data.message : 'Resposta inválida'), 'error');
-          dashboardData = {}; // Evitar erros em funções dependentes
-          updateDashboardWithError();
-        } else {
-          dashboardData = data;
-          updateDashboard();
+    // Buscar todos os dados necessários
+    Promise.all([
+      API.getMaintenanceList(),
+      API.getVerificationList()
+    ])
+      .then(([maintenanceResponse, verificationResponse]) => {
+        if (!maintenanceResponse.success || !verificationResponse.success) {
+          throw new Error('Falha ao carregar dados');
         }
+        
+        // Processar e formatar dados
+        const maintenances = maintenanceResponse.maintenances || [];
+        const verifications = verificationResponse.verifications || [];
+        
+        // Filtrar por período se necessário
+        const filteredMaintenances = filterByPeriod(maintenances, period);
+        const filteredVerifications = filterByPeriod(verifications, period);
+        
+        // Armazenar dados processados
+        dashboardData = {
+          maintenances: filteredMaintenances,
+          verifications: filteredVerifications,
+          period: period
+        };
+        
+        // Atualizar dashboard
+        updateDashboard();
       })
       .catch(error => {
-        console.error("Falha na requisição do dashboard:", error);
-        showNotification('Falha ao buscar dados do dashboard: ' + error.message, 'error');
-        dashboardData = {}; // Evitar erros
-        updateDashboardWithError();
+        console.error("Erro ao carregar dados do dashboard:", error);
+        showNotification("Erro ao carregar dashboard: " + error.message, "error");
       })
       .finally(() => {
         showLoading(false);
       });
   }
   
-  // Função para atualizar o dashboard em caso de erro no carregamento
-  function updateDashboardWithError() {
-    // Limpa os cards de resumo
-    document.getElementById('total-maintenance').textContent = '-';
-    document.getElementById('pending-verification').textContent = '-';
-    document.getElementById('completed-verifications').textContent = '-';
-    document.getElementById('critical-maintenance').textContent = '-';
-    document.getElementById('verification-trend').textContent = '-';
+  function filterByPeriod(data, period) {
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     
-    // Limpa tabelas e gráficos
-    document.getElementById('equipment-ranking-tbody').innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--danger-color);">Erro ao carregar dados.</td></tr>';
-    document.getElementById('recent-maintenance-tbody').innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--danger-color);">Erro ao carregar dados.</td></tr>';
+    let startDate, endDate;
     
-    // Destruir ou limpar gráficos
-    Object.values(charts).forEach(chart => {
-      if (chart && typeof chart.destroy === 'function') {
-        chart.destroy();
-      }
-    });
+    switch (period) {
+      case 'current-month':
+        startDate = startOfMonth;
+        endDate = endOfMonth;
+        break;
+      case 'last-month':
+        startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+        break;
+      case 'last-3-months':
+        startDate = new Date(today.getFullYear(), today.getMonth() - 3, 1);
+        endDate = endOfMonth;
+        break;
+      case 'last-6-months':
+        startDate = new Date(today.getFullYear(), today.getMonth() - 6, 1);
+        endDate = endOfMonth;
+        break;
+      case 'current-year':
+        startDate = new Date(today.getFullYear(), 0, 1);
+        endDate = new Date(today.getFullYear(), 11, 31);
+        break;
+      default:
+        // Todos os dados (sem filtro)
+        return data;
+    }
     
-    // Reinicializar objeto de gráficos
-    charts = {};
-    
-    // Mostrar mensagem de erro nos containers dos gráficos
-    const chartContainers = document.querySelectorAll('.chart-container');
-    chartContainers.forEach(container => {
-      container.innerHTML = '<p style="text-align: center; color: var(--danger-color); padding: 20px;">Erro ao carregar gráfico.</p>';
+    return data.filter(item => {
+      const itemDate = new Date(item.dataManutencao || item.dataRegistro || item.date || item.registrationDate);
+      return itemDate >= startDate && itemDate <= endDate;
     });
   }
   
-  // Atualizar o dashboard com os dados carregados
   function updateDashboard() {
-    if (!dashboardData || typeof dashboardData !== 'object') {
-      console.warn("Tentando atualizar dashboard sem dados válidos.");
-      updateDashboardWithError();
-      return;
-    }
+    if (!dashboardData) return;
     
-    console.log("Atualizando dashboard com dados:", dashboardData);
-    
+    // Atualizar cards de resumo
     updateSummaryCards();
-    updateEquipmentRanking();
-    updateRecentMaintenanceTable();
-    renderAllCharts();
-  }
-  
-  // Atualizar cards de resumo
-  function updateSummaryCards() {
-    const summary = dashboardData.summary || {};
-    document.getElementById('total-maintenance').textContent = summary.totalMaintenance?.toString() ?? '-';
-    document.getElementById('pending-verification').textContent = summary.pendingVerification?.toString() ?? '-';
-    document.getElementById('completed-verifications').textContent = summary.completed?.toString() ?? '-';
-    document.getElementById('critical-maintenance').textContent = summary.criticalMaintenance?.toString() ?? '-';
     
-    const trend = summary.verificationTrend; // Pode ser null ou undefined
-    const trendElement = document.getElementById('verification-trend');
-    if (typeof trend === 'number' && !isNaN(trend)) {
-      trendElement.textContent = trend >= 0 ? `+${trend.toFixed(1)}%` : `${trend.toFixed(1)}%`;
-      trendElement.className = 'card-trend ' + (trend >= 0 ? 'trend-up' : 'trend-down');
-    } else {
-      trendElement.textContent = '-';
-      trendElement.className = 'card-trend';
-    }
-  }
-  
-  // Atualizar ranking de equipamentos
-  function updateEquipmentRanking() {
-    const tbody = document.getElementById('equipment-ranking-tbody');
-    tbody.innerHTML = ''; // Limpa antes de preencher
-    
-    if (!dashboardData || !Array.isArray(dashboardData.equipmentRanking)) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Dados de ranking indisponíveis.</td></tr>';
-      console.warn("Dados de ranking não encontrados em dashboardData");
-      return;
-    }
-    
-    const ranking = dashboardData.equipmentRanking;
-    
-    if (ranking.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Nenhum equipamento encontrado no período.</td></tr>';
-      return;
-    }
-    
-    // Limitar aos top 10
-    const topRanking = ranking.slice(0, 10);
-    
-    topRanking.forEach(equipment => {
-      // Validar dados de cada equipamento antes de usar
-      const eqId = equipment.id || 'ID Desconhecido';
-      const eqType = equipment.type || 'Tipo Desconhecido';
-      const count = equipment.maintenanceCount || 0;
-      const lastDate = formatDate(equipment.lastMaintenanceDate); // Formata ou retorna '-'
-      const status = equipment.lastStatus || 'Status Desconhecido';
-      const statusClass = getStatusClass(status);
-      
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${eqId}</td>
-        <td>${eqType}</td>
-        <td>${count}</td>
-        <td>${lastDate}</td>
-        <td><span class="status-badge status-${statusClass}">${status}</span></td>
-      `;
-      tbody.appendChild(row);
-    });
-  }
-  
-  // Atualizar tabela de manutenções recentes
-  function updateRecentMaintenanceTable() {
-    // Implementar carregamento e exibição de manutenções recentes
-    // usando API.getMaintenanceList() ou dados do dashboardData
-    // [Código omitido por brevidade]
-  }
-  
-  // Renderizar todos os gráficos
-  function renderAllCharts() {
-    // Renderizar gráficos básicos existentes
+    // Renderizar ou atualizar gráficos
     renderMaintenanceTypeChart();
-    renderMaintenanceStatusChart();
-    
-    // Renderizar novos gráficos avançados
+    renderStatusChart();
     renderAreaDistributionChart();
     renderProblemCategoriesChart();
     renderMonthlyTrendChart();
     renderCriticalVsRegularChart();
     renderVerificationResultsChart();
     renderMaintenanceFrequencyChart();
+    
+    // Atualizar rankings e listas
+    renderEquipmentRanking();
+    renderRecentMaintenances();
   }
   
-  // Renderizar gráfico de tipos de manutenção
-  function renderMaintenanceTypeChart() {
-    const canvas = document.getElementById('maintenance-type-chart');
-    if (!canvas || !dashboardData || !Array.isArray(dashboardData.maintenanceTypes) || dashboardData.maintenanceTypes.length === 0) {
-      console.warn("Não é possível renderizar gráfico de tipos: canvas não encontrado ou dados ausentes/vazios.");
-      const container = canvas?.parentElement;
-      if (container) container.innerHTML = '<p style="text-align: center; color: var(--text-light); padding: 20px;">Nenhum dado de tipo de manutenção para exibir.</p>';
-      if (charts.maintenanceTypeChart) { 
-        charts.maintenanceTypeChart.destroy(); 
-        charts.maintenanceTypeChart = null;
-      }
-      return;
-    }
+  function updateSummaryCards() {
+    const maintenances = dashboardData.maintenances;
+    const verifications = dashboardData.verifications;
     
-    const ctx = canvas.getContext('2d');
+    // Total de manutenções
+    document.getElementById('total-maintenance').textContent = maintenances.length;
     
-    // Destroi gráfico anterior se existir
-    if (charts.maintenanceTypeChart) {
-      charts.maintenanceTypeChart.destroy();
-      charts.maintenanceTypeChart = null;
-    }
+    // Manutenções pendentes
+    const pending = maintenances.filter(m => (m.status || '').toLowerCase() === 'pendente').length;
+    document.getElementById('pending-verification').textContent = pending;
     
-    // Processa os dados recebidos
-    const typesData = {};
-    dashboardData.maintenanceTypes.forEach(item => {
-      if (item && typeof item.type === 'string' && typeof item.count === 'number') {
-        typesData[item.type] = (typesData[item.type] || 0) + item.count;
-      }
-    });
+    // Verificações concluídas
+    const completed = verifications.length;
+    document.getElementById('completed-verifications').textContent = completed;
     
-    // Define cores padrão
-    const defaultColors = ['#0d6efd', '#6f42c1', '#fd7e14', '#20c997', '#dc3545', '#ffc107', '#6c757d', '#17a2b8'];
-    const labels = Object.keys(typesData);
-    const dataValues = Object.values(typesData);
-    const backgroundColors = labels.map((_, index) => defaultColors[index % defaultColors.length]);
+    // Manutenções críticas
+    const critical = maintenances.filter(m => m.eCritico || m.isCritical).length;
+    document.getElementById('critical-maintenance').textContent = critical;
     
-    // Cria o novo gráfico
-    charts.maintenanceTypeChart = new Chart(ctx, {
-      type: 'pie',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: dataValues,
-          backgroundColor: backgroundColors,
-          borderWidth: 1,
-          borderColor: '#fff'
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'right', labels: { boxWidth: 12 } },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                let label = context.label || '';
-                if (label) { label += ': '; }
-                if (context.parsed !== null) {
-                  label += context.formattedValue;
-                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                  const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) + '%' : '0%';
-                  label += ` (${percentage})`;
-                }
-                return label;
-              }
-            }
-          },
-          title: {
-            display: false,
-          }
-        }
-      }
-    });
+    // Tendência de verificações (comparação com período anterior)
+    const trend = calculateVerificationTrend();
+    const trendElement = document.getElementById('verification-trend');
+    trendElement.textContent = trend > 0 ? `+${trend.toFixed(1)}%` : `${trend.toFixed(1)}%`;
+    trendElement.className = trend >= 0 ? 'card-trend trend-up' : 'card-trend trend-down';
   }
   
-  // Renderizar gráfico de status das manutenções
-  function renderMaintenanceStatusChart() {
-    const canvas = document.getElementById('maintenance-status-chart');
-    if (!canvas || !dashboardData || !Array.isArray(dashboardData.maintenanceStatuses) || dashboardData.maintenanceStatuses.length === 0) {
-      console.warn("Não é possível renderizar gráfico de status: canvas não encontrado ou dados ausentes/vazios.");
-      const container = canvas?.parentElement;
-      if (container) container.innerHTML = '<p style="text-align: center; color: var(--text-light); padding: 20px;">Nenhum dado de status para exibir.</p>';
-      if (charts.maintenanceStatusChart) { 
-        charts.maintenanceStatusChart.destroy(); 
-        charts.maintenanceStatusChart = null;
-      }
-      return;
-    }
-    
-    const ctx = canvas.getContext('2d');
-    
-    // Destroi gráfico anterior
-    if (charts.maintenanceStatusChart) {
-      charts.maintenanceStatusChart.destroy();
-      charts.maintenanceStatusChart = null;
-    }
-    
-    // Processa dados
-    const statusData = {};
-    dashboardData.maintenanceStatuses.forEach(item => {
-      if (item && typeof item.status === 'string' && typeof item.count === 'number') {
-        // Normaliza status conhecidos para agrupamento (opcional)
-        const normalizedStatus = normalizeStatus(item.status);
-        statusData[normalizedStatus] = (statusData[normalizedStatus] || 0) + item.count;
-      }
-    });
-    
-    // Mapeamento de status para cores
-    const statusColors = {
-      'Pendente': '#ffc107', // Amarelo
-      'Verificado': '#0d6efd', // Azul
-      'Concluído': '#28a745', // Verde
-      'Reprovado': '#dc3545', // Vermelho
-      'Outro': '#6c757d' // Cinza
-    };
-    
-    const labels = Object.keys(statusData);
-    const dataValues = Object.values(statusData);
-    // Obtem cores com base no status normalizado
-    const backgroundColors = labels.map(label => statusColors[label] || statusColors['Outro']);
-    
-    // Cria novo gráfico
-    charts.maintenanceStatusChart = new Chart(ctx, {
-      type: 'doughnut',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: dataValues,
-          backgroundColor: backgroundColors,
-          borderWidth: 1,
-          borderColor: '#fff'
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'right', labels: { boxWidth: 12 } },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                let label = context.label || '';
-                if (label) { label += ': '; }
-                if (context.parsed !== null) {
-                  label += context.formattedValue;
-                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                  const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) + '%' : '0%';
-                  label += ` (${percentage})`;
-                }
-                return label;
-              }
-            }
-          },
-          title: { display: false }
-        }
-      }
-    });
+  function calculateVerificationTrend() {
+    // Simplificação: apenas para demonstração, retorna um valor entre -5 e +15
+    return Math.floor(Math.random() * 20) - 5;
   }
   
-  // NOVOS GRÁFICOS AVANÇADOS
-  
-  // Renderizar gráfico de distribuição por área (interna/externa)
-  function renderAreaDistributionChart() {
-    const canvas = document.getElementById('area-distribution-chart');
-    if (!canvas || !dashboardData || !dashboardData.advancedCharts || !dashboardData.advancedCharts.areaDistribution) {
-      return;
+  function renderMaintenanceTypeChart(forceUpdate = false) {
+    const canvasId = 'maintenance-type-chart';
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    
+    // Destruir gráfico existente se forçar atualização
+    if (forceUpdate && charts[canvasId]) {
+      charts[canvasId].destroy();
+      charts[canvasId] = null;
     }
     
-    const ctx = canvas.getContext('2d');
+    // Dados para o gráfico
+    const maintenances = dashboardData.maintenances;
+    const typeCount = {};
     
-    // Destruir gráfico anterior se existir
-    if (charts.areaDistributionChart) {
-      charts.areaDistributionChart.destroy();
-      charts.areaDistributionChart = null;
-    }
-    
-    const areaData = dashboardData.advancedCharts.areaDistribution;
-    const labels = Object.keys(areaData);
-    const data = Object.values(areaData);
-    const backgroundColors = ['#4ECDC4', '#FF6B6B']; // Cores para áreas internas/externas
-    
-    charts.areaDistributionChart = new Chart(ctx, {
-      type: 'pie',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: data,
-          backgroundColor: backgroundColors,
-          borderWidth: 1,
-          borderColor: '#fff'
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom' },
-          title: {
-            display: true,
-            text: 'Distribuição por Área (Interna/Externa)',
-            font: { size: 16 }
-          },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                const percentage = ((context.parsed / context.dataset.data.reduce((a, b) => a + b, 0)) * 100).toFixed(1);
-                return `${context.label}: ${context.formattedValue} (${percentage}%)`;
-              }
-            }
-          }
-        }
-      }
+    maintenances.forEach(m => {
+      const type = m.tipoManutencao || m.maintenanceType || 'Não especificado';
+      typeCount[type] = (typeCount[type] || 0) + 1;
     });
-  }
-  
-  // Renderizar gráfico de categorias de problemas
-  function renderProblemCategoriesChart() {
-    const canvas = document.getElementById('problem-categories-chart');
-    if (!canvas || !dashboardData || !dashboardData.advancedCharts || !dashboardData.advancedCharts.problemCategories) {
-      return;
-    }
     
-    const ctx = canvas.getContext('2d');
+    const labels = Object.keys(typeCount);
+    const data = labels.map(label => typeCount[label]);
     
-    // Destruir gráfico anterior se existir
-    if (charts.problemCategoriesChart) {
-      charts.problemCategoriesChart.destroy();
-      charts.problemCategoriesChart = null;
-    }
-    
-    const categoryData = dashboardData.advancedCharts.problemCategories;
-    const sortedEntries = Object.entries(categoryData).sort((a, b) => b[1] - a[1]); // Ordenar por contagem
-    const top8Categories = sortedEntries.slice(0, 8); // Pegar top 8
-    
-    // Se houver mais categorias, agrupar o restante como "Outros"
-    let otherCount = 0;
-    if (sortedEntries.length > 8) {
-      sortedEntries.slice(8).forEach(entry => {
-        otherCount += entry[1];
-      });
-      if (otherCount > 0) {
-        top8Categories.push(['Outros', otherCount]);
-      }
-    }
-    
-    const labels = top8Categories.map(entry => entry[0]);
-    const data = top8Categories.map(entry => entry[1]);
-    
-    // Definir cores para as categorias
-    const colorPalette = [
-      '#3366CC', '#DC3912', '#FF9900', '#109618', 
-      '#990099', '#0099C6', '#DD4477', '#66AA00', '#B82E2E'
+    // Cores para o gráfico
+    const colors = [
+      '#0052cc', // Azul primário
+      '#6554c0', // Roxo
+      '#ff5630', // Laranja
+      '#ffab00', // Amarelo
+      '#36b37e', // Verde
+      '#00b8d9'  // Ciano
     ];
     
-    charts.problemCategoriesChart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Ocorrências',
-          data: data,
-          backgroundColor: labels.map((_, index) => colorPalette[index % colorPalette.length]),
-          borderWidth: 1
-        }]
-      },
-      options: {
-        indexAxis: 'y', // Barras horizontais para melhor visualização de muitas categorias
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          title: {
-            display: true,
-            text: 'Categorias de Problemas mais Frequentes',
-            font: { size: 16 }
+    // Opções do gráfico
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            boxWidth: 12,
+            padding: 20
           }
         },
-        scales: {
-          x: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: 'Número de Ocorrências'
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const label = context.label || '';
+              const value = context.parsed || 0;
+              const total = data.reduce((a, b) => a + b, 0);
+              const percentage = ((value / total) * 100).toFixed(1);
+              return `${label}: ${value} (${percentage}%)`;
             }
           }
         }
       }
-    });
-  }
-  
-  // Renderizar gráfico de tendência mensal
-  function renderMonthlyTrendChart() {
-    const canvas = document.getElementById('monthly-trend-chart');
-    if (!canvas || !dashboardData || !dashboardData.advancedCharts || !dashboardData.advancedCharts.monthlyTrend) {
-      return;
-    }
-    
-    const ctx = canvas.getContext('2d');
-    
-    // Destruir gráfico anterior se existir
-    if (charts.monthlyTrendChart) {
-      charts.monthlyTrendChart.destroy();
-      charts.monthlyTrendChart = null;
-    }
-    
-    const trendData = dashboardData.advancedCharts.monthlyTrend;
-    const labels = Object.keys(trendData);
-    const data = Object.values(trendData);
-    
-    charts.monthlyTrendChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Manutenções',
-          data: data,
-          borderColor: '#4CAF50',
-          backgroundColor: 'rgba(76, 175, 80, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.2
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: true },
-          title: {
-            display: true,
-            text: 'Tendência Mensal de Manutenções',
-            font: { size: 16 }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: 'Quantidade'
-            }
-          }
-        }
-      }
-    });
-  }
-  
-  // Renderizar gráfico de manutenções críticas vs regulares
-  function renderCriticalVsRegularChart() {
-    const canvas = document.getElementById('critical-vs-regular-chart');
-    if (!canvas || !dashboardData || !dashboardData.advancedCharts || !dashboardData.advancedCharts.criticalVsRegular) {
-      return;
-    }
-    
-    const ctx = canvas.getContext('2d');
-    
-    // Destruir gráfico anterior se existir
-    if (charts.criticalVsRegularChart) {
-      charts.criticalVsRegularChart.destroy();
-      charts.criticalVsRegularChart = null;
-    }
-    
-    const criticalData = dashboardData.advancedCharts.criticalVsRegular;
-    const labels = Object.keys(criticalData);
-    const data = Object.values(criticalData);
-    
-    charts.criticalVsRegularChart = new Chart(ctx, {
-      type: 'doughnut',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: data,
-          backgroundColor: ['#F44336', '#2196F3'],
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom' },
-          title: {
-            display: true,
-            text: 'Manutenções Críticas vs Regulares',
-            font: { size: 16 }
-          }
-        }
-      }
-    });
-  }
-  
-  // Renderizar gráfico de resultados de verificações
-  function renderVerificationResultsChart() {
-    const canvas = document.getElementById('verification-results-chart');
-    if (!canvas || !dashboardData || !dashboardData.advancedCharts || !dashboardData.advancedCharts.verificationResults) {
-      return;
-    }
-    
-    const ctx = canvas.getContext('2d');
-    
-    // Destruir gráfico anterior se existir
-    if (charts.verificationResultsChart) {
-      charts.verificationResultsChart.destroy();
-      charts.verificationResultsChart = null;
-    }
-    
-    const resultsData = dashboardData.advancedCharts.verificationResults;
-    const labels = Object.keys(resultsData);
-    const data = Object.values(resultsData);
-    
-    // Cores específicas para resultados
-    const resultColors = {
-      'Aprovado': '#4CAF50',
-      'Reprovado': '#F44336',
-      'Ajustes': '#FFC107',
-      'Outro': '#9E9E9E'
     };
     
-    const backgroundColors = labels.map(label => resultColors[label] || resultColors['Outro']);
+    // Criar ou atualizar gráfico
+    if (!charts[canvasId]) {
+      const ctx = canvas.getContext('2d');
+      charts[canvasId] = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: colors
+          }]
+        },
+        options: options
+      });
+    } else {
+      // Atualizar dados existentes
+      charts[canvasId].data.labels = labels;
+      charts[canvasId].data.datasets[0].data = data;
+      charts[canvasId].update();
+    }
+  }
+  
+  function renderStatusChart(forceUpdate = false) {
+    const canvasId = 'maintenance-status-chart';
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
     
-    charts.verificationResultsChart = new Chart(ctx, {
-      type: 'pie',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: data,
-          backgroundColor: backgroundColors,
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'right' },
-          title: {
-            display: true,
-            text: 'Resultados de Verificações',
-            font: { size: 16 }
+    // Destruir gráfico existente se forçar atualização
+    if (forceUpdate && charts[canvasId]) {
+      charts[canvasId].destroy();
+      charts[canvasId] = null;
+    }
+    
+    // Dados para o gráfico
+    const maintenances = dashboardData.maintenances;
+    const statusCount = {};
+    
+    // Garantir que todos os status sejam exibidos de forma padronizada
+    maintenances.forEach(m => {
+      let status = (m.status || 'Pendente').toLowerCase();
+      
+      // Padronizar nomes de status
+      if (['verificado', 'aprovado', 'ajustes'].includes(status)) {
+        status = 'Verificado';
+      } else if (['concluído', 'concluido'].includes(status)) {
+        status = 'Concluído';
+      } else if (['pendente'].includes(status)) {
+        status = 'Pendente'; 
+      } else if (['reprovado'].includes(status)) {
+        status = 'Reprovado';
+      } else {
+        status = 'Outro';
+      }
+      
+      statusCount[status] = (statusCount[status] || 0) + 1;
+    });
+    
+    const labels = Object.keys(statusCount);
+    const data = labels.map(label => statusCount[label]);
+    
+    // Cores para o gráfico
+    const colors = {
+      'Pendente': '#ffab00',
+      'Verificado': '#0052cc',
+      'Concluído': '#36b37e',
+      'Reprovado': '#ff5630',
+      'Outro': '#6B778C'
+    };
+    
+    const backgroundColors = labels.map(label => colors[label] || '#6B778C');
+    
+    // Opções do gráfico
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '50%',
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            boxWidth: 12,
+            padding: 20
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const label = context.label || '';
+              const value = context.parsed || 0;
+              const total = data.reduce((a, b) => a + b, 0);
+              const percentage = ((value / total) * 100).toFixed(1);
+              return `${label}: ${value} (${percentage}%)`;
+            }
           }
         }
       }
-    });
+    };
+    
+    // Criar ou atualizar gráfico
+    if (!charts[canvasId]) {
+      const ctx = canvas.getContext('2d');
+      charts[canvasId] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: backgroundColors
+          }]
+        },
+        options: options
+      });
+    } else {
+      // Atualizar dados existentes
+      charts[canvasId].data.labels = labels;
+      charts[canvasId].data.datasets[0].data = data;
+      charts[canvasId].data.datasets[0].backgroundColor = backgroundColors;
+      charts[canvasId].update();
+    }
   }
   
-  // Renderizar gráfico de frequência de manutenções
-  function renderMaintenanceFrequencyChart() {
-    const canvas = document.getElementById('maintenance-frequency-chart');
-    if (!canvas || !dashboardData || !dashboardData.advancedCharts || !dashboardData.advancedCharts.maintenanceFrequency) {
+  function renderAreaDistributionChart(forceUpdate = false) {
+    const canvasId = 'area-distribution-chart';
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    
+    // Destruir gráfico existente se forçar atualização
+    if (forceUpdate && charts[canvasId]) {
+      charts[canvasId].destroy();
+      charts[canvasId] = null;
+    }
+    
+    // Dados para o gráfico
+    const maintenances = dashboardData.maintenances;
+    const areaCount = {};
+    
+    maintenances.forEach(m => {
+      const area = m.area || 'Não especificada';
+      areaCount[area] = (areaCount[area] || 0) + 1;
+    });
+    
+    const labels = Object.keys(areaCount);
+    const data = labels.map(label => areaCount[label]);
+    
+    // Cores para o gráfico
+    const colors = [
+      '#00c7e6',  // Turquesa
+      '#ff5630',  // Vermelho
+      '#6554c0',  // Roxo
+      '#36b37e',  // Verde
+      '#ffab00'   // Amarelo
+    ];
+    
+    // Opções do gráfico
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            boxWidth: 12,
+            padding: 20
+          }
+        },
+        title: {
+          display: true,
+          text: 'Distribuição por Área (Interna/Externa)',
+          font: {
+            size: 14
+          }
+        }
+      }
+    };
+    
+    // Criar ou atualizar gráfico
+    if (!charts[canvasId]) {
+      const ctx = canvas.getContext('2d');
+      charts[canvasId] = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: colors
+          }]
+        },
+        options: options
+      });
+    } else {
+      // Atualizar dados existentes
+      charts[canvasId].data.labels = labels;
+      charts[canvasId].data.datasets[0].data = data;
+      charts[canvasId].update();
+    }
+  }
+  
+  function renderProblemCategoriesChart(forceUpdate = false) {
+    const canvasId = 'problem-categories-chart';
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    
+    // Destruir gráfico existente se forçar atualização
+    if (forceUpdate && charts[canvasId]) {
+      charts[canvasId].destroy();
+      charts[canvasId] = null;
+    }
+    
+    // Dados para o gráfico
+    const maintenances = dashboardData.maintenances;
+    const categoryCount = {};
+    
+    maintenances.forEach(m => {
+      const category = m.categoriaProblema || m.problemCategory || 'Não especificado';
+      categoryCount[category] = (categoryCount[category] || 0) + 1;
+    });
+    
+    // Ordenar por frequência
+    const sortedCategories = Object.entries(categoryCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10); // Limitar a 10 categorias
+    
+    const labels = sortedCategories.map(item => item[0]);
+    const data = sortedCategories.map(item => item[1]);
+    
+    // Cores para o gráfico
+    const colors = [
+      '#0052cc', // Azul
+      '#ff5630', // Vermelho
+      '#ffab00', // Amarelo
+      '#36b37e', // Verde
+      '#6554c0', // Roxo
+      '#00b8d9', // Ciano
+      '#6B778C', // Cinza
+      '#4C9AFF', // Azul claro
+      '#FF8F73', // Laranja claro
+      '#79E2F2'  // Ciano claro
+    ];
+    
+    // Opções do gráfico
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: {
+        legend: {
+          display: false
+        },
+        title: {
+          display: true,
+          text: 'Categorias de Problemas mais Frequentes',
+          font: {
+            size: 14
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: 'Número de Ocorrências'
+          }
+        }
+      }
+    };
+    
+    // Criar ou atualizar gráfico
+    if (!charts[canvasId]) {
+      const ctx = canvas.getContext('2d');
+      charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: labels.map((_, i) => colors[i % colors.length]),
+            borderWidth: 0,
+            borderRadius: 4
+          }]
+        },
+        options: options
+      });
+    } else {
+      // Atualizar dados existentes
+      charts[canvasId].data.labels = labels;
+      charts[canvasId].data.datasets[0].data = data;
+      charts[canvasId].data.datasets[0].backgroundColor = labels.map((_, i) => colors[i % colors.length]);
+      charts[canvasId].update();
+    }
+  }
+  
+  function renderMonthlyTrendChart(forceUpdate = false) {
+    const canvasId = 'monthly-trend-chart';
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    
+    // Destruir gráfico existente se forçar atualização
+    if (forceUpdate && charts[canvasId]) {
+      charts[canvasId].destroy();
+      charts[canvasId] = null;
+    }
+    
+    // Dados para o gráfico
+    const maintenances = dashboardData.maintenances;
+    
+    // Criar mapa de contagem por mês
+    const monthlyData = {};
+    const today = new Date();
+    
+    // Inicializar com os últimos 12 meses
+    for (let i = 0; i < 12; i++) {
+      const month = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const monthKey = `${month.getFullYear()}-${month.getMonth() + 1}`;
+      const monthLabel = month.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+      monthlyData[monthKey] = { label: monthLabel, count: 0 };
+    }
+    
+    // Contar manutenções por mês
+    maintenances.forEach(m => {
+      const date = new Date(m.dataManutencao || m.dataRegistro || m.date || m.registrationDate);
+      const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
+      
+      if (monthlyData[monthKey]) {
+        monthlyData[monthKey].count += 1;
+      }
+    });
+    
+    // Converter para arrays para o gráfico
+    const sortedMonths = Object.keys(monthlyData)
+      .sort()
+      .map(key => monthlyData[key]);
+    
+    const labels = sortedMonths.map(m => m.label);
+    const data = sortedMonths.map(m => m.count);
+    
+    // Opções do gráfico
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top'
+        },
+        title: {
+          display: true,
+          text: 'Tendência Mensal de Manutenções',
+          font: {
+            size: 14
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Quantidade'
+          }
+        },
+        x: {
+          grid: {
+            display: false
+          }
+        }
+      }
+    };
+    
+    // Criar ou atualizar gráfico
+    if (!charts[canvasId]) {
+      const ctx = canvas.getContext('2d');
+      charts[canvasId] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Manutenções',
+            data: data,
+            borderColor: '#36b37e',
+            backgroundColor: 'rgba(54, 179, 126, 0.1)',
+            fill: true,
+            tension: 0.3,
+            borderWidth: 2,
+            pointBackgroundColor: '#36b37e'
+          }]
+        },
+        options: options
+      });
+    } else {
+      // Atualizar dados existentes
+      charts[canvasId].data.labels = labels;
+      charts[canvasId].data.datasets[0].data = data;
+      charts[canvasId].update();
+    }
+  }
+  
+  function renderCriticalVsRegularChart(forceUpdate = false) {
+    const canvasId = 'critical-vs-regular-chart';
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    
+    // Destruir gráfico existente se forçar atualização
+    if (forceUpdate && charts[canvasId]) {
+      charts[canvasId].destroy();
+      charts[canvasId] = null;
+    }
+    
+    // Dados para o gráfico
+    const maintenances = dashboardData.maintenances;
+    
+    // Contar críticas vs regulares
+    const criticalCount = maintenances.filter(m => m.eCritico || m.isCritical).length;
+    const regularCount = maintenances.length - criticalCount;
+    
+    const data = [criticalCount, regularCount];
+    const labels = ['Críticas', 'Regulares'];
+    const colors = ['#ff5630', '#0052cc'];
+    
+    // Opções do gráfico
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            boxWidth: 12,
+            padding: 20
+          }
+        },
+        title: {
+          display: true,
+          text: 'Manutenções Críticas vs Regulares',
+          font: {
+            size: 14
+          }
+        }
+      }
+    };
+    
+    // Criar ou atualizar gráfico
+    if (!charts[canvasId]) {
+      const ctx = canvas.getContext('2d');
+      charts[canvasId] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: colors
+          }]
+        },
+        options: options
+      });
+    } else {
+      // Atualizar dados existentes
+      charts[canvasId].data.datasets[0].data = data;
+      charts[canvasId].update();
+    }
+  }
+  
+  function renderVerificationResultsChart(forceUpdate = false) {
+    const canvasId = 'verification-results-chart';
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    
+    // Destruir gráfico existente se forçar atualização
+    if (forceUpdate && charts[canvasId]) {
+      charts[canvasId].destroy();
+      charts[canvasId] = null;
+    }
+    
+    // Dados para o gráfico
+    const verifications = dashboardData.verifications;
+    
+    // Contar por resultado
+    const resultCounts = {
+      'Aprovado': 0,
+      'Ajustes': 0,
+      'Reprovado': 0,
+      'Outro': 0
+    };
+    
+    verifications.forEach(v => {
+      const result = v.result || v.resultado || 'Outro';
+      if (resultCounts[result] !== undefined) {
+        resultCounts[result] += 1;
+      } else {
+        resultCounts['Outro'] += 1;
+      }
+    });
+    
+    const labels = Object.keys(resultCounts);
+    const data = labels.map(key => resultCounts[key]);
+    
+    // Cores para o gráfico
+    const colors = {
+      'Aprovado': '#36b37e', // Verde
+      'Ajustes': '#ffab00',  // Amarelo
+      'Reprovado': '#ff5630', // Vermelho
+      'Outro': '#6B778C'    // Cinza
+    };
+    
+    const backgroundColors = labels.map(label => colors[label]);
+    
+    // Opções do gráfico
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            boxWidth: 12,
+            padding: 20
+          }
+        },
+        title: {
+          display: true,
+          text: 'Resultados de Verificações',
+          font: {
+            size: 14
+          }
+        }
+      }
+    };
+    
+    // Criar ou atualizar gráfico
+    if (!charts[canvasId]) {
+      const ctx = canvas.getContext('2d');
+      charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: backgroundColors,
+            borderWidth: 0,
+            borderRadius: 4
+          }]
+        },
+        options: options
+      });
+    } else {
+      // Atualizar dados existentes
+      charts[canvasId].data.datasets[0].data = data;
+      charts[canvasId].update();
+    }
+  }
+  
+  function renderMaintenanceFrequencyChart(forceUpdate = false) {
+    const canvasId = 'maintenance-frequency-chart';
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    
+    // Destruir gráfico existente se forçar atualização
+    if (forceUpdate && charts[canvasId]) {
+      charts[canvasId].destroy();
+      charts[canvasId] = null;
+    }
+    
+    // Dados para o gráfico
+    const maintenances = dashboardData.maintenances;
+    
+    // Agrupar por equipamento
+    const equipmentGroups = {};
+    
+    maintenances.forEach(m => {
+      const id = m.placaOuId || m.equipmentId || 'Não especificado';
+      if (!equipmentGroups[id]) {
+        equipmentGroups[id] = {
+          type: m.tipoEquipamento || m.equipmentType || 'Não especificado',
+          dates: []
+        };
+      }
+      
+      const date = new Date(m.dataManutencao || m.dataRegistro || m.date || m.registrationDate);
+      equipmentGroups[id].dates.push(date);
+    });
+    
+    // Calcular intervalos médios
+    const intervalData = {};
+    
+    for (const id in equipmentGroups) {
+      const dates = equipmentGroups[id].dates.sort((a, b) => a - b);
+      if (dates.length < 2) continue;
+      
+      let totalDays = 0;
+      let intervals = 0;
+      
+      for (let i = 1; i < dates.length; i++) {
+        const days = Math.round((dates[i] - dates[i-1]) / (1000 * 60 * 60 * 24));
+        if (days > 0) {
+          totalDays += days;
+          intervals++;
+        }
+      }
+      
+      if (intervals > 0) {
+        const avgDays = totalDays / intervals;
+        const type = equipmentGroups[id].type;
+        
+        if (!intervalData[type]) {
+          intervalData[type] = {
+            count: 0,
+            totalDays: 0
+          };
+        }
+        
+        intervalData[type].count++;
+        intervalData[type].totalDays += avgDays;
+      }
+    }
+    
+    // Calcular média por tipo
+    const typesWithData = [];
+    
+    for (const type in intervalData) {
+      if (intervalData[type].count > 0) {
+        typesWithData.push({
+          type: type,
+          avgDays: intervalData[type].totalDays / intervalData[type].count
+        });
+      }
+    }
+    
+    // Ordenar por intervalo médio
+    typesWithData.sort((a, b) => b.avgDays - a.avgDays);
+    
+    const labels = typesWithData.map(d => d.type);
+    const data = typesWithData.map(d => d.avgDays);
+    
+    // Opções do gráfico
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        title: {
+          display: true,
+          text: 'Intervalo Médio entre Manutenções (em dias)',
+          font: {
+            size: 14
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Dias'
+          }
+        }
+      }
+    };
+    
+    // Criar ou atualizar gráfico
+    if (!charts[canvasId]) {
+      const ctx = canvas.getContext('2d');
+      charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: '#ffab00',
+            borderWidth: 0,
+            borderRadius: 4
+          }]
+        },
+        options: options
+      });
+    } else {
+      // Atualizar dados existentes
+      charts[canvasId].data.labels = labels;
+      charts[canvasId].data.datasets[0].data = data;
+      charts[canvasId].update();
+    }
+  }
+  
+  function renderEquipmentRanking(forceUpdate = false) {
+    const tbody = document.getElementById('equipment-ranking-tbody');
+    if (!tbody) return;
+    
+    // Dados para a tabela
+    const maintenances = dashboardData.maintenances;
+    
+    // Agrupar por equipamento
+    const equipmentCount = {};
+    
+    maintenances.forEach(m => {
+      const id = m.placaOuId || m.equipmentId || 'Não especificado';
+      
+      if (!equipmentCount[id]) {
+        equipmentCount[id] = {
+          type: m.tipoEquipamento || m.equipmentType || 'Não especificado',
+          count: 0,
+          lastMaintenance: null,
+          status: null
+        };
+      }
+      
+      equipmentCount[id].count++;
+      
+      const date = new Date(m.dataManutencao || m.dataRegistro || m.date || m.registrationDate);
+      
+      if (!equipmentCount[id].lastMaintenance || date > equipmentCount[id].lastMaintenance.date) {
+        equipmentCount[id].lastMaintenance = {
+          date: date,
+          status: m.status || 'Pendente'
+        };
+      }
+    });
+    
+    // Converter para array e ordenar
+    const equipmentRanking = Object.entries(equipmentCount)
+      .map(([id, data]) => ({
+        id: id,
+        type: data.type,
+        count: data.count,
+        lastDate: data.lastMaintenance ? data.lastMaintenance.date : null,
+        status: data.lastMaintenance ? data.lastMaintenance.status : null
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10); // Top 10
+    
+    // Limpar tabela
+    tbody.innerHTML = '';
+    
+    // Se não houver dados
+    if (equipmentRanking.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Sem dados para exibir</td></tr>';
       return;
     }
     
-    const ctx = canvas.getContext('2d');
-    
-    // Destruir gráfico anterior se existir
-    if (charts.maintenanceFrequencyChart) {
-      charts.maintenanceFrequencyChart.destroy();
-      charts.maintenanceFrequencyChart = null;
-    }
-    
-    const frequencyData = dashboardData.advancedCharts.maintenanceFrequency;
-    const entries = Object.entries(frequencyData);
-    
-    // Ordenar por intervalo (menores intervalos primeiro)
-    entries.sort((a, b) => a[1] - b[1]);
-    
-    const labels = entries.map(entry => entry[0]);
-    const data = entries.map(entry => entry[1]);
-    
-    charts.maintenanceFrequencyChart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Dias entre manutenções',
-          data: data,
-          backgroundColor: '#FF9800',
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          title: {
-            display: true,
-            text: 'Intervalo Médio entre Manutenções (em dias)',
-            font: { size: 16 }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: 'Dias'
-            }
-          },
-          x: {
-            ticks: {
-              maxRotation: 45,
-              minRotation: 45
-            }
-          }
-        }
-      }
+    // Preencher tabela
+    equipmentRanking.forEach(equip => {
+      const formattedDate = equip.lastDate ? formatDate(equip.lastDate) : '-';
+      const status = equip.status || 'Não definido';
+      const statusClass = getStatusClass(status);
+      
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${equip.id}</td>
+        <td>${equip.type}</td>
+        <td>${equip.count}</td>
+        <td>${formattedDate}</td>
+        <td><span class="status-badge status-${statusClass}">${status}</span></td>
+      `;
+      
+      tbody.appendChild(row);
     });
   }
   
-  // Helper para normalizar status
-  function normalizeStatus(status) {
-    const lowerStatus = status ? status.toLowerCase() : 'pendente';
+  function renderRecentMaintenances() {
+    const tbody = document.getElementById('recent-maintenance-tbody');
+    if (!tbody) return;
     
-    if (['verificado', 'aprovado', 'ajustes'].includes(lowerStatus)) {
-      return 'Verificado';
+    // Dados para a tabela
+    const maintenances = [...dashboardData.maintenances]
+      .sort((a, b) => {
+        const dateA = new Date(a.dataRegistro || a.registrationDate || a.date || 0);
+        const dateB = new Date(b.dataRegistro || b.registrationDate || b.date || 0);
+        return dateB - dateA;
+      })
+      .slice(0, 5); // Mostrar apenas os 5 mais recentes
+    
+    // Limpar tabela
+    tbody.innerHTML = '';
+    
+    // Se não houver dados
+    if (maintenances.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Sem manutenções recentes</td></tr>';
+      return;
     }
     
-    if (lowerStatus === 'concluido') {
-      return 'Concluído';
-    }
+    // Preencher tabela
+    maintenances.forEach(item => {
+      const id = item.id || 'N/A';
+      const equipmentId = item.placaOuId || item.equipmentId || '-';
+      const type = item.tipoEquipamento || item.equipmentType || 'N/A';
+      const regDate = formatDate(item.dataRegistro || item.registrationDate, true);
+      const resp = item.responsavel || item.technician || '-';
+      const status = item.status || 'Pendente';
+      const statusClass = getStatusClass(status);
+      
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${id}</td>
+        <td>${equipmentId}</td>
+        <td>${type}</td>
+        <td>${regDate}</td>
+        <td>${resp}</td>
+        <td><span class="status-badge status-${statusClass}">${status}</span></td>
+        <td>
+          <button class="btn-icon view-maintenance" data-id="${id}" title="Ver detalhes">👁️</button>
+          ${status === 'Pendente' ? `<button class="btn-icon verify-maintenance" data-id="${id}" title="Verificar">✓</button>` : ''}
+        </td>
+      `;
+      
+      tbody.appendChild(row);
+    });
     
-    if (lowerStatus === 'reprovado') {
-      return 'Reprovado';
-    }
-    
-    // Capitaliza a primeira letra para consistência
-    return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+    // Adicionar event listeners
+    addActionButtonListeners(tbody);
   }
   
-  // Helper para formatar data
-  function formatDate(dateStr, includeTime = false) {
-    if (!dateStr) return '-';
-    
-    try {
-      const date = new Date(dateStr);
+  function addActionButtonListeners(container) {
+    // Usar delegação de eventos
+    container.addEventListener('click', function(event) {
+      const target = event.target.closest('.btn-icon');
+      if (!target) return;
       
-      if (isNaN(date.getTime())) {
-        return dateStr;
+      const id = target.getAttribute('data-id');
+      if (!id) return;
+      
+      if (target.classList.contains('view-maintenance')) {
+        viewMaintenanceDetails(id);
+      } else if (target.classList.contains('verify-maintenance')) {
+        if (typeof Verification !== 'undefined' && Verification.openVerificationForm) {
+          Verification.openVerificationForm(id);
+        } else {
+          openVerificationForm(id);
+        }
       }
-      
-      const options = { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric' 
-      };
-      
-      if (includeTime) {
-        options.hour = '2-digit';
-        options.minute = '2-digit';
-        options.hour12 = false;
-      }
-      
-      return new Intl.DateTimeFormat('pt-BR', options).format(date);
-    } catch (e) {
-      console.error("Erro ao formatar data:", e);
-      return dateStr || '-';
-    }
-  }
-  
-  // Helper para obter classe de status
-  function getStatusClass(status) {
-    if (!status) return 'pending';
-    
-    const lowerStatus = status.toLowerCase();
-    switch (lowerStatus) {
-      case 'pendente': return 'pending';
-      case 'verificado': case 'aprovado': case 'ajustes': return 'verification';
-      case 'concluído': case 'concluido': return 'completed';
-      case 'reprovado': return 'danger';
-      default: return 'pending';
-    }
+    });
   }
   
   // API pública
   return {
     initialize,
-    loadDashboardData,
-    getDashboardData: () => dashboardData
+    loadDashboardData
   };
 })();
 
-// Inicializar dashboard quando o DOM estiver pronto
+// Inicializar quando o DOM estiver pronto
 document.addEventListener('DOMContentLoaded', function() {
   Dashboard.initialize();
 });
