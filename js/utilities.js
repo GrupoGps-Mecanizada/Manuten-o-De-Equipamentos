@@ -1,4 +1,3 @@
-<artifact id="utilities-js" type="application/vnd.ant.code" language="javascript">
 /**
  * Sistema de Dupla Checagem de Manutenção
  * Módulo: Funções Utilitárias
@@ -198,6 +197,97 @@ function showNotification(message, type = 'info', duration = 5000) {
 }
 
 /**
+ * Função para mostrar uma caixa de confirmação customizada
+ */
+function showConfirmation(message, onConfirm, onCancel = null) {
+  // Se uma confirmação já estiver aberta, não mostrar outra
+  if (document.getElementById('custom-confirmation-modal')) {
+    return;
+  }
+
+  // Criar o elemento de confirmação
+  const modalHTML = `
+    <div id="custom-confirmation-backdrop" style="
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 9999;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    ">
+      <div id="custom-confirmation-modal" style="
+        background-color: white;
+        border-radius: 8px;
+        padding: 20px;
+        max-width: 400px;
+        width: 90%;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      ">
+        <div style="margin-bottom: 20px;">${message}</div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button id="custom-confirmation-cancel" style="
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background-color: #f1f1f1;
+            border-radius: 4px;
+            cursor: pointer;
+          ">Cancelar</button>
+          <button id="custom-confirmation-confirm" style="
+            padding: 8px 16px;
+            border: none;
+            background-color: var(--primary-color, #0052cc);
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+          ">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Adicionar à página
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = modalHTML;
+  document.body.appendChild(tempDiv.firstElementChild);
+
+  // Configurar eventos
+  const closeModal = () => {
+    const backdrop = document.getElementById('custom-confirmation-backdrop');
+    if (backdrop) {
+      document.body.removeChild(backdrop);
+    }
+  };
+
+  document.getElementById('custom-confirmation-confirm').addEventListener('click', () => {
+    closeModal();
+    if (typeof onConfirm === 'function') {
+      onConfirm();
+    }
+  });
+
+  document.getElementById('custom-confirmation-cancel').addEventListener('click', () => {
+    closeModal();
+    if (typeof onCancel === 'function') {
+      onCancel();
+    }
+  });
+
+  // Fechar ao clicar fora (opcional)
+  document.getElementById('custom-confirmation-backdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'custom-confirmation-backdrop') {
+      closeModal();
+      if (typeof onCancel === 'function') {
+        onCancel();
+      }
+    }
+  });
+}
+
+/**
  * Ver detalhes de uma manutenção (Função global compartilhada)
  */
 function viewMaintenanceDetails(id) {
@@ -215,11 +305,11 @@ function viewMaintenanceDetails(id) {
         return;
       }
 
-      renderMaintenanceDetails(details);
+      renderMaintenanceDetails(details.maintenance); // Ajuste para acessar os dados dentro do objeto
       document.getElementById('detail-overlay').style.display = 'block';
 
       // Mostrar/ocultar botão verificar com base no status
-      const status = details.status || 'Pendente';
+      const status = details.maintenance.status || 'Pendente';
       const verifyBtn = document.getElementById('verify-maintenance-btn');
 
       if (status === 'Pendente') {
@@ -422,7 +512,44 @@ function renderMaintenanceDetails(details) {
   container.innerHTML = html;
 }
 
+// Utility namespace - Agrupar funções utilitárias em um namespace
+const Utilities = {
+  formatDate,
+  debounce,
+  getStatusClass,
+  showLoading,
+  showNotification,
+  showConfirmation,
+  showToast: showNotification, // Alias para compatibilidade
+  
+  // Função para formatação de valores monetários
+  formatCurrency: function(value) {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  },
+  
+  // Função para formatação de números
+  formatNumber: function(value, decimals = 0) {
+    return new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    }).format(value);
+  },
+  
+  // Função para remover acentos
+  removeAccents: function(text) {
+    return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  },
+  
+  // Função para truncar texto
+  truncateText: function(text, length = 100) {
+    if (!text || text.length <= length) return text;
+    return text.substring(0, length) + '...';
+  }
+};
+
 // Indicar que utilities.js foi carregado corretamente
 console.log("Utilities.js carregado com sucesso!");
 window.UTILITIES_LOADED = true;
-</artifact>
