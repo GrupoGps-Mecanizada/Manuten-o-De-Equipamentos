@@ -553,3 +553,4 @@ const Utilities = {
 // Indicar que utilities.js foi carregado corretamente
 console.log("Utilities.js carregado com sucesso!");
 window.UTILITIES_LOADED = true;
+window.Utilities = Utilities;
