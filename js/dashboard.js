@@ -9,12 +9,21 @@ const Dashboard = (function() {
   let chartInstances = {};
   let lastLoadTime = 0;
   const REFRESH_INTERVAL = 300000; // 5 minutos em ms
+  let dashboardInitialized = false;
   
   /**
    * Inicializa o dashboard
    */
   function initialize() {
     console.log("Dashboard.initialize() chamado");
+    
+    if (dashboardInitialized) {
+      console.log("Dashboard já inicializado, pulando...");
+      return;
+    }
+    
+    // Criação dos botões de período se não existirem
+    createPeriodButtonsIfNeeded();
     
     // Adicionar event listeners para os botões de período
     setupPeriodButtons();
@@ -30,15 +39,67 @@ const Dashboard = (function() {
     
     // Verificar se estamos na aba de dashboard e forçar carregamento se necessário
     const currentPath = window.location.pathname;
-    if (currentPath.endsWith('index.html') || currentPath.endsWith('/') || currentPath.includes('dashboard')) {
+    const currentHash = window.location.hash || '#dashboard';
+    
+    if (currentPath.endsWith('index.html') || currentPath.endsWith('/') || 
+        currentPath.includes('dashboard') || currentHash === '#dashboard') {
       console.log("Estamos na página de dashboard - garantindo carregamento de dados");
       // Pequeno delay para garantir que DOM esteja pronto
       setTimeout(() => {
         if (!dashboardData) {
           console.log("Forçando carregamento de dados do dashboard...");
-          loadDashboardData('current-month');
+          loadDashboardData('current-month', true);
         }
-      }, 500);
+      }, 800);
+    }
+    
+    dashboardInitialized = true;
+  }
+  
+  /**
+   * Cria botões de período se eles não existirem no DOM
+   */
+  function createPeriodButtonsIfNeeded() {
+    const periodButtonsContainer = document.querySelector('.period-buttons');
+    if (!periodButtonsContainer) {
+      console.log("Container de botões de período não encontrado, criando...");
+      
+      // Encontrar onde inserir os botões
+      const dashboardHeader = document.querySelector('.dashboard-header');
+      if (!dashboardHeader) {
+        console.warn("Não foi possível encontrar .dashboard-header para criar botões de período");
+        return;
+      }
+      
+      // Criar container de botões
+      const buttonContainer = document.createElement('div');
+      buttonContainer.className = 'period-buttons';
+      
+      // Definir períodos
+      const periods = [
+        { id: 'current-month', label: 'Mês Atual' },
+        { id: 'last-month', label: 'Mês Anterior' },
+        { id: 'year', label: 'Este Ano' },
+        { id: 'all', label: 'Todos' }
+      ];
+      
+      // Criar botões
+      periods.forEach(period => {
+        const button = document.createElement('button');
+        button.className = 'period-btn';
+        button.setAttribute('data-period', period.id);
+        button.textContent = period.label;
+        buttonContainer.appendChild(button);
+      });
+      
+      // Inserir antes do primeiro filho do header ou no final se não houver filhos
+      if (dashboardHeader.firstChild) {
+        dashboardHeader.insertBefore(buttonContainer, dashboardHeader.firstChild);
+      } else {
+        dashboardHeader.appendChild(buttonContainer);
+      }
+      
+      console.log("Botões de período criados com sucesso");
     }
   }
   
@@ -49,11 +110,25 @@ const Dashboard = (function() {
     const periodButtons = document.querySelectorAll('.period-btn');
     if (periodButtons.length === 0) {
       console.warn("Botões de período não encontrados!");
-      return;
+      createPeriodButtonsIfNeeded();
+      
+      // Tentar novamente após criar
+      const newPeriodButtons = document.querySelectorAll('.period-btn');
+      if (newPeriodButtons.length === 0) {
+        console.error("Não foi possível criar botões de período!");
+        return;
+      }
+      
+      // Recursão para configurar os botões recém-criados
+      return setupPeriodButtons();
     }
     
     periodButtons.forEach(button => {
-      button.addEventListener('click', function() {
+      // Remover listeners anteriores para evitar duplicações
+      const newButton = button.cloneNode(true);
+      button.parentNode.replaceChild(newButton, button);
+      
+      newButton.addEventListener('click', function() {
         const period = this.getAttribute('data-period');
         if (!period) {
           console.warn("Botão sem atributo data-period!");
@@ -66,7 +141,7 @@ const Dashboard = (function() {
         this.classList.add('active');
         
         // Carregar dados para o período selecionado
-        loadDashboardData(period);
+        loadDashboardData(period, true);
       });
     });
     
@@ -75,6 +150,8 @@ const Dashboard = (function() {
     if (defaultButton) {
       defaultButton.classList.add('active');
     }
+    
+    console.log("Event listeners de botões de período configurados com sucesso");
   }
   
   /**
@@ -83,7 +160,11 @@ const Dashboard = (function() {
   function setupRefreshButton() {
     const refreshButton = document.getElementById('refresh-dashboard');
     if (refreshButton) {
-      refreshButton.addEventListener('click', function() {
+      // Clone para remover event listeners anteriores
+      const newRefreshButton = refreshButton.cloneNode(true);
+      refreshButton.parentNode.replaceChild(newRefreshButton, refreshButton);
+      
+      newRefreshButton.addEventListener('click', function() {
         console.log("Atualização manual do dashboard solicitada");
         
         // Obter período ativo
@@ -182,10 +263,14 @@ const Dashboard = (function() {
         const activeButton = document.querySelector('.period-btn.active');
         const period = activeButton ? activeButton.getAttribute('data-period') : 'current-month';
         
-        // Carregar dados
-        loadDashboardData(period);
+        // Carregar dados com um pequeno delay para garantir que o DOM está pronto
+        setTimeout(() => {
+          loadDashboardData(period, true);
+        }, 300);
       } else {
         console.log("Usando dados existentes do dashboard");
+        // Forçar re-renderização com os dados existentes
+        renderDashboard(dashboardData);
       }
     }
   }
@@ -212,23 +297,70 @@ const Dashboard = (function() {
     if (window.API && typeof API.getDashboardData === 'function') {
       API.getDashboardData(period)
         .then(response => {
+          console.log("Resposta da API getDashboardData:", response);
+          
           if (response && response.success) {
             console.log("Dados do dashboard recebidos com sucesso");
             
-            // Armazenar dados e atualizar timestamp
-            dashboardData = response.data;
+            // CORREÇÃO IMPORTANTE: Verificar se response.data existe
+            if (!response.data) {
+              console.warn("API retornou success=true mas sem dados no campo 'data'");
+              
+              // Tentar reestruturar a resposta se necessário
+              // Algumas APIs podem retornar os dados diretamente no objeto raiz
+              const possibleData = {};
+              
+              // Verificar campos esperados no objeto raiz da resposta
+              if (response.summary) possibleData.summary = response.summary;
+              if (response.charts) possibleData.charts = response.charts;
+              if (response.recentMaintenances) possibleData.recentMaintenances = response.recentMaintenances;
+              
+              // Usar dados encontrados no objeto raiz ou gerar dados de exemplo
+              if (Object.keys(possibleData).length > 0) {
+                console.log("Encontrados dados no nível raiz da resposta, usando-os");
+                dashboardData = possibleData;
+              } else {
+                console.log("Gerando dados de exemplo devido a resposta incompleta");
+                dashboardData = generateMockDashboardData();
+              }
+            } else {
+              // Resposta normal
+              dashboardData = response.data;
+            }
+            
+            // Atualizar timestamp
             lastLoadTime = currentTime;
             
             // Renderizar dados
             renderDashboard(dashboardData);
           } else {
             console.error("Erro ao carregar dados do dashboard:", response);
-            showLoadingError("Erro ao carregar dados. Tente novamente mais tarde.");
+            showLoadingError("Erro ao carregar dados. Tentando usar cache ou dados de exemplo...");
+            
+            // Usar dados de exemplo se não houver dados em cache
+            if (!dashboardData) {
+              console.log("Usando dados de exemplo devido a falha na API");
+              dashboardData = generateMockDashboardData();
+              renderDashboard(dashboardData);
+            } else {
+              // Renderizar com dados de cache
+              renderDashboard(dashboardData);
+            }
           }
         })
         .catch(error => {
           console.error("Falha ao buscar dados do dashboard:", error);
-          showLoadingError("Falha na comunicação com o servidor. Verifique sua conexão.");
+          showLoadingError("Falha na comunicação com o servidor. Usando dados locais ou de exemplo.");
+          
+          // Usar dados de exemplo como fallback
+          if (!dashboardData) {
+            console.log("Usando dados de exemplo devido a falha na API");
+            dashboardData = generateMockDashboardData();
+            renderDashboard(dashboardData);
+          } else {
+            // Renderizar com dados de cache
+            renderDashboard(dashboardData);
+          }
         })
         .finally(() => {
           // Esconder indicador de carregamento
@@ -237,16 +369,143 @@ const Dashboard = (function() {
     } else {
       console.error("API.getDashboardData não disponível");
       
-      // Dados de exemplo para testes quando API não está disponível
-      setTimeout(() => {
-        console.log("Usando dados de exemplo para o dashboard (API indisponível)");
-        const mockData = generateMockDashboardData();
-        dashboardData = mockData;
-        lastLoadTime = currentTime;
-        renderDashboard(mockData);
+      // Verificar se conseguimos obter dados via outra função
+      if (window.API && typeof API.getMaintenanceList === 'function') {
+        console.log("Tentando obter dados via getMaintenanceList como alternativa");
+        
+        API.getMaintenanceList()
+          .then(response => {
+            if (response && response.success && response.maintenances) {
+              console.log("Construindo dados do dashboard a partir de getMaintenanceList");
+              dashboardData = buildDashboardFromMaintenances(response.maintenances, period);
+              lastLoadTime = currentTime;
+              renderDashboard(dashboardData);
+            } else {
+              console.error("Alternativa getMaintenanceList falhou:", response);
+              useFallbackData();
+            }
+          })
+          .catch(error => {
+            console.error("Alternativa getMaintenanceList falhou com erro:", error);
+            useFallbackData();
+          })
+          .finally(() => {
+            showLoading(false);
+          });
+      } else {
+        // Fallback completo para dados de exemplo
+        useFallbackData();
         showLoading(false);
-      }, 1000);
+      }
     }
+    
+    // Função auxiliar para fallback
+    function useFallbackData() {
+      console.log("Usando dados de exemplo para o dashboard (API indisponível)");
+      dashboardData = generateMockDashboardData();
+      lastLoadTime = currentTime;
+      renderDashboard(dashboardData);
+    }
+  }
+  
+  /**
+   * Constrói dados do dashboard a partir de lista de manutenções
+   * @param {Array} maintenances - Lista de manutenções
+   * @param {string} period - Período de filtro
+   * @returns {Object} Dados formatados para o dashboard
+   */
+  function buildDashboardFromMaintenances(maintenances, period) {
+    console.log(`Construindo dashboard a partir de ${maintenances.length} manutenções`);
+    
+    // Filtrar por período se necessário
+    let filteredMaintenances = [...maintenances];
+    const now = new Date();
+    
+    if (period === 'current-month') {
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      filteredMaintenances = maintenances.filter(m => {
+        const date = new Date(m.dataManutencao || m.dataRegistro);
+        return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+      });
+    } else if (period === 'last-month') {
+      const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const yearOfLastMonth = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      filteredMaintenances = maintenances.filter(m => {
+        const date = new Date(m.dataManutencao || m.dataRegistro);
+        return date.getMonth() === lastMonth && date.getFullYear() === yearOfLastMonth;
+      });
+    } else if (period === 'year') {
+      const currentYear = now.getFullYear();
+      filteredMaintenances = maintenances.filter(m => {
+        const date = new Date(m.dataManutencao || m.dataRegistro);
+        return date.getFullYear() === currentYear;
+      });
+    }
+    
+    // Calcular estatísticas
+    const total = filteredMaintenances.length;
+    const pending = filteredMaintenances.filter(m => m.status === 'Pendente').length;
+    const completed = filteredMaintenances.filter(m => m.status === 'Concluído').length;
+    const critical = filteredMaintenances.filter(m => m.eCritico).length;
+    
+    // Contagem por status
+    const statusCounts = {};
+    filteredMaintenances.forEach(m => {
+      const status = m.status || 'Pendente';
+      statusCounts[status] = (statusCounts[status] || 0) + 1;
+    });
+    
+    // Contagem por categoria de problema
+    const categoryCounts = {};
+    filteredMaintenances.forEach(m => {
+      const category = m.categoriaProblema || 'Outro';
+      categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+    });
+    
+    // Contagem por área
+    const areaCounts = {};
+    filteredMaintenances.forEach(m => {
+      const area = m.area || 'Não especificada';
+      areaCounts[area] = (areaCounts[area] || 0) + 1;
+    });
+    
+    // Tendência mensal
+    const monthlyTrend = {};
+    filteredMaintenances.forEach(m => {
+      const date = new Date(m.dataManutencao || m.dataRegistro);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthName = date.toLocaleDateString('pt-BR', { month: 'short' });
+      
+      if (!monthlyTrend[monthKey]) {
+        monthlyTrend[monthKey] = { 
+          label: monthName, 
+          count: 0 
+        };
+      }
+      monthlyTrend[monthKey].count++;
+    });
+    
+    // Construir objeto de dados
+    return {
+      summary: {
+        total,
+        pending,
+        completed,
+        critical
+      },
+      charts: {
+        status: Object.entries(statusCounts).map(([label, count]) => ({ label, count })),
+        problemCategories: Object.entries(categoryCounts).map(([label, count]) => ({ label, count })),
+        monthlyTrend: Object.values(monthlyTrend).sort((a, b) => a.month - b.month),
+        areaDistribution: Object.entries(areaCounts).map(([label, count]) => ({ label, count }))
+      },
+      recentMaintenances: filteredMaintenances.sort((a, b) => {
+        const dateA = new Date(a.dataManutencao || a.dataRegistro);
+        const dateB = new Date(b.dataManutencao || b.dataRegistro);
+        return dateB - dateA;
+      }).slice(0, 5)
+    };
   }
   
   /**
@@ -254,26 +513,53 @@ const Dashboard = (function() {
    * @param {Object} data - Dados do dashboard
    */
   function renderDashboard(data) {
+    console.log("Tentando renderizar dashboard com dados:", data);
+    
     if (!data) {
       console.error("Sem dados para renderizar dashboard");
+      showLoadingError("Não foi possível carregar dados para o dashboard");
       return;
     }
     
-    console.log("Renderizando dashboard com dados:", data);
-    
-    // Renderizar cartões de sumário
-    renderSummaryCards(data.summary);
-    
-    // Renderizar gráficos
-    renderCharts(data);
-    
-    // Renderizar tabela de últimas manutenções
-    renderRecentMaintenances(data.recentMaintenances);
-    
-    // Mostrar o dashboard agora que está carregado
-    const dashboardContent = document.getElementById('dashboard-content');
-    if (dashboardContent) {
-      dashboardContent.style.opacity = '1';
+    try {
+      // Renderizar cartões de sumário
+      if (data.summary) {
+        renderSummaryCards(data.summary);
+      } else {
+        console.warn("Dados de sumário não encontrados, usando valores padrão");
+        renderSummaryCards({
+          total: 0,
+          pending: 0,
+          completed: 0,
+          critical: 0
+        });
+      }
+      
+      // Renderizar gráficos
+      if (data.charts) {
+        renderCharts(data.charts);
+      } else {
+        console.warn("Dados de gráficos não encontrados");
+      }
+      
+      // Renderizar tabela de últimas manutenções
+      if (data.recentMaintenances) {
+        renderRecentMaintenances(data.recentMaintenances);
+      } else {
+        console.warn("Dados de manutenções recentes não encontrados");
+        renderRecentMaintenances([]);
+      }
+      
+      // Mostrar o dashboard agora que está carregado
+      const dashboardContent = document.getElementById('dashboard-content');
+      if (dashboardContent) {
+        dashboardContent.style.opacity = '1';
+      }
+      
+      console.log("Dashboard renderizado com sucesso");
+    } catch (error) {
+      console.error("Erro ao renderizar dashboard:", error);
+      showLoadingError("Erro ao renderizar dashboard: " + error.message);
     }
   }
   
@@ -295,6 +581,13 @@ const Dashboard = (function() {
       'critical-maintenance': { count: summary.critical || 0, label: 'Manutenções Críticas' }
     };
     
+    // Verificar se os cartões existem, caso contrário, criá-los
+    const cardsContainer = document.querySelector('.summary-cards');
+    if (!cardsContainer) {
+      console.warn("Container de cartões de sumário não encontrado, tentando criar...");
+      createSummaryCardsIfNeeded();
+    }
+    
     // Atualizar cada cartão
     Object.entries(cardMap).forEach(([cardId, data]) => {
       const cardElement = document.getElementById(cardId);
@@ -304,31 +597,287 @@ const Dashboard = (function() {
         
         if (countElement) countElement.textContent = data.count;
         if (labelElement) labelElement.textContent = data.label;
+      } else {
+        console.warn(`Cartão ${cardId} não encontrado no DOM`);
       }
     });
   }
   
   /**
-   * Renderiza gráficos
-   * @param {Object} data - Dados completos do dashboard
+   * Cria cards de sumário se necessário
    */
-  function renderCharts(data) {
-    if (!data || !data.charts) {
+  function createSummaryCardsIfNeeded() {
+    const dashboardContent = document.getElementById('dashboard-content');
+    if (!dashboardContent) {
+      console.error("Element #dashboard-content não encontrado!");
+      return;
+    }
+    
+    // Verificar se já existe container
+    if (dashboardContent.querySelector('.summary-cards')) {
+      return;
+    }
+    
+    // Criar container
+    const cardsContainer = document.createElement('div');
+    cardsContainer.className = 'summary-cards';
+    
+    // Definir cards
+    const cards = [
+      { id: 'total-maintenance', icon: 'clipboard-list', color: 'blue', label: 'Total de Manutenções', count: 0 },
+      { id: 'pending-maintenance', icon: 'clock', color: 'yellow', label: 'Manutenções Pendentes', count: 0 },
+      { id: 'completed-maintenance', icon: 'check-circle', color: 'green', label: 'Manutenções Concluídas', count: 0 },
+      { id: 'critical-maintenance', icon: 'exclamation-triangle', color: 'red', label: 'Manutenções Críticas', count: 0 }
+    ];
+    
+    // Criar cada card
+    cards.forEach(card => {
+      const cardElement = document.createElement('div');
+      cardElement.className = 'summary-card';
+      cardElement.id = card.id;
+      
+      cardElement.innerHTML = `
+        <div class="card-icon card-icon-${card.color}">
+          <i class="fas fa-${card.icon}"></i>
+        </div>
+        <div class="card-content">
+          <div class="card-count">${card.count}</div>
+          <div class="card-label">${card.label}</div>
+        </div>
+      `;
+      
+      cardsContainer.appendChild(cardElement);
+    });
+    
+    // Inserir no início do dashboard-content
+    if (dashboardContent.firstChild) {
+      dashboardContent.insertBefore(cardsContainer, dashboardContent.firstChild);
+    } else {
+      dashboardContent.appendChild(cardsContainer);
+    }
+    
+    // Adicionar estilos necessários
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+      .summary-cards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+      .summary-card {
+        display: flex;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        padding: 20px;
+        min-width: 200px;
+        flex: 1;
+      }
+      .card-icon {
+        margin-right: 15px;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+      }
+      .card-icon-blue { background: rgba(33, 150, 243, 0.2); color: #2196F3; }
+      .card-icon-yellow { background: rgba(255, 193, 7, 0.2); color: #FFC107; }
+      .card-icon-green { background: rgba(76, 175, 80, 0.2); color: #4CAF50; }
+      .card-icon-red { background: rgba(244, 67, 54, 0.2); color: #F44336; }
+      .card-content {
+        display: flex;
+        flex-direction: column;
+      }
+      .card-count {
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
+      .card-label {
+        color: #666;
+        font-size: 14px;
+      }
+    `;
+    document.head.appendChild(styleElement);
+  }
+  
+  /**
+   * Renderiza gráficos
+   * @param {Object} chartData - Dados de gráficos
+   */
+  function renderCharts(chartData) {
+    if (!chartData) {
       console.warn("Sem dados de gráficos para renderizar");
       return;
     }
     
-    // Renderizar gráfico de status
-    renderStatusChart(data.charts.status);
+    // Verificar se os contêineres de gráficos existem
+    checkAndCreateChartContainers();
+    
+    // Renderizar gráfico de status se dados existirem
+    if (chartData.status && Array.isArray(chartData.status)) {
+      renderStatusChart(chartData.status);
+    } else {
+      console.warn("Dados de status não encontrados ou não são um array");
+    }
     
     // Renderizar gráfico de categorias de problema
-    renderProblemCategoriesChart(data.charts.problemCategories);
+    if (chartData.problemCategories && Array.isArray(chartData.problemCategories)) {
+      renderProblemCategoriesChart(chartData.problemCategories);
+    } else {
+      console.warn("Dados de categorias de problema não encontrados ou não são um array");
+    }
     
     // Renderizar gráfico de tendência mensal
-    renderMonthlyTrendChart(data.charts.monthlyTrend);
+    if (chartData.monthlyTrend && Array.isArray(chartData.monthlyTrend)) {
+      renderMonthlyTrendChart(chartData.monthlyTrend);
+    } else {
+      console.warn("Dados de tendência mensal não encontrados ou não são um array");
+    }
     
     // Renderizar gráfico de distribuição por área
-    renderAreaDistributionChart(data.charts.areaDistribution);
+    if (chartData.areaDistribution && Array.isArray(chartData.areaDistribution)) {
+      renderAreaDistributionChart(chartData.areaDistribution);
+    } else {
+      console.warn("Dados de distribuição por área não encontrados ou não são um array");
+    }
+  }
+  
+  /**
+   * Verifica e cria contêineres de gráficos se necessário
+   */
+  function checkAndCreateChartContainers() {
+    const dashboardContent = document.getElementById('dashboard-content');
+    if (!dashboardContent) return;
+    
+    // Verificar se já existe a seção de gráficos
+    if (dashboardContent.querySelector('.charts-container')) {
+      return;
+    }
+    
+    // Criar container de gráficos
+    const chartsContainer = document.createElement('div');
+    chartsContainer.className = 'charts-container';
+    
+    // Estrutura dos gráficos
+    const chartStructure = [
+      { row: 1, id: 'status-chart-container', title: 'Status de Manutenções', canvas: 'status-chart', type: 'doughnut' },
+      { row: 1, id: 'area-distribution-container', title: 'Distribuição por Área', canvas: 'area-distribution-chart', type: 'pie' },
+      { row: 2, id: 'problem-categories-container', title: 'Categorias de Problemas', canvas: 'problem-categories-chart', type: 'bar' },
+      { row: 2, id: 'monthly-trend-container', title: 'Tendência Mensal', canvas: 'monthly-trend-chart', type: 'line' }
+    ];
+    
+    // Criar estrutura HTML
+    let currentRow = null;
+    let lastRow = -1;
+    
+    chartStructure.forEach(chart => {
+      // Criar nova linha se necessário
+      if (chart.row !== lastRow) {
+        currentRow = document.createElement('div');
+        currentRow.className = 'charts-row';
+        chartsContainer.appendChild(currentRow);
+        lastRow = chart.row;
+      }
+      
+      // Criar contêiner do gráfico
+      const chartBox = document.createElement('div');
+      chartBox.className = 'chart-box';
+      chartBox.id = chart.id;
+      
+      chartBox.innerHTML = `
+        <div class="chart-header">
+          <h3>${chart.title}</h3>
+        </div>
+        <div class="chart-body">
+          <canvas id="${chart.canvas}" width="400" height="300"></canvas>
+        </div>
+      `;
+      
+      currentRow.appendChild(chartBox);
+    });
+    
+    // Verificar se existe a biblioteca Chart.js
+    if (typeof Chart === 'undefined') {
+      const chartScript = document.createElement('script');
+      chartScript.src = 'https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js';
+      document.head.appendChild(chartScript);
+      
+      // Adicionar mensagem aguardando carregamento
+      const loadingMsg = document.createElement('div');
+      loadingMsg.className = 'chart-loading-message';
+      loadingMsg.textContent = 'Carregando gráficos...';
+      chartsContainer.prepend(loadingMsg);
+      
+      // Tentar novamente quando Chart.js estiver carregado
+      chartScript.onload = function() {
+        console.log("Chart.js carregado com sucesso!");
+        if (loadingMsg.parentNode) {
+          loadingMsg.parentNode.removeChild(loadingMsg);
+        }
+        // Recarregar dados do dashboard
+        setTimeout(() => {
+          const activePeriod = document.querySelector('.period-btn.active')?.getAttribute('data-period') || 'current-month';
+          loadDashboardData(activePeriod, true);
+        }, 500);
+      };
+    }
+    
+    // Adicionar estilos
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+      .charts-container {
+        margin-top: 20px;
+      }
+      .charts-row {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .chart-box {
+        flex: 1;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        padding: 15px;
+        min-height: 350px;
+      }
+      .chart-header {
+        margin-bottom: 15px;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+      }
+      .chart-header h3 {
+        margin: 0;
+        font-size: 16px;
+        color: #333;
+      }
+      .chart-body {
+        height: 300px;
+        position: relative;
+      }
+      .chart-loading-message {
+        text-align: center;
+        padding: 20px;
+        background: #f8f9fa;
+        margin-bottom: 20px;
+        border-radius: 8px;
+      }
+      
+      @media (max-width: 768px) {
+        .charts-row {
+          flex-direction: column;
+        }
+      }
+    `;
+    document.head.appendChild(styleElement);
+    
+    // Adicionar ao DOM
+    dashboardContent.appendChild(chartsContainer);
   }
   
   /**
@@ -336,47 +885,73 @@ const Dashboard = (function() {
    * @param {Array} statusData - Dados de status
    */
   function renderStatusChart(statusData) {
-    const chartCanvas = document.getElementById('status-chart');
-    if (!chartCanvas || !statusData) return;
-    
-    // Destruir instância anterior se existir
-    if (chartInstances.statusChart) {
-      chartInstances.statusChart.destroy();
+    if (!statusData || !Array.isArray(statusData) || statusData.length === 0) {
+      console.warn("Dados de status inválidos:", statusData);
+      statusData = [
+        {label: 'Pendente', count: 0},
+        {label: 'Concluído', count: 0},
+        {label: 'Verificado', count: 0}
+      ];
     }
     
-    // Preparar dados
-    const labels = statusData.map(item => item.label);
-    const counts = statusData.map(item => item.count);
-    const colors = ['#4CAF50', '#FFC107', '#2196F3', '#F44336'];
+    const chartCanvas = document.getElementById('status-chart');
+    if (!chartCanvas) {
+      console.warn("Canvas #status-chart não encontrado!");
+      return;
+    }
     
-    // Criar nova instância
-    const ctx = chartCanvas.getContext('2d');
-    chartInstances.statusChart = new Chart(ctx, {
-      type: 'doughnut',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: counts,
-          backgroundColor: colors.slice(0, labels.length),
-          borderWidth: 0
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        legend: {
-          position: 'bottom',
-          labels: {
-            padding: 20,
-            boxWidth: 12
-          }
-        },
-        cutoutPercentage: 65,
-        animation: {
-          animateScale: true
-        }
+    // Verificar se Chart.js está disponível
+    if (typeof Chart === 'undefined') {
+      console.warn("Chart.js não está disponível!");
+      return;
+    }
+    
+    try {
+      // Destruir instância anterior se existir
+      if (chartInstances.statusChart) {
+        chartInstances.statusChart.destroy();
       }
-    });
+      
+      // Preparar dados
+      const labels = statusData.map(item => item.label || 'Desconhecido');
+      const counts = statusData.map(item => item.count || 0);
+      const colors = ['#4CAF50', '#FFC107', '#2196F3', '#F44336', '#9C27B0', '#FF9800'];
+      
+      // Criar nova instância
+      const ctx = chartCanvas.getContext('2d');
+      chartInstances.statusChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: counts,
+            backgroundColor: colors.slice(0, labels.length),
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                padding: 20,
+                boxWidth: 12
+              }
+            }
+          },
+          cutout: '65%',
+          animation: {
+            animateScale: true
+          }
+        }
+      });
+      
+      console.log("Gráfico de status renderizado com sucesso");
+    } catch (error) {
+      console.error("Erro ao renderizar gráfico de status:", error);
+    }
   }
   
   /**
@@ -384,66 +959,95 @@ const Dashboard = (function() {
    * @param {Array} categoryData - Dados de categorias
    */
   function renderProblemCategoriesChart(categoryData) {
-    const chartCanvas = document.getElementById('problem-categories-chart');
-    if (!chartCanvas || !categoryData) return;
-    
-    // Destruir instância anterior se existir
-    if (chartInstances.categoryChart) {
-      chartInstances.categoryChart.destroy();
-    }
-    
-    // Filtrar para mostrar apenas as 6 principais categorias + "Outros"
-    let filteredData = [...categoryData];
-    if (filteredData.length > 6) {
-      const topCategories = filteredData.slice(0, 5);
-      const otherCategories = filteredData.slice(5);
-      
-      const otherCount = otherCategories.reduce((sum, item) => sum + item.count, 0);
-      filteredData = [
-        ...topCategories,
-        { label: 'Outros', count: otherCount }
+    if (!categoryData || !Array.isArray(categoryData) || categoryData.length === 0) {
+      console.warn("Dados de categorias inválidos:", categoryData);
+      categoryData = [
+        {label: 'Motor', count: 0},
+        {label: 'Elétrico', count: 0},
+        {label: 'Hidráulico', count: 0}
       ];
     }
     
-    // Preparar dados
-    const labels = filteredData.map(item => item.label);
-    const counts = filteredData.map(item => item.count);
+    const chartCanvas = document.getElementById('problem-categories-chart');
+    if (!chartCanvas) {
+      console.warn("Canvas #problem-categories-chart não encontrado!");
+      return;
+    }
     
-    // Gerar cores para o gráfico
-    const colors = generateColorPalette(labels.length);
+    // Verificar se Chart.js está disponível
+    if (typeof Chart === 'undefined') {
+      console.warn("Chart.js não está disponível!");
+      return;
+    }
     
-    // Criar nova instância
-    const ctx = chartCanvas.getContext('2d');
-    chartInstances.categoryChart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: counts,
-          backgroundColor: colors,
-          borderWidth: 0
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        legend: {
-          display: false
+    try {
+      // Destruir instância anterior se existir
+      if (chartInstances.categoryChart) {
+        chartInstances.categoryChart.destroy();
+      }
+      
+      // Filtrar para mostrar apenas as 6 principais categorias + "Outros"
+      let filteredData = [...categoryData];
+      if (filteredData.length > 6) {
+        const topCategories = filteredData
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5);
+        
+        const otherCategories = filteredData
+          .sort((a, b) => b.count - a.count)
+          .slice(5);
+        
+        const otherCount = otherCategories.reduce((sum, item) => sum + (item.count || 0), 0);
+        filteredData = [
+          ...topCategories,
+          { label: 'Outros', count: otherCount }
+        ];
+      }
+      
+      // Preparar dados
+      const labels = filteredData.map(item => item.label || 'Desconhecido');
+      const counts = filteredData.map(item => item.count || 0);
+      
+      // Gerar cores para o gráfico
+      const colors = generateColorPalette(labels.length);
+      
+      // Criar nova instância
+      const ctx = chartCanvas.getContext('2d');
+      chartInstances.categoryChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: counts,
+            backgroundColor: colors,
+            borderWidth: 0
+          }]
         },
-        scales: {
-          xAxes: [{
-            gridLines: {
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
               display: false
             }
-          }],
-          yAxes: [{
-            ticks: {
+          },
+          scales: {
+            x: {
+              grid: {
+                display: false
+              }
+            },
+            y: {
               beginAtZero: true
             }
-          }]
+          }
         }
-      }
-    });
+      });
+      
+      console.log("Gráfico de categorias renderizado com sucesso");
+    } catch (error) {
+      console.error("Erro ao renderizar gráfico de categorias:", error);
+    }
   }
   
   /**
@@ -451,57 +1055,90 @@ const Dashboard = (function() {
    * @param {Array} trendData - Dados de tendência
    */
   function renderMonthlyTrendChart(trendData) {
-    const chartCanvas = document.getElementById('monthly-trend-chart');
-    if (!chartCanvas || !trendData) return;
-    
-    // Destruir instância anterior se existir
-    if (chartInstances.trendChart) {
-      chartInstances.trendChart.destroy();
+    if (!trendData || !Array.isArray(trendData) || trendData.length === 0) {
+      console.warn("Dados de tendência inválidos:", trendData);
+      // Criar dados padrão para os últimos 6 meses
+      const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const today = new Date();
+      trendData = [];
+      
+      for (let i = 5; i >= 0; i--) {
+        const month = (today.getMonth() - i + 12) % 12;
+        trendData.push({
+          label: months[month],
+          count: 0
+        });
+      }
     }
     
-    // Preparar dados
-    const labels = trendData.map(item => item.label);
-    const counts = trendData.map(item => item.count);
+    const chartCanvas = document.getElementById('monthly-trend-chart');
+    if (!chartCanvas) {
+      console.warn("Canvas #monthly-trend-chart não encontrado!");
+      return;
+    }
     
-    // Criar nova instância
-    const ctx = chartCanvas.getContext('2d');
-    chartInstances.trendChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Manutenções',
-          data: counts,
-          borderColor: '#3f51b5',
-          backgroundColor: 'rgba(63, 81, 181, 0.1)',
-          borderWidth: 2,
-          pointBackgroundColor: '#3f51b5',
-          pointRadius: 4,
-          fill: true,
-          tension: 0.4
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        legend: {
-          display: false
+    // Verificar se Chart.js está disponível
+    if (typeof Chart === 'undefined') {
+      console.warn("Chart.js não está disponível!");
+      return;
+    }
+    
+    try {
+      // Destruir instância anterior se existir
+      if (chartInstances.trendChart) {
+        chartInstances.trendChart.destroy();
+      }
+      
+      // Preparar dados
+      const labels = trendData.map(item => item.label || '');
+      const counts = trendData.map(item => item.count || 0);
+      
+      // Criar nova instância
+      const ctx = chartCanvas.getContext('2d');
+      chartInstances.trendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Manutenções',
+            data: counts,
+            borderColor: '#3f51b5',
+            backgroundColor: 'rgba(63, 81, 181, 0.1)',
+            borderWidth: 2,
+            pointBackgroundColor: '#3f51b5',
+            pointRadius: 4,
+            fill: true,
+            tension: 0.4
+          }]
         },
-        scales: {
-          xAxes: [{
-            gridLines: {
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
               display: false
             }
-          }],
-          yAxes: [{
-            ticks: {
+          },
+          scales: {
+            x: {
+              grid: {
+                display: false
+              }
+            },
+            y: {
               beginAtZero: true,
-              precision: 0
+              ticks: {
+                precision: 0
+              }
             }
-          }]
+          }
         }
-      }
-    });
+      });
+      
+      console.log("Gráfico de tendência mensal renderizado com sucesso");
+    } catch (error) {
+      console.error("Erro ao renderizar gráfico de tendência mensal:", error);
+    }
   }
   
   /**
@@ -509,53 +1146,192 @@ const Dashboard = (function() {
    * @param {Array} areaData - Dados de áreas
    */
   function renderAreaDistributionChart(areaData) {
-    const chartCanvas = document.getElementById('area-distribution-chart');
-    if (!chartCanvas || !areaData) return;
-    
-    // Destruir instância anterior se existir
-    if (chartInstances.areaChart) {
-      chartInstances.areaChart.destroy();
+    if (!areaData || !Array.isArray(areaData) || areaData.length === 0) {
+      console.warn("Dados de área inválidos:", areaData);
+      areaData = [
+        {label: 'Área Interna', count: 0},
+        {label: 'Área Externa', count: 0}
+      ];
     }
     
-    // Preparar dados
-    const labels = areaData.map(item => item.label);
-    const counts = areaData.map(item => item.count);
+    const chartCanvas = document.getElementById('area-distribution-chart');
+    if (!chartCanvas) {
+      console.warn("Canvas #area-distribution-chart não encontrado!");
+      return;
+    }
     
-    // Criar nova instância
-    const ctx = chartCanvas.getContext('2d');
-    chartInstances.areaChart = new Chart(ctx, {
-      type: 'pie',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: counts,
-          backgroundColor: ['#2196F3', '#FF9800'],
-          borderWidth: 0
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        legend: {
-          position: 'bottom',
-          labels: {
-            padding: 20,
-            boxWidth: 12
-          }
-        },
-        animation: {
-          animateRotate: true
-        }
+    // Verificar se Chart.js está disponível
+    if (typeof Chart === 'undefined') {
+      console.warn("Chart.js não está disponível!");
+      return;
+    }
+    
+    try {
+      // Destruir instância anterior se existir
+      if (chartInstances.areaChart) {
+        chartInstances.areaChart.destroy();
       }
-    });
+      
+      // Preparar dados
+      const labels = areaData.map(item => item.label || 'Não especificado');
+      const counts = areaData.map(item => item.count || 0);
+      
+      // Criar nova instância
+      const ctx = chartCanvas.getContext('2d');
+      chartInstances.areaChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: counts,
+            backgroundColor: ['#2196F3', '#FF9800'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                padding: 20,
+                boxWidth: 12
+              }
+            }
+          },
+          animation: {
+            animateRotate: true
+          }
+        }
+      });
+      
+      console.log("Gráfico de distribuição por área renderizado com sucesso");
+    } catch (error) {
+      console.error("Erro ao renderizar gráfico de distribuição por área:", error);
+    }
   }
   
   /**
-   * Renderiza lista de manutenções recentes
-   * @param {Array} maintenances - Lista de manutenções recentes
+   * Renderiza tabela de manutenções recentes e cria se necessário
    */
   function renderRecentMaintenances(maintenances) {
-    const tableBody = document.getElementById('recent-maintenances-tbody');
+    // Verificar se a seção existe, caso contrário, criar
+    const dashboardContent = document.getElementById('dashboard-content');
+    if (!dashboardContent) return;
+    
+    let recentSection = document.querySelector('.recent-maintenances-section');
+    let tableBody;
+    
+    if (!recentSection) {
+      console.log("Criando seção de manutenções recentes");
+      
+      // Criar seção
+      recentSection = document.createElement('div');
+      recentSection.className = 'recent-maintenances-section';
+      
+      // Criar HTML da seção
+      recentSection.innerHTML = `
+        <div class="section-header">
+          <h2>Manutenções Recentes</h2>
+          <a href="#maintenance" class="view-all-link">Ver todas</a>
+        </div>
+        <div class="table-container">
+          <table class="recent-maintenances-table">
+            <thead>
+              <tr>
+                <th>Equipamento</th>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th>Responsável</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="recent-maintenances-tbody">
+              <tr><td colspan="5" class="text-center">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+      
+      // Adicionar estilos
+      const styleElement = document.createElement('style');
+      styleElement.textContent = `
+        .recent-maintenances-section {
+          margin-top: 30px;
+          background: white;
+          border-radius: 8px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          padding: 20px;
+        }
+        .section-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 15px;
+          border-bottom: 1px solid #eee;
+          padding-bottom: 10px;
+        }
+        .section-header h2 {
+          margin: 0;
+          font-size: 18px;
+          color: #333;
+        }
+        .view-all-link {
+          color: #2196F3;
+          text-decoration: none;
+          font-size: 14px;
+        }
+        .view-all-link:hover {
+          text-decoration: underline;
+        }
+        .table-container {
+          overflow-x: auto;
+        }
+        .recent-maintenances-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .recent-maintenances-table th,
+        .recent-maintenances-table td {
+          padding: 10px;
+          text-align: left;
+          border-bottom: 1px solid #eee;
+        }
+        .recent-maintenances-table th {
+          color: #666;
+          font-weight: 500;
+        }
+        .recent-maintenances-table tr:last-child td {
+          border-bottom: none;
+        }
+        .text-center {
+          text-align: center;
+        }
+        .status-badge {
+          display: inline-block;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 500;
+        }
+        .status-pending { background: #FFF3CD; color: #856404; }
+        .status-completed { background: #D4EDDA; color: #155724; }
+        .status-verified { background: #CCE5FF; color: #004085; }
+        .status-adjusting { background: #FFF3CD; color: #856404; }
+        .status-rejected { background: #F8D7DA; color: #721C24; }
+        .status-default { background: #E2E3E5; color: #383D41; }
+        .critical-badge {
+          margin-left: 5px;
+        }
+      `;
+      document.head.appendChild(styleElement);
+      
+      // Adicionar ao DOM
+      dashboardContent.appendChild(recentSection);
+    }
+    
+    tableBody = document.getElementById('recent-maintenances-tbody');
     if (!tableBody) {
       console.warn("Elemento #recent-maintenances-tbody não encontrado!");
       return;
@@ -592,6 +1368,8 @@ const Dashboard = (function() {
       
       tableBody.appendChild(row);
     });
+    
+    console.log("Tabela de manutenções recentes renderizada com sucesso");
   }
   
   /**
@@ -699,13 +1477,59 @@ const Dashboard = (function() {
     }
     
     // Implementação básica
-    const loader = document.getElementById('dashboard-loader');
+    let loader = document.getElementById('dashboard-loader');
     const contentContainer = document.getElementById('dashboard-content');
-    const loaderMessage = document.getElementById('dashboard-loader-message');
     
-    if (loader) {
+    // Criar loader se não existir
+    if (!loader && show) {
+      loader = document.createElement('div');
+      loader.id = 'dashboard-loader';
+      loader.innerHTML = `
+        <div class="loader-spinner"></div>
+        <div id="dashboard-loader-message">${message}</div>
+      `;
+      
+      // Adicionar estilos
+      const style = document.createElement('style');
+      style.textContent = `
+        #dashboard-loader {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(255, 255, 255, 0.8);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+        }
+        .loader-spinner {
+          border: 4px solid #f3f3f3;
+          border-top: 4px solid #3498db;
+          border-radius: 50%;
+          width: 40px;
+          height: 40px;
+          animation: spin 2s linear infinite;
+          margin-bottom: 15px;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        #dashboard-loader-message {
+          color: #333;
+          font-size: 16px;
+        }
+      `;
+      document.head.appendChild(style);
+      
+      document.body.appendChild(loader);
+    } else if (loader) {
       loader.style.display = show ? 'flex' : 'none';
       
+      const loaderMessage = document.getElementById('dashboard-loader-message');
       if (loaderMessage) {
         loaderMessage.textContent = message;
       }
@@ -721,18 +1545,45 @@ const Dashboard = (function() {
    * @param {string} message - Mensagem de erro
    */
   function showLoadingError(message) {
-    const errorContainer = document.getElementById('dashboard-error');
-    if (errorContainer) {
-      errorContainer.textContent = message;
-      errorContainer.style.display = 'block';
+    let errorContainer = document.getElementById('dashboard-error');
+    
+    if (!errorContainer) {
+      // Criar container de erro
+      errorContainer = document.createElement('div');
+      errorContainer.id = 'dashboard-error';
+      errorContainer.className = 'dashboard-error';
       
-      // Esconder após alguns segundos
-      setTimeout(() => {
-        errorContainer.style.display = 'none';
-      }, 5000);
-    } else {
-      console.error("Erro de carregamento:", message);
+      // Adicionar estilos
+      const style = document.createElement('style');
+      style.textContent = `
+        .dashboard-error {
+          background-color: #f8d7da;
+          color: #721c24;
+          padding: 12px 20px;
+          margin-bottom: 20px;
+          border-radius: 4px;
+          border-left: 4px solid #f5c6cb;
+          display: none;
+        }
+      `;
+      document.head.appendChild(style);
+      
+      // Adicionar ao dashboard
+      const dashboardContent = document.getElementById('dashboard-content');
+      if (dashboardContent) {
+        dashboardContent.prepend(errorContainer);
+      } else {
+        document.body.prepend(errorContainer);
+      }
     }
+    
+    errorContainer.textContent = message;
+    errorContainer.style.display = 'block';
+    
+    // Esconder após alguns segundos
+    setTimeout(() => {
+      errorContainer.style.display = 'none';
+    }, 5000);
   }
   
   /**
@@ -854,6 +1705,8 @@ window.addEventListener('hashchange', function() {
 window.onload = function() {
   if (window.Dashboard && !Dashboard.initialized) {
     console.log("Fallback - Inicializando Dashboard em window.onload");
-    Dashboard.initialize();
+    setTimeout(() => {
+      Dashboard.initialize();
+    }, 500);
   }
 };
