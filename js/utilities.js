@@ -1,3 +1,4 @@
+<artifact id="fixed-utilities-js" type="application/vnd.ant.code" language="javascript">
 /**
  * Sistema de Dupla Checagem de Manutenção
  * Módulo: Funções Utilitárias
@@ -112,7 +113,6 @@ function showNotification(message, type = 'info', duration = 5000) {
   if (!container) {
     container = document.createElement('div');
     container.id = containerId;
-    // *** Estilos atualizados aqui ***
     container.style.cssText = `
       position: fixed;
       top: 20px;
@@ -131,7 +131,6 @@ function showNotification(message, type = 'info', duration = 5000) {
   const notification = document.createElement('div');
   notification.className = `notification-popup`; // Classe 'type' será adicionada depois
   notification.style.opacity = '0';
-  // *** Animação atualizada para translateY ***
   notification.style.transform = 'translateY(-20px)';
   notification.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
 
@@ -176,13 +175,11 @@ function showNotification(message, type = 'info', duration = 5000) {
   // Delay para permitir a transição inicial
   setTimeout(() => {
     notification.style.opacity = '1';
-    // *** Animação atualizada para translateY ***
     notification.style.transform = 'translateY(0)';
   }, 10);
 
   const close = () => {
     notification.style.opacity = '0';
-    // *** Animação atualizada para translateY ***
     notification.style.transform = 'translateY(-20px)';
 
     // Remove o elemento após a transição de saída
@@ -199,7 +196,6 @@ function showNotification(message, type = 'info', duration = 5000) {
   // Fecha automaticamente após a duração
   setTimeout(close, duration);
 }
-
 
 /**
  * Ver detalhes de uma manutenção (Função global compartilhada)
@@ -425,3 +421,8 @@ function renderMaintenanceDetails(details) {
 
   container.innerHTML = html;
 }
+
+// Indicar que utilities.js foi carregado corretamente
+window.UTILITIES_LOADED = true;
+console.log("Utilities.js carregado com sucesso.");
+</artifact>
