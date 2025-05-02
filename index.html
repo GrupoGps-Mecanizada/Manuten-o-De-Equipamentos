@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GrupoGPS Mecanizada - Sistema de Dupla Checagem de Manutenção</title>
+  
+  <!-- Favicon -->
+  <link rel="icon" href="data:,">
+
+  <!-- Chart.js para gráficos -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+
+  <!-- Estilos CSS -->
+  <link rel="stylesheet" href="css/styles.css">
+  
+  <!-- JavaScript principal será carregado no final do body -->
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="company-branding">
+        <a href="#" class="company-logo">GrupoGPS - Mecanizada</a>
+        <span class="notification-badge">Manutenção</span>
+      </div>
+      <h1>Sistema de Dupla Checagem de Manutenção</h1>
+      <p>Registro, verificação e controle de manutenções</p>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="dashboard">Dashboard</div>
+      <div class="tab" data-tab="maintenance">Manutenções</div>
+      <div class="tab" data-tab="verification">Verificações</div>
+      <div class="tab" data-tab="reports">Relatórios</div>
+    </div>
+
+    <!-- Dashboard Tab -->
+    <div class="tab-content active" id="tab-dashboard">
+      <div class="dashboard-header">
+        <h2>Visão Geral</h2>
+        <div class="date-filter">
+          <label for="period-filter">Período:</label>
+          <select id="period-filter">
+            <option value="all">Todos</option>
+            <option value="current-month" selected>Mês Atual</option>
+            <option value="last-month">Mês Anterior</option>
+            <option value="last-3-months">Últimos 3 Meses</option>
+            <option value="last-6-months">Últimos 6 Meses</option>
+            <option value="current-year">Ano Atual</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Resumo em cards -->
+      <div class="summary-cards">
+        <div class="card">
+          <div class="card-title">
+            <i class="icon">🔧</i>
+            Total de Manutenções
+          </div>
+          <div class="card-value" id="total-maintenance">0</div>
+          <div class="card-footer">
+            <span>Período selecionado</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <i class="icon">⌛</i>
+            Aguardando Verificação
+          </div>
+          <div class="card-value" id="pending-verification">0</div>
+          <div class="card-footer">
+            <span>Precisa de atenção</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <i class="icon">✅</i>
+            Verificações Concluídas
+          </div>
+          <div class="card-value" id="completed-verifications">0</div>
+          <div class="card-footer">
+            <span>Período atual</span>
+            <span class="card-trend trend-up" id="verification-trend">+0.0%</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <i class="icon">⚠️</i>
+            Manutenções Críticas
+          </div>
+          <div class="card-value" id="critical-maintenance">0</div>
+          <div class="card-footer">
+            <span>Atenção necessária</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gráficos Básicos -->
+      <div class="grid-container">
+        <div class="section">
+          <h3 class="section-title">
+            Manutenções por Tipo
+            <div class="section-actions">
+              <button class="btn-icon" id="refresh-type-chart" title="Atualizar">↻</button>
+            </div>
+          </h3>
+          <div class="chart-container">
+            <canvas id="maintenance-type-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">
+            Status das Manutenções
+            <div class="section-actions">
+              <button class="btn-icon" id="refresh-status-chart" title="Atualizar">↻</button>
+            </div>
+          </h3>
+          <div class="chart-container">
+            <canvas id="maintenance-status-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gráficos Avançados -->
+      <div class="section">
+        <h3 class="section-title">Análises Avançadas</h3>
+        
+        <div class="grid-container">
+          <!-- Distribuição por Área (Interna/Externa) -->
+          <div class="section sub-section">
+            <h4 class="section-title">
+              Distribuição por Área
+              <div class="section-actions">
+                <button class="btn-icon" id="refresh-area-chart" title="Atualizar">↻</button>
+              </div>
+            </h4>
+            <div class="chart-container">
+              <canvas id="area-distribution-chart"></canvas>
+            </div>
+          </div>
+          
+          <!-- Categorias de Problemas -->
+          <div class="section sub-section">
+            <h4 class="section-title">
+              Categorias de Problemas
+              <div class="section-actions">
+                <button class="btn-icon" id="refresh-problem-chart" title="Atualizar">↻</button>
+              </div>
+            </h4>
+            <div class="chart-container">
+              <canvas id="problem-categories-chart"></canvas>
+            </div>
+          </div>
+        </div>
+        
+        <div class="grid-container">
+          <!-- Tendência Mensal -->
+          <div class="section sub-section">
+            <h4 class="section-title">
+              Tendência Mensal
+              <div class="section-actions">
+                <button class="btn-icon" id="refresh-trend-chart" title="Atualizar">↻</button>
+              </div>
+            </h4>
+            <div class="chart-container">
+              <canvas id="monthly-trend-chart"></canvas>
+            </div>
+          </div>
+          
+          <!-- Críticas vs Regulares -->
+          <div class="section sub-section">
+            <h4 class="section-title">
+              Manutenções Críticas vs Regulares
+              <div class="section-actions">
+                <button class="btn-icon" id="refresh-critical-chart" title="Atualizar">↻</button>
+              </div>
+            </h4>
+            <div class="chart-container">
+              <canvas id="critical-vs-regular-chart"></canvas>
+            </div>
+          </div>
+        </div>
+        
+        <div class="grid-container">
+          <!-- Resultados das Verificações -->
+          <div class="section sub-section">
+            <h4 class="section-title">
+              Resultados das Verificações
+              <div class="section-actions">
+                <button class="btn-icon" id="refresh-verification-chart" title="Atualizar">↻</button>
+              </div>
+            </h4>
+            <div class="chart-container">
+              <canvas id="verification-results-chart"></canvas>
+            </div>
+          </div>
+          
+          <!-- Frequência de Manutenções -->
+          <div class="section sub-section">
+            <h4 class="section-title">
+              Intervalo entre Manutenções
+              <div class="section-actions">
+                <button class="btn-icon" id="refresh-frequency-chart" title="Atualizar">↻</button>
+              </div>
+            </h4>
+            <div class="chart-container">
+              <canvas id="maintenance-frequency-chart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Equipamentos com mais manutenções -->
+      <div class="section">
+        <h3 class="section-title">
+          Equipamentos com Mais Manutenções
+          <div class="section-actions">
+            <button class="btn-icon" id="refresh-equipment-ranking" title="Atualizar">↻</button>
+          </div>
+        </h3>
+        <div class="table-responsive">
+          <table id="equipment-ranking-table">
+            <thead>
+              <tr>
+                <th>Equipamento</th>
+                <th>Tipo</th>
+                <th>Total Manutenções</th>
+                <th>Última Manutenção</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="equipment-ranking-tbody">
+              <!-- Dados serão preenchidos via JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Manutenções Recentes -->
+      <div class="section">
+        <h3 class="section-title">Manutenções Recentes</h3>
+        <div class="table-responsive">
+          <table id="recent-maintenance-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Equipamento</th>
+                <th>Tipo</th>
+                <th>Data Registro</th>
+                <th>Responsável</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="recent-maintenance-tbody">
+              <!-- Dados serão preenchidos via JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manutenções Tab -->
+    <div class="tab-content" id="tab-maintenance">
+      <div class="section">
+        <div class="search-container">
+          <input type="text" class="search-input" id="maintenance-search" placeholder="Buscar por ID, equipamento, responsável...">
+        </div>
+
+        <div class="filter-container">
+          <div class="filter-item active" data-filter="all">Todos</div>
+          <div class="filter-item" data-filter="pending">Aguardando Verificação</div>
+          <div class="filter-item" data-filter="verified">Verificados</div>
+          <div class="filter-item" data-filter="completed">Concluídos</div>
+          <div class="filter-item" data-filter="critical">Críticos</div>
+        </div>
+
+        <h3 class="section-title">
+          Lista de Manutenções
+          <div class="section-actions">
+            <button class="btn-icon" id="refresh-maintenance-list" title="Atualizar">↻</button>
+          </div>
+        </h3>
+
+        <div class="table-responsive">
+          <table id="maintenance-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Equipamento</th>
+                <th>Tipo</th>
+                <th>Data Registro</th>
+                <th>Responsável</th>
+                <th>Área</th>
+                <th>Local/Oficina</th>
+                <th>Problema</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="maintenance-tbody">
+              <!-- Dados serão preenchidos via JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Verificações Tab -->
+    <div class="tab-content" id="tab-verification">
+      <div class="section">
+        <div class="search-container">
+          <input type="text" class="search-input" id="verification-search" placeholder="Buscar por ID, equipamento, responsável...">
+        </div>
+
+        <div class="filter-container">
+          <div class="filter-item active" data-filter="all">Todos</div>
+          <div class="filter-item" data-filter="pending">Aguardando Verificação</div>
+          <div class="filter-item" data-filter="verified">Verificados Hoje</div>
+          <div class="filter-item" data-filter="completed">Concluídos</div>
+        </div>
+
+        <h3 class="section-title">
+          Verificações Pendentes
+          <div class="section-actions">
+            <button class="btn-icon" id="refresh-verification-list" title="Atualizar">↻</button>
+          </div>
+        </h3>
+
+        <div class="table-responsive">
+          <table id="verification-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Equipamento</th>
+                <th>Tipo</th>
+                <th>Data Manutenção</th>
+                <th>Responsável</th>
+                <th>Área</th>
+                <th>Local/Oficina</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="verification-tbody">
+              <!-- Dados serão preenchidos via JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Relatórios Tab -->
+    <div class="tab-content" id="tab-reports">
+      <div class="section">
+        <h3 class="section-title">Relatórios por Período</h3>
+        <div class="form-row">
+          <div class="form-col">
+            <div class="form-group">
+              <label for="report-start-date">Data Inicial</label>
+              <input type="date" class="form-control" id="report-start-date">
+            </div>
+          </div>
+          <div class="form-col">
+            <div class="form-group">
+              <label for="report-end-date">Data Final</label>
+              <input type="date" class="form-control" id="report-end-date">
+            </div>
+          </div>
+          <div class="form-col" style="display: flex; align-items: flex-end;">
+            <button class="btn" id="generate-report">Gerar Relatório</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="report-content" style="display: none;">
+        <div class="section">
+          <h3 class="section-title">Resumo do Período</h3>
+          <div class="summary-cards">
+            <div class="card">
+              <div class="card-title">Total de Manutenções</div>
+              <div class="card-value" id="report-total">0</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Concluídas</div>
+              <div class="card-value" id="report-completed">0</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Pendentes</div>
+              <div class="card-value" id="report-pending">0</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Verificadas</div>
+              <div class="card-value" id="report-verified">0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">Análise por Categoria de Problema</h3>
+          <div class="chart-container">
+            <canvas id="report-problem-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="grid-container">
+          <div class="section">
+            <h3 class="section-title">Distribuição por Área</h3>
+            <div class="chart-container">
+              <canvas id="report-area-chart"></canvas>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3 class="section-title">Manutenções por Mês</h3>
+            <div class="chart-container">
+              <canvas id="report-monthly-chart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">Exportar Dados</h3>
+          <div class="btn-action-group">
+            <button class="btn" id="export-excel">Exportar para Excel</button>
+            <button class="btn" id="export-pdf">Exportar para PDF</button>
+            <button class="btn" id="print-report">Imprimir Relatório</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Formulário de Nova Manutenção -->
+    <div class="form-overlay" id="maintenance-form-overlay">
+      <div class="form-container">
+        <div class="form-header">
+          <h2 class="form-title">Registrar Nova Manutenção</h2>
+          <button class="form-close" id="close-maintenance-form">&times;</button>
+        </div>
+
+        <div class="form-steps">
+          <div class="form-step active" data-step="1">
+            <div class="step-number">1</div>
+            <div class="step-label">Informações</div>
+          </div>
+          <div class="form-step" data-step="2">
+            <div class="step-number">2</div>
+            <div class="step-label">Problema</div>
+          </div>
+          <div class="form-step" data-step="3">
+            <div class="step-number">3</div>
+            <div class="step-label">Confirmar</div>
+          </div>
+        </div>
+
+        <form id="maintenance-form">
+          <!-- Etapa 1: Informações Básicas -->
+          <div class="form-step-content" id="step-1-content">
+            <div class="form-row">
+              <div class="form-col">
+                <div class="form-group">
+                  <label for="equipment-type">Tipo de Equipamento <span class="form-required">*</span></label>
+                  <select class="form-control" id="equipment-type" name="equipment-type" required>
+                    <option value="">Selecione o tipo...</option>
+                    <!-- Opções serão preenchidas via JavaScript -->
+                  </select>
+                </div>
+              </div>
+              <div class="form-col">
+                <div class="form-group">
+                  <label for="equipment-id">Placa ou ID <span class="form-required">*</span></label>
+                  <select class="form-control" id="equipment-id" name="equipment-id" required>
+                    <option value="">Selecione o equipamento...</option>
+                    <!-- Opções serão preenchidas via JavaScript -->
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Campo para "Outro Equipamento" -->
+            <div class="form-group" id="other-equipment-field" style="display:none;">
+              <label for="other-equipment">Especifique Equipamento <span class="form-required">*</span></label>
+              <input type="text" class="form-control" id="other-equipment" name="other-equipment">
+            </div>
+
+            <div class="form-row">
+              <div class="form-col">
+                <div class="form-group">
+                  <label for="technician-name">Responsável pelo Relatório <span class="form-required">*</span></label>
+                  <input type="text" class="form-control" id="technician-name" name="technician-name" required>
+                </div>
+              </div>
+              <div class="form-col">
+                <div class="form-group">
+                  <label for="maintenance-date">Data da Manutenção <span class="form-required">*</span></label>
+                  <input type="date" class="form-control" id="maintenance-date" name="maintenance-date" required>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-col">
+                <div class="form-group">
+                  <label for="area">Área <span class="form-required">*</span></label>
+                  <select class="form-control" id="area" name="area" required>
+                    <option value="">Selecione...</option>
+                    <option value="Área Interna Usiminas">Área Interna Usiminas</option>
+                    <option value="Área Externa Usiminas">Área Externa Usiminas</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-col">
+                <div class="form-group" id="office-field">
+                  <label for="office">Local/Oficina <span class="form-required">*</span></label>
+                  <input type="text" class="form-control" id="office" name="office" required>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-col">
+                <div class="form-group">
+                  <label for="maintenance-type">Tipo de Manutenção <span class="form-required">*</span></label>
+                  <select class="form-control" id="maintenance-type" name="maintenance-type" required>
+                    <option value="">Selecione o tipo...</option>
+                    <option value="Preventiva">Preventiva</option>
+                    <option value="Corretiva">Corretiva</option>
+                    <option value="Emergencial">Emergencial</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-col">
+                <div class="form-group">
+                  <div class="form-check" style="padding-top: 30px;">
+                    <input type="checkbox" id="is-critical" name="is-critical">
+                    <label for="is-critical">Manutenção Crítica (requer atenção imediata)</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-navigation">
+              <button type="button" class="btn" id="cancel-maintenance">Cancelar</button>
+              <button type="button" class="btn btn-success" id="next-to-step-2">Próximo</button>
+            </div>
+          </div>
+
+          <!-- Etapa 2: Problema -->
+          <div class="form-step-content" id="step-2-content" style="display: none;">
+            <div class="form-group">
+              <label for="problem-category">Categoria do Problema <span class="form-required">*</span></label>
+              <select class="form-control" id="problem-category" name="problem-category" required>
+                <option value="">Selecione a categoria...</option>
+                <!-- Opções serão preenchidas via JavaScript -->
+              </select>
+            </div>
+
+            <!-- Campo para "Outra Categoria" -->
+            <div class="form-group" id="other-category-field" style="display:none;">
+              <label for="other-category">Especifique Categoria <span class="form-required">*</span></label>
+              <input type="text" class="form-control" id="other-category" name="other-category">
+            </div>
+
+            <div class="form-group">
+              <label for="problem-description">Detalhes do Problema <span class="form-required">*</span></label>
+              <textarea class="form-control" id="problem-description" name="problem-description" rows="4" required></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="additional-notes">Observações Adicionais</label>
+              <textarea class="form-control" id="additional-notes" name="additional-notes" rows="3"></textarea>
+            </div>
+
+            <div class="form-navigation">
+              <button type="button" class="btn" id="back-to-step-1">Voltar</button>
+              <button type="button" class="btn btn-success" id="next-to-step-3">Próximo</button>
+            </div>
+          </div>
+
+          <!-- Etapa 3: Revisão e Confirmação -->
+          <div class="form-step-content" id="step-3-content" style="display: none;">
+            <div class="form-group">
+              <h3>Resumo da Manutenção</h3>
+              <div class="summary-content">
+                <div class="summary-row">
+                  <div class="summary-label">Equipamento:</div>
+                  <div class="summary-value" id="summary-equipment"></div>
+                </div>
+                <div class="summary-row">
+                  <div class="summary-label">Responsável:</div>
+                  <div class="summary-value" id="summary-technician"></div>
+                </div>
+                <div class="summary-row">
+                  <div class="summary-label">Data:</div>
+                  <div class="summary-value" id="summary-date"></div>
+                </div>
+                <div class="summary-row">
+                  <div class="summary-label">Local:</div>
+                  <div class="summary-value" id="summary-location"></div>
+                </div>
+                <div class="summary-row">
+                  <div class="summary-label">Tipo:</div>
+                  <div class="summary-value" id="summary-type"></div>
+                </div>
+                <div class="summary-row">
+                  <div class="summary-label">É Crítica:</div>
+                  <div class="summary-value" id="summary-critical"></div>
+                </div>
+                <div class="summary-row">
+                  <div class="summary-label">Categoria de Problema:</div>
+                  <div class="summary-value" id="summary-category"></div>
+                </div>
+                <div class="summary-row">
+                  <div class="summary-label">Detalhes do Problema:</div>
+                  <div class="summary-value" id="summary-problem"></div>
+                </div>
+                <div class="summary-row">
+                  <div class="summary-label">Observações:</div>
+                  <div class="summary-value" id="summary-notes"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-navigation">
+              <button type="button" class="btn" id="back-to-step-2">Voltar</button>
+              <button type="submit" class="btn btn-success" id="submit-maintenance">Finalizar Registro</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Formulário de Verificação de Manutenção -->
+    <div class="form-overlay" id="verification-form-overlay">
+      <div class="form-container">
+        <div class="form-header">
+          <h2 class="form-title">Verificação de Manutenção</h2>
+          <button class="form-close" id="close-verification-form">&times;</button>
+        </div>
+
+        <form id="verification-form">
+          <div class="form-group">
+            <label for="verification-id">ID da Manutenção</label>
+            <input type="text" class="form-control" id="verification-id" name="verification-id" readonly>
+          </div>
+
+          <div class="form-row">
+            <div class="form-col">
+              <div class="form-group">
+                <label for="verification-equipment">Equipamento</label>
+                <input type="text" class="form-control" id="verification-equipment" readonly>
+              </div>
+            </div>
+            <div class="form-col">
+              <div class="form-group">
+                <label for="verification-type">Tipo de Manutenção</label>
+                <input type="text" class="form-control" id="verification-type" readonly>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="verifier-name">Nome do Verificador <span class="form-required">*</span></label>
+            <input type="text" class="form-control" id="verifier-name" name="verifier-name" required>
+          </div>
+
+          <div class="form-group">
+            <label>Resultado da Verificação <span class="form-required">*</span></label>
+            <div class="form-check">
+              <input type="radio" id="verification-approved" name="verification-result" value="Aprovado" required>
+              <label for="verification-approved">Aprovado - Manutenção Correta</label>
+            </div>
+            <div class="form-check">
+              <input type="radio" id="verification-adjustments" name="verification-result" value="Ajustes" required>
+              <label for="verification-adjustments">Necessita Ajustes Menores</label>
+            </div>
+            <div class="form-check">
+              <input type="radio" id="verification-rejected" name="verification-result" value="Reprovado" required>
+              <label for="verification-rejected">Reprovado - Precisa de Nova Manutenção</label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="verification-comments">Comentários da Verificação <span class="form-required">*</span></label>
+            <textarea class="form-control" id="verification-comments" name="verification-comments" rows="4" required></textarea>
+          </div>
+
+          <div class="form-navigation">
+            <button type="button" class="btn" id="cancel-verification">Cancelar</button>
+            <button type="submit" class="btn btn-success" id="submit-verification">Finalizar Verificação</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Detalhes da Manutenção -->
+    <div class="form-overlay" id="detail-overlay">
+      <div class="form-container">
+        <div class="form-header">
+          <h2 class="form-title">Detalhes da Manutenção</h2>
+          <button class="form-close" id="close-detail">&times;</button>
+        </div>
+
+        <div class="maintenance-detail" id="maintenance-detail-content">
+          <!-- Conteúdo será preenchido via JavaScript -->
+        </div>
+
+        <div class="form-navigation">
+          <button class="btn" id="close-detail-btn">Fechar</button>
+          <button class="btn btn-success" id="verify-maintenance-btn">Verificar Manutenção</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notificações -->
+    <div id="notification-container"></div>
+
+    <!-- Botão de Nova Manutenção -->
+    <div class="btn-new" id="new-maintenance">+</div>
+
+    <div class="footer">
+      <p>Sistema de Dupla Checagem de Manutenção © 2025 | Última atualização: <span id="last-update">Carregando...</span></p>
+      <p class="developer-credit">Desenvolvido por GrupoGPS Mecanizada</p>
+    </div>
+  </div>
+
+  <!-- Indicador de Loading -->
+  <div id="global-loader" style="display: none;">
+    <div class="loader-spinner"></div>
+    <div id="global-loader-message">Carregando...</div>
+  </div>
+
+  <!-- JavaScript -->
+  <script src="js/utilities.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/maintenance.js"></script>
+  <script src="js/verification.js"></script>
+  <script src="js/reports.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
