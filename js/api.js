@@ -197,7 +197,25 @@ const API = (function() {
     
     // Método para atualizar uma manutenção existente
     updateMaintenance: function(id, data) {
-      return callAPI('updateMaintenance', { id, ...data });
+      // Criar uma cópia e adicionar mapeamentos para backend
+      const formattedData = { ...data, id };
+      
+      // Garantir que os campos estejam no formato esperado pelo backend
+      // Mesmo mapeamento da função createMaintenance
+      formattedData.equipmentId = formattedData.placaOuId;
+      formattedData.date = formattedData.dataRegistro;
+      formattedData.equipmentType = formattedData.tipoEquipamento;
+      formattedData.technician = formattedData.responsavel;
+      formattedData.location = formattedData.localOficina;
+      formattedData.maintenanceType = formattedData.tipoManutencao;
+      formattedData.isCritical = formattedData.eCritico;
+      formattedData.problemCategory = formattedData.categoriaProblema;
+      formattedData.problemDescription = formattedData.detalhesproblema;
+      formattedData.additionalNotes = formattedData.observacoes;
+      
+      console.log("API.updateMaintenance dados formatados:", formattedData);
+      
+      return callAPI('updateMaintenance', formattedData);
     },
     
     // Método para deletar uma manutenção
@@ -212,42 +230,65 @@ const API = (function() {
       // Criar uma cópia dos dados para não modificar o objeto original
       const formattedData = { ...data };
       
-      // Garantir que os campos obrigatórios estejam no formato esperado
-      // Às vezes o backend espera nomes de campo específicos
+      // MAPEAMENTO DE CAMPOS: Garantir que os campos obrigatórios estejam no formato esperado pelo backend
       
-      // Garantir que o campo placaOuId esteja presente com os nomes alternativos que o backend pode esperar
-      if (formattedData.placaOuId) {
-        formattedData.id_equipamento = formattedData.placaOuId;
-        formattedData.equipamento_id = formattedData.placaOuId;
-        formattedData.equipamentoId = formattedData.placaOuId;
+      // Campos críticos que estavam causando erro
+      formattedData.equipmentId = formattedData.placaOuId;
+      formattedData.date = formattedData.dataRegistro;
+      
+      // Outros mapeamentos importantes
+      formattedData.equipmentType = formattedData.tipoEquipamento;
+      formattedData.technician = formattedData.responsavel;
+      formattedData.location = formattedData.localOficina;
+      formattedData.maintenanceType = formattedData.tipoManutencao;
+      formattedData.isCritical = formattedData.eCritico;
+      formattedData.problemCategory = formattedData.categoriaProblema;
+      formattedData.problemDescription = formattedData.detalhesproblema;
+      formattedData.additionalNotes = formattedData.observacoes;
+      
+      // Formatos alternativos para compatibilidade com diferentes versões do backend
+      formattedData.id_equipamento = formattedData.placaOuId;
+      formattedData.equipamento_id = formattedData.placaOuId;
+      formattedData.equipamentoId = formattedData.placaOuId;
+      formattedData.placa_id = formattedData.placaOuId;
+      
+      // Backup para datas
+      formattedData.data = formattedData.dataRegistro;
+      formattedData.data_manutencao = formattedData.dataRegistro;
+      formattedData.dataManutencao = formattedData.dataRegistro;
+      
+      // Garantir formato de data correto (YYYY-MM-DD)
+      if (formattedData.dataRegistro && !formattedData.dataRegistro.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        // Se não estiver no formato correto, tente converter
+        try {
+          const dateObj = new Date(formattedData.dataRegistro);
+          const formattedDate = dateObj.toISOString().split('T')[0];
+          formattedData.dataRegistro = formattedDate;
+          formattedData.date = formattedDate;
+          formattedData.data = formattedDate;
+          formattedData.data_manutencao = formattedDate;
+          formattedData.dataManutencao = formattedDate;
+        } catch (e) {
+          console.error("Erro ao formatar data:", e);
+        }
       }
       
-      // Garantir que a data esteja presente com os nomes alternativos que o backend pode esperar
-      if (formattedData.dataRegistro) {
-        formattedData.data = formattedData.dataRegistro;
-        formattedData.data_manutencao = formattedData.dataRegistro;
-        formattedData.dataManutencao = formattedData.dataRegistro;
-      }
+      // Backup para tipo de equipamento
+      formattedData.tipo_equipamento = formattedData.tipoEquipamento;
+      formattedData.equipment_type = formattedData.tipoEquipamento;
       
-      // Garantir que outros campos importantes estejam mapeados corretamente
-      if (formattedData.tipoEquipamento) {
-        formattedData.tipo_equipamento = formattedData.tipoEquipamento;
-      }
+      // Backup para responsável
+      formattedData.tecnico = formattedData.responsavel;
+      formattedData.responsavel_nome = formattedData.responsavel;
+      formattedData.technician_name = formattedData.responsavel;
       
-      if (formattedData.responsavel) {
-        formattedData.tecnico = formattedData.responsavel;
-        formattedData.responsavel_nome = formattedData.responsavel;
-      }
+      // Backup para categoria de problema
+      formattedData.categoria = formattedData.categoriaProblema;
+      formattedData.problema_categoria = formattedData.categoriaProblema;
       
-      if (formattedData.categoriaProblema) {
-        formattedData.categoria = formattedData.categoriaProblema;
-        formattedData.problema_categoria = formattedData.categoriaProblema;
-      }
-      
-      if (formattedData.detalhesproblema) {
-        formattedData.detalhes = formattedData.detalhesproblema;
-        formattedData.problema_detalhes = formattedData.detalhesproblema;
-      }
+      // Backup para detalhes do problema
+      formattedData.detalhes = formattedData.detalhesproblema;
+      formattedData.problema_detalhes = formattedData.detalhesproblema;
       
       console.log("Dados formatados para envio:", formattedData);
       
@@ -258,7 +299,20 @@ const API = (function() {
     // Método para enviar verificação
     submitVerification: function(data) {
       console.log("API.submitVerification chamada com dados:", data);
-      return this.saveVerification(data);
+      
+      // Mapear campos para o backend
+      const formattedData = {
+        ...data,
+        maintenanceId: data.maintenanceId || data.id, // Aceitar ambos os formatos
+        verifier: data.verifierName || data.verifier,
+        verificador: data.verifierName || data.verifier,
+        result: data.result || data.resultado,
+        resultado: data.result || data.resultado,
+        comments: data.comments || data.comentarios,
+        comentarios: data.comments || data.comentarios
+      };
+      
+      return this.saveVerification(formattedData);
     },
     
     // Função auxiliar para exibir dados de depuração
