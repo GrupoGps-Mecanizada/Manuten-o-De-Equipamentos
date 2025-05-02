@@ -18,21 +18,16 @@ if (!window.API || !window.API_LOADED || !window.UTILITIES_LOADED) {
 } else {
   console.log("Main.js - Dependências carregadas corretamente");
   // Se as dependências já estiverem carregadas, inicializar imediatamente.
-  // (Assumindo que a inicialização deve ocorrer assim que possível)
   initializeApp();
 }
 
 // Atualizar o rodapé para exibir o nome correto
 document.addEventListener('DOMContentLoaded', function() {
   // Configurar última atualização
-  // Nota: initializeSystem() foi movido para a lógica de verificação de dependências acima.
-  // Se formatDate não estiver disponível imediatamente, pode ser necessário mover isso
-  // para dentro de initializeSystem ou garantir que Utilities.js seja carregado antes disso.
   if (typeof formatDate === 'function') {
     document.getElementById('last-update').textContent = formatDate(new Date(), true);
   } else {
      console.warn("Função formatDate não disponível no DOMContentLoaded. A data de atualização pode não ser definida.");
-     // Poderia tentar definir mais tarde dentro de initializeSystem se necessário
   }
 
   // Atualizar desenvolvedor no rodapé
@@ -42,11 +37,21 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
+// Variável global para rastrear se o sistema já foi inicializado
+let isSystemInitialized = false;
+
 /**
  * Inicializa o sistema
  */
 function initializeApp() {
+  // Verificar se já inicializou antes
+  if (isSystemInitialized) {
+    console.log("Sistema já inicializado anteriormente. Ignorando chamada repetida.");
+    return;
+  }
+  
   console.log("Inicializando o sistema..."); // Log para confirmar a chamada
+  isSystemInitialized = true;
 
   // Configurar navegação por tabs
   setupTabNavigation();
@@ -64,9 +69,6 @@ function initializeApp() {
       console.log("Data de atualização definida dentro de initializeApp.");
   }
 
-   // Carregar a lista inicial se a tab 'maintenance' for a padrão (ou se necessário)
-   // loadMaintenanceList(); // Descomente se precisar carregar na inicialização
-   
    // Ativar a primeira tab se nenhuma estiver ativa
    if (!document.querySelector('.tab.active')) {
      const defaultTab = document.querySelector('.tab[data-tab="dashboard"]') || document.querySelector('.tab');
@@ -74,6 +76,9 @@ function initializeApp() {
        defaultTab.click();
      }
    }
+   
+   // Configurar botões de Adicionar Manutenção
+   setupMaintenanceButtons();
 }
 
 /**
@@ -134,8 +139,6 @@ function loadTabContent(tab) {
         Verification.loadVerificationData();
       } else {
          console.warn("Módulo Verification ou função loadVerificationData não encontrados.");
-         // Talvez chamar uma função local se Verification não existir?
-         // loadLocalVerificationData(); // Exemplo
       }
       break;
 
@@ -209,9 +212,59 @@ function setupModals() {
       });
    }
 
-   // Adicionar listeners para outros botões de modais aqui, se necessário
+   // Configurar botões de Adicionar Manutenção
+   setupMaintenanceButtons();
 }
 
+/**
+ * Configurar botões de manutenção
+ */
+function setupMaintenanceButtons() {
+  console.log("Configurando botões de manutenção...");
+  
+  // Configurar botão "Adicionar Nova Manutenção"
+  const addButton = document.getElementById('add-maintenance-btn');
+  if (addButton) {
+    console.log("Botão de adicionar encontrado, configurando evento...");
+    
+    // Remover event listeners antigos (clone e substitui)
+    const newButton = addButton.cloneNode(true);
+    addButton.parentNode.replaceChild(newButton, addButton);
+    
+    // Adicionar novo event listener
+    newButton.addEventListener('click', function() {
+      console.log("Botão de adicionar manutenção clicado");
+      const overlay = document.getElementById('maintenance-form-overlay');
+      if (overlay) {
+        overlay.style.display = 'block';
+        console.log("Overlay de formulário exibido");
+        
+        // Limpar formulário
+        const form = document.getElementById('maintenance-form');
+        if (form) form.reset();
+      } else {
+        console.error("Elemento 'maintenance-form-overlay' não encontrado!");
+        showNotification("Erro: Formulário não encontrado.", "error");
+      }
+    });
+  } else {
+    console.warn("Botão 'add-maintenance-btn' não encontrado!");
+  }
+  
+  // Configurar botão "Fechar" do formulário
+  const closeButtons = document.querySelectorAll('.form-close, .cancel-btn');
+  closeButtons.forEach(button => {
+    const newButton = button.cloneNode(true);
+    button.parentNode.replaceChild(newButton, button);
+    
+    newButton.addEventListener('click', function() {
+      const overlay = this.closest('.form-overlay');
+      if (overlay) {
+        overlay.style.display = 'none';
+      }
+    });
+  });
+}
 
 /**
  * Verificar se o sistema está configurado adequadamente
@@ -278,6 +331,7 @@ function loadMaintenanceList() {
         window.maintenanceList = response.maintenances; // Assumindo lista global
         console.log(`${window.maintenanceList.length} manutenções carregadas.`);
         updateMaintenanceTable();
+        setupMaintenanceButtons(); // Reconfigurar os botões após carregar
       } else {
         console.error("Erro ao carregar lista de manutenções:", response);
         if (typeof showNotification === 'function') {
