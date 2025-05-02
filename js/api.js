@@ -5,7 +5,7 @@
 
 const API = (function() {
   // URL base da API (Web App do Google Apps Script publicado)
-  const API_URL = 'https://script.google.com/macros/s/AKfycbwj9nteoBYRizGjHrn4qVKqK71sTqWuHr3YdOkYctEpelsYD-9tCH7ElSf05PZkVr8H0Q/exec';
+  const API_URL = 'https://script.google.com/macros/s/AKfycbyO7bnHLwIqDKo6m8ZJrtYPL3DvmqrND2w6Pyx7xXfTSscAwk3QyAsE9SrWoqXybuQHSQ/exec';
   
   // Função para chamar a API com tratamento de erros e timeout
   async function callAPI(action, data = {}, timeout = 60000) {
