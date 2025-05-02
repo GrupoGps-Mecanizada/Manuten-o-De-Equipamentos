@@ -1,4 +1,4 @@
-<artifact id="fixed-utilities-js" type="application/vnd.ant.code" language="javascript">
+<artifact id="utilities-js" type="application/vnd.ant.code" language="javascript">
 /**
  * Sistema de Dupla Checagem de Manutenção
  * Módulo: Funções Utilitárias
@@ -423,6 +423,6 @@ function renderMaintenanceDetails(details) {
 }
 
 // Indicar que utilities.js foi carregado corretamente
+console.log("Utilities.js carregado com sucesso!");
 window.UTILITIES_LOADED = true;
-console.log("Utilities.js carregado com sucesso.");
 </artifact>
