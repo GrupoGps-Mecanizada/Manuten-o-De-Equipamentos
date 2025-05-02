@@ -205,16 +205,57 @@ const API = (function() {
       return callAPI('deleteMaintenance', { id });
     },
     
-    // NOVA FUNÇÃO: Método para criar uma nova manutenção
-    // Esta função é apenas um alias para saveMaintenance para compatibilidade
+    // FUNÇÃO MELHORADA: Método para criar uma nova manutenção
     createMaintenance: function(data) {
       console.log("API.createMaintenance chamada com dados:", data);
-      // Simplesmente chama saveMaintenance para manter consistência com o backend
-      return this.saveMaintenance(data);
+      
+      // Criar uma cópia dos dados para não modificar o objeto original
+      const formattedData = { ...data };
+      
+      // Garantir que os campos obrigatórios estejam no formato esperado
+      // Às vezes o backend espera nomes de campo específicos
+      
+      // Garantir que o campo placaOuId esteja presente com os nomes alternativos que o backend pode esperar
+      if (formattedData.placaOuId) {
+        formattedData.id_equipamento = formattedData.placaOuId;
+        formattedData.equipamento_id = formattedData.placaOuId;
+        formattedData.equipamentoId = formattedData.placaOuId;
+      }
+      
+      // Garantir que a data esteja presente com os nomes alternativos que o backend pode esperar
+      if (formattedData.dataRegistro) {
+        formattedData.data = formattedData.dataRegistro;
+        formattedData.data_manutencao = formattedData.dataRegistro;
+        formattedData.dataManutencao = formattedData.dataRegistro;
+      }
+      
+      // Garantir que outros campos importantes estejam mapeados corretamente
+      if (formattedData.tipoEquipamento) {
+        formattedData.tipo_equipamento = formattedData.tipoEquipamento;
+      }
+      
+      if (formattedData.responsavel) {
+        formattedData.tecnico = formattedData.responsavel;
+        formattedData.responsavel_nome = formattedData.responsavel;
+      }
+      
+      if (formattedData.categoriaProblema) {
+        formattedData.categoria = formattedData.categoriaProblema;
+        formattedData.problema_categoria = formattedData.categoriaProblema;
+      }
+      
+      if (formattedData.detalhesproblema) {
+        formattedData.detalhes = formattedData.detalhesproblema;
+        formattedData.problema_detalhes = formattedData.detalhesproblema;
+      }
+      
+      console.log("Dados formatados para envio:", formattedData);
+      
+      // Chamar a função original com os dados formatados
+      return callAPI('saveMaintenance', formattedData);
     },
     
-    // NOVA FUNÇÃO: Método para enviar verificação
-    // Esta função é um alias para saveVerification para compatibilidade
+    // Método para enviar verificação
     submitVerification: function(data) {
       console.log("API.submitVerification chamada com dados:", data);
       return this.saveVerification(data);
