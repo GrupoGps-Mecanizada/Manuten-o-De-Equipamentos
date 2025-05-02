@@ -9,13 +9,13 @@ const Verification = (() => {
   let currentFilter = 'all';
   let searchTerm = '';
   let selectedMaintenanceId = null;
-  
+
   // Inicialização
   function initialize() {
     setupEventListeners();
     // Não carrega dados aqui, apenas quando a aba for selecionada
   }
-  
+
   // Configurar event listeners
   function setupEventListeners() {
     // Filtros de verificações
@@ -28,18 +28,18 @@ const Verification = (() => {
         updateVerificationList();
       });
     });
-    
+
     // Busca de verificações
     document.getElementById('verification-search').addEventListener('input', debounce(function() {
       searchTerm = this.value;
       updateVerificationList();
     }, 300));
-    
+
     // Botão de refresh
     document.getElementById('refresh-verification-list').addEventListener('click', function() {
       loadVerificationData(true);
     });
-    
+
     // Formulário de verificação
     document.getElementById('verification-form').addEventListener('submit', function(e) {
       e.preventDefault();
@@ -47,7 +47,7 @@ const Verification = (() => {
         submitVerification();
       }
     });
-    
+
     // Fechar formulário
     document.getElementById('close-verification-form').addEventListener('click', function() {
       if (hasUnsavedChanges() && !confirm('Existem dados não salvos. Deseja realmente cancelar?')) {
@@ -55,7 +55,7 @@ const Verification = (() => {
       }
       closeVerificationForm();
     });
-    
+
     document.getElementById('cancel-verification').addEventListener('click', function() {
       if (hasUnsavedChanges() && !confirm('Existem dados não salvos. Deseja realmente cancelar?')) {
         return;
@@ -63,11 +63,11 @@ const Verification = (() => {
       closeVerificationForm();
     });
   }
-  
+
   // Carregar dados de verificação
   function loadVerificationData(forceReload = false) {
     showLoading(true, 'Carregando verificações...');
-    
+
     // Depende da API.getVerificationList() que busca as manutenções pendentes
     // Se mudar para outro endpoint específico, ajuste aqui
     API.getVerificationList()
@@ -93,15 +93,16 @@ const Verification = (() => {
         showLoading(false);
       });
   }
-  
+
   // Atualizar lista de verificações com base nos filtros e busca
+  // Corrigir a função updateVerificationList para exibir os dados do equipamento corretamente
   function updateVerificationList() {
     const tbody = document.getElementById('verification-tbody');
     tbody.innerHTML = '';
-    
+
     // Aplicar filtro e busca
     const filtered = filterVerifications(verificationList, currentFilter, searchTerm);
-    
+
     if (filtered.length === 0) {
       let message = "Nenhuma manutenção para verificação encontrada";
       if (searchTerm) {
@@ -110,23 +111,25 @@ const Verification = (() => {
       if (currentFilter !== 'all') {
         message += ` com filtro "${currentFilter}"`;
       }
-      
+
       tbody.innerHTML = `<tr><td colspan="9" style="text-align: center;">${message}.</td></tr>`;
       return;
     }
-    
+
     // Preencher tabela com verificações filtradas
     filtered.forEach(item => {
       const id = item.id || 'N/A';
+      // *** Linhas atualizadas aqui para priorizar os campos corretos ***
       const equipmentId = item.placaOuId || item.equipmentId || '-';
-      const type = item.tipoEquipamento || item.equipmentType || 'N/A';
-      const maintDate = formatDate(item.dataManutencao || item.date);
+      const type = item.tipoEquipamento || item.equipmentType || '-';
+      const maintDate = formatDate(item.dataManutencao || item.date || '-');
       const resp = item.responsavel || item.technician || '-';
       const area = item.area || '-';
       const local = item.localOficina || item.location || '-';
+      // *** Fim das linhas atualizadas ***
       const status = item.status || 'Pendente';
       const statusClass = getStatusClass(status);
-      
+
       const row = document.createElement('tr');
       row.innerHTML = `
         <td>${id}</td>
@@ -142,26 +145,27 @@ const Verification = (() => {
           ${status === 'Pendente' ? `<button class="btn-icon verify-maintenance" data-id="${id}" title="Verificar">✓</button>` : ''}
         </td>
       `;
-      
+
       tbody.appendChild(row);
     });
-    
+
     // Adicionar event listeners aos botões
     addActionButtonListeners(tbody);
   }
-  
+
+
   // Filtrar verificações com base nos filtros
   function filterVerifications(list, filter, search) {
     // Se a lista é inválida, retorna array vazio
     if (!Array.isArray(list)) return [];
-    
+
     const searchLower = search ? search.toLowerCase().trim() : '';
-    
+
     return list.filter(item => {
       // 1. Aplicar filtro de status
       let statusMatch = false;
       const status = (item.status || 'Pendente').toLowerCase();
-      
+
       switch (filter) {
         case 'pending':
           statusMatch = status === 'pendente';
@@ -191,9 +195,9 @@ const Verification = (() => {
           statusMatch = true;
           break;
       }
-      
+
       if (!statusMatch) return false;
-      
+
       // 2. Aplicar termo de busca (se houver)
       if (searchLower) {
         const idMatch = String(item.id || '').toLowerCase().includes(searchLower);
@@ -202,26 +206,26 @@ const Verification = (() => {
         const typeMatch = (item.tipoEquipamento || item.equipmentType || '').toLowerCase().includes(searchLower);
         const areaMatch = (item.area || '').toLowerCase().includes(searchLower);
         const localMatch = (item.localOficina || item.location || '').toLowerCase().includes(searchLower);
-        
+
         return idMatch || equipMatch || respMatch || typeMatch || areaMatch || localMatch;
       }
-      
+
       return true;
     });
   }
-  
+
   // Adicionar event listeners aos botões da tabela
   function addActionButtonListeners(container) {
     if (!container) return;
-    
+
     // Usar delegação de eventos
     container.addEventListener('click', function(event) {
       const target = event.target.closest('.btn-icon');
       if (!target) return;
-      
+
       const id = target.getAttribute('data-id');
       if (!id) return;
-      
+
       if (target.classList.contains('view-maintenance')) {
         viewMaintenanceDetails(id);
       } else if (target.classList.contains('verify-maintenance')) {
@@ -229,32 +233,32 @@ const Verification = (() => {
       }
     });
   }
-  
+
   // Abrir formulário de verificação
   function openVerificationForm(id) {
     selectedMaintenanceId = id;
-    
+
     // Buscar detalhes da manutenção
     showLoading(true, 'Carregando dados da manutenção...');
-    
+
     API.getMaintenanceDetails(id)
       .then(maintenance => {
         if (!maintenance || !maintenance.success) {
           throw new Error(maintenance?.message || 'Manutenção não encontrada');
         }
-        
+
         // Preencher campos do formulário
         document.getElementById('verification-id').value = maintenance.id || id;
         document.getElementById('verification-equipment').value = maintenance.placaOuId || maintenance.equipmentId || '-';
         document.getElementById('verification-type').value = maintenance.tipoManutencao || maintenance.maintenanceType || '-';
-        
+
         // Limpar outros campos para nova verificação
         document.getElementById('verifier-name').value = '';
         document.getElementById('verification-approved').checked = false;
         document.getElementById('verification-adjustments').checked = false;
         document.getElementById('verification-rejected').checked = false;
         document.getElementById('verification-comments').value = '';
-        
+
         // Exibir formulário
         document.getElementById('verification-form-overlay').style.display = 'block';
       })
@@ -266,33 +270,33 @@ const Verification = (() => {
         showLoading(false);
       });
   }
-  
+
   // Fechar formulário de verificação
   function closeVerificationForm() {
     document.getElementById('verification-form-overlay').style.display = 'none';
     selectedMaintenanceId = null;
   }
-  
+
   // Verificar se há mudanças não salvas no formulário
   function hasUnsavedChanges() {
     const verifierName = document.getElementById('verifier-name').value;
     const comments = document.getElementById('verification-comments').value;
     const resultSelected = document.querySelector('input[name="verification-result"]:checked');
-    
+
     return verifierName.trim() !== '' || comments.trim() !== '' || resultSelected !== null;
   }
-  
+
   // Validar formulário de verificação
   function validateVerificationForm() {
     let isValid = true;
     let firstInvalidField = null;
-    
+
     // Validar campos
     const fieldsToValidate = [
       { element: document.getElementById('verifier-name'), name: 'Nome do Verificador' },
       { element: document.getElementById('verification-comments'), name: 'Comentários' }
     ];
-    
+
     fieldsToValidate.forEach(field => {
       if (!field.element.value.trim()) {
         field.element.style.borderColor = 'red';
@@ -304,7 +308,7 @@ const Verification = (() => {
         field.element.style.borderColor = '';
       }
     });
-    
+
     // Validar seleção de resultado
     const resultSelected = document.querySelector('input[name="verification-result"]:checked');
     if (!resultSelected) {
@@ -320,40 +324,40 @@ const Verification = (() => {
       const resultLabel = document.querySelector('label[for="verification-approved"]').parentElement.querySelector('label');
       resultLabel.style.color = '';
     }
-    
+
     if (!isValid) {
       showNotification("Por favor, preencha todos os campos obrigatórios.", "error");
       if (firstInvalidField) {
         firstInvalidField.focus();
       }
     }
-    
+
     return isValid;
   }
-  
+
   // Enviar verificação
   function submitVerification() {
     if (!selectedMaintenanceId) {
       showNotification("ID da manutenção não identificado.", "error");
       return;
     }
-    
+
     showLoading(true, 'Enviando verificação...');
-    
+
     const data = {
       maintenanceId: selectedMaintenanceId,
       verifier: document.getElementById('verifier-name').value,
       result: document.querySelector('input[name="verification-result"]:checked').value,
       comments: document.getElementById('verification-comments').value
     };
-    
+
     API.saveVerification(data)
       .then(response => {
         if (response.success) {
           showNotification("Verificação realizada com sucesso!", "success");
           closeVerificationForm();
           loadVerificationData(true); // Recarregar dados
-          
+
           // Se estiver no dashboard, atualizar também
           if (typeof Dashboard !== 'undefined' && Dashboard.loadDashboardData) {
             Dashboard.loadDashboardData();
@@ -371,7 +375,7 @@ const Verification = (() => {
         showLoading(false);
       });
   }
-  
+
   // Ver detalhes da manutenção
   function viewMaintenanceDetails(id) {
     // Reutilizar função do módulo principal
@@ -381,7 +385,7 @@ const Verification = (() => {
       // Implementação local se necessário
       showLoading(true, `Carregando detalhes da manutenção ${id}...`);
       selectedMaintenanceId = id;
-      
+
       API.getMaintenanceDetails(id)
         .then(details => {
           if (!details || !details.success) {
@@ -392,14 +396,14 @@ const Verification = (() => {
             document.getElementById('verify-maintenance-btn').style.display = 'none';
             return;
           }
-          
+
           renderMaintenanceDetails(details);
           document.getElementById('detail-overlay').style.display = 'block';
-          
+
           // Mostrar/ocultar botão verificar com base no status
           const status = details.status || 'Pendente';
           const verifyBtn = document.getElementById('verify-maintenance-btn');
-          
+
           if (status === 'Pendente') {
             verifyBtn.style.display = 'inline-block';
             verifyBtn.disabled = false;
@@ -420,7 +424,7 @@ const Verification = (() => {
         });
     }
   }
-  
+
   // Renderizar detalhes da manutenção
   function renderMaintenanceDetails(details) {
     // Reutilizar função do módulo principal
@@ -429,14 +433,14 @@ const Verification = (() => {
     } else {
       // Implementação local se necessário
       const container = document.getElementById('maintenance-detail-content');
-      
+
       // Converter camelCase para nomes legíveis
       const camelToTitle = (text) => {
         return text
           .replace(/([A-Z])/g, ' $1')
           .replace(/^./, (str) => str.toUpperCase());
       };
-      
+
       // Mapear campos importantes
       const mappedFields = [
         { label: 'ID', value: details.id },
@@ -453,7 +457,7 @@ const Verification = (() => {
         { label: 'Detalhes do Problema', value: details.detalhesproblema || details.problemDescription },
         { label: 'Observações', value: details.observacoes || details.additionalNotes }
       ];
-      
+
       // Criar HTML
       let html = `
       <div class="detail-header">
@@ -465,7 +469,7 @@ const Verification = (() => {
           <span class="status-badge status-${getStatusClass(details.status)}">${details.status || 'Pendente'}</span>
         </div>
       </div>
-      
+
       <div class="detail-section">
         <div class="detail-section-title">Informações Básicas</div>
         <div class="detail-grid">
@@ -477,7 +481,7 @@ const Verification = (() => {
           `).join('')}
         </div>
       </div>
-      
+
       <div class="detail-section">
         <div class="detail-section-title">Problema</div>
         <div class="detail-field">
@@ -493,7 +497,7 @@ const Verification = (() => {
           <div class="detail-value" style="white-space: pre-wrap;">${details.observacoes || details.additionalNotes || '-'}</div>
         </div>
       </div>`;
-      
+
       // Adicionar seção de verificação se existir
       if (details.verification) {
         const v = details.verification;
@@ -520,11 +524,11 @@ const Verification = (() => {
           </div>
         </div>`;
       }
-      
+
       container.innerHTML = html;
     }
   }
-  
+
   // API pública
   return {
     initialize,
