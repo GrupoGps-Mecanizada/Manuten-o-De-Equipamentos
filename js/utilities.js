@@ -36,11 +36,11 @@ function formatDate(dateSource, includeTime = false) {
     }
 
     const options = {
-      day: '2-digit', 
-      month: '2-digit', 
+      day: '2-digit',
+      month: '2-digit',
       year: 'numeric'
     };
-    
+
     if (includeTime) {
       options.hour = '2-digit';
       options.minute = '2-digit';
@@ -74,7 +74,7 @@ function debounce(func, wait) {
  */
 function getStatusClass(status) {
   if (!status) return 'pending';
-  
+
   const lowerStatus = status.toLowerCase();
   switch (lowerStatus) {
     case 'pendente': return 'pending';
@@ -91,9 +91,9 @@ function getStatusClass(status) {
 function showLoading(show, message = 'Carregando...') {
   const loader = document.getElementById('global-loader');
   const loaderMessage = document.getElementById('global-loader-message');
-  
+
   if (!loader || !loaderMessage) return;
-  
+
   if (show) {
     loaderMessage.textContent = message;
     loader.style.display = 'flex';
@@ -108,14 +108,16 @@ function showLoading(show, message = 'Carregando...') {
 function showNotification(message, type = 'info', duration = 5000) {
   const containerId = 'notification-container';
   let container = document.getElementById(containerId);
-  
+
   if (!container) {
     container = document.createElement('div');
     container.id = containerId;
+    // *** Estilos atualizados aqui ***
     container.style.cssText = `
       position: fixed;
       top: 20px;
-      right: 20px;
+      left: 50%;
+      transform: translateX(-50%);
       z-index: 2000;
       display: flex;
       flex-direction: column;
@@ -125,71 +127,79 @@ function showNotification(message, type = 'info', duration = 5000) {
     `;
     document.body.appendChild(container);
   }
-  
+
   const notification = document.createElement('div');
-  notification.className = `notification-popup ${type}`;
+  notification.className = `notification-popup`; // Classe 'type' será adicionada depois
   notification.style.opacity = '0';
-  notification.style.transform = 'translateX(100%)';
+  // *** Animação atualizada para translateY ***
+  notification.style.transform = 'translateY(-20px)';
   notification.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
-  
+
   let icon = '';
   let title = '';
-  
+
   switch (type) {
-    case 'success': 
+    case 'success':
       icon = '✓';
       title = 'Sucesso';
       duration = Math.max(duration, 3000);
       break;
-    case 'error': 
+    case 'error':
       icon = '✗';
       title = 'Erro';
       duration = Math.max(duration, 8000);
       break;
-    case 'warning': 
+    case 'warning':
       icon = '⚠️';
       title = 'Aviso';
       duration = Math.max(duration, 6000);
       break;
-    default: 
+    default:
       icon = 'ℹ';
       title = 'Informação';
-      type = 'info';
+      type = 'info'; // Garante que 'info' seja a classe padrão
       break;
   }
-  
-  notification.classList.add(type);
-  
+
+  notification.classList.add(type); // Adiciona a classe de tipo correta
+
   notification.innerHTML = `
     <div class="notification-icon">${icon}</div>
     <div class="notification-content">
       <div class="notification-title">${title}</div>
       <div>${message}</div>
     </div>
-    <span class="close-btn" style="cursor:pointer; font-size: 20px; line-height: 1;">&times;</span>`;
-  
-  container.prepend(notification);
-  
+    <span class="close-btn" style="cursor:pointer; font-size: 20px; line-height: 1;">×</span>`;
+
+  container.prepend(notification); // Adiciona no início para novas aparecerem acima
+
+  // Delay para permitir a transição inicial
   setTimeout(() => {
     notification.style.opacity = '1';
-    notification.style.transform = 'translateX(0)';
+    // *** Animação atualizada para translateY ***
+    notification.style.transform = 'translateY(0)';
   }, 10);
-  
+
   const close = () => {
     notification.style.opacity = '0';
-    notification.style.transform = 'translateX(100%)';
-    
+    // *** Animação atualizada para translateY ***
+    notification.style.transform = 'translateY(-20px)';
+
+    // Remove o elemento após a transição de saída
     setTimeout(() => {
+      // Verifica se o elemento ainda está no DOM antes de remover
       if (notification.parentNode === container) {
         container.removeChild(notification);
       }
     }, 300);
   };
-  
+
   notification.querySelector('.close-btn').onclick = close;
-  
+
+  // Fecha automaticamente após a duração
   setTimeout(close, duration);
 }
+
 
 /**
  * Ver detalhes de uma manutenção (Função global compartilhada)
@@ -197,7 +207,7 @@ function showNotification(message, type = 'info', duration = 5000) {
 function viewMaintenanceDetails(id) {
   showLoading(true, `Carregando detalhes da manutenção ${id}...`);
   window.selectedMaintenanceId = id;
-  
+
   API.getMaintenanceDetails(id)
     .then(details => {
       if (!details || !details.success) {
@@ -208,14 +218,14 @@ function viewMaintenanceDetails(id) {
         document.getElementById('verify-maintenance-btn').style.display = 'none';
         return;
       }
-      
+
       renderMaintenanceDetails(details);
       document.getElementById('detail-overlay').style.display = 'block';
-      
+
       // Mostrar/ocultar botão verificar com base no status
       const status = details.status || 'Pendente';
       const verifyBtn = document.getElementById('verify-maintenance-btn');
-      
+
       if (status === 'Pendente') {
         verifyBtn.style.display = 'inline-block';
         verifyBtn.disabled = false;
@@ -241,7 +251,7 @@ function viewMaintenanceDetails(id) {
  */
 function renderMaintenanceDetails(details) {
   const container = document.getElementById('maintenance-detail-content');
-  
+
   // Mapear campos importantes
   const equipId = details.placaOuId || details.equipmentId || '-';
   const equipType = details.tipoEquipamento || details.equipmentType || '-';
@@ -257,7 +267,7 @@ function renderMaintenanceDetails(details) {
   const status = details.status || 'Pendente';
   const statusClass = getStatusClass(status);
   const regDate = formatDate(details.dataRegistro || details.registrationDate, true);
-  
+
   // Criar HTML
   let html = `
   <div class="detail-header">
@@ -269,7 +279,7 @@ function renderMaintenanceDetails(details) {
       <span class="status-badge status-${statusClass}">${status}</span>
     </div>
   </div>
-  
+
   <div class="detail-section">
     <div class="detail-section-title">Informações Básicas</div>
     <div class="detail-grid">
@@ -307,7 +317,7 @@ function renderMaintenanceDetails(details) {
       </div>
     </div>
   </div>
-  
+
   <div class="detail-section">
     <div class="detail-section-title">Problema</div>
     <div class="detail-field">
@@ -323,7 +333,7 @@ function renderMaintenanceDetails(details) {
       <div class="detail-value" style="white-space: pre-wrap;">${notes}</div>
     </div>
   </div>`;
-  
+
   // Adicionar seção de verificação se existir
   if (details.verification) {
     const v = details.verification;
@@ -331,7 +341,7 @@ function renderMaintenanceDetails(details) {
     const verifyDate = formatDate(v.dataVerificacao || v.date, true);
     const result = v.result || v.resultado || '-';
     const comments = v.comments || v.comentarios || '-';
-    
+
     html += `
     <div class="detail-section">
       <div class="detail-section-title">Verificação</div>
@@ -355,7 +365,7 @@ function renderMaintenanceDetails(details) {
       </div>
     </div>`;
   }
-  
+
   // Adicionar histórico
   html += `
   <div class="detail-section">
@@ -371,17 +381,17 @@ function renderMaintenanceDetails(details) {
           <div class="timeline-description">Por: ${resp}</div>
         </div>
       </div>`;
-  
+
   if (details.verification) {
     const v = details.verification;
     const verifier = v.verifier || v.verificador || '-';
     const verifyDate = formatDate(v.dataVerificacao || v.date, true);
     const result = v.result || v.resultado || '-';
-    
-    const dotClass = (status === 'Concluído' || status === 'Verificado' || 
-                      status === 'Aprovado' || status === 'Ajustes' || 
+
+    const dotClass = (status === 'Concluído' || status === 'Verificado' ||
+                      status === 'Aprovado' || status === 'Ajustes' ||
                       status === 'Reprovado') ? 'completed' : '';
-    
+
     html += `
       <div class="timeline-item">
         <div class="timeline-dot ${dotClass}"></div>
@@ -393,7 +403,7 @@ function renderMaintenanceDetails(details) {
           <div class="timeline-description">Por: ${verifier} | Resultado: ${result}</div>
         </div>
       </div>`;
-    
+
     if (status === 'Concluído') {
       html += `
         <div class="timeline-item">
@@ -408,10 +418,10 @@ function renderMaintenanceDetails(details) {
         </div>`;
     }
   }
-  
+
   html += `
     </div>
   </div>`;
-  
+
   container.innerHTML = html;
 }
