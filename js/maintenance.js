@@ -17,7 +17,7 @@ const Maintenance = (() => {
   // ------------------------------------
 
   // Estado interno do módulo
-  let formData = { /* ... campos ... */ };
+  let formData = {};
   let isEditMode = false;
   let editingMaintenanceId = null;
   let fullMaintenanceList = [];
@@ -34,6 +34,8 @@ const Maintenance = (() => {
       setupFormEventListeners();
       // Configura listener para a tabela (será ativado quando a tabela for renderizada)
       setupMaintenanceListListeners(); // Apenas prepara, não adiciona ainda se tbody não existe
+      // Carregar lista de manutenções
+      loadMaintenanceList();
   }
 
   // Carrega dados que dependem da API
@@ -47,7 +49,7 @@ const Maintenance = (() => {
     console.log("Configurando listeners do formulário...");
 
     // Usar função melhorada para adicionar listener de forma segura
-    addSafeListener('new-maintenance', 'click', () => openMaintenanceForm());
+    addSafeListener('new-maintenance', 'click', openMaintenanceForm);
     addSafeListener('next-to-step-2', 'click', handleNextToStep2);
     addSafeListener('back-to-step-1', 'click', () => showStep(1));
     addSafeListener('next-to-step-3', 'click', handleNextToStep3);
@@ -72,7 +74,7 @@ const Maintenance = (() => {
 
     const equipmentTypeSelect = document.getElementById('equipment-type');
     if (equipmentTypeSelect) {
-        equipmentTypeSelect.removeEventListener('change', handleEquipmentTypeChange); // Usar função nomeada
+        equipmentTypeSelect.removeEventListener('change', handleEquipmentTypeChange);
         equipmentTypeSelect.addEventListener('change', handleEquipmentTypeChange);
     }
 
@@ -88,7 +90,9 @@ const Maintenance = (() => {
       }
       const searchInput = document.getElementById('maintenance-search');
       if (searchInput) {
-          const debouncedHandler = typeof Utilities !== 'undefined' ? Utilities.debounce(handleSearchInput, 300) : debounce(handleSearchInput, 300);
+          const debouncedHandler = typeof Utilities !== 'undefined' && Utilities.debounce ? 
+                                   Utilities.debounce(handleSearchInput, 300) : 
+                                   debounce(handleSearchInput, 300);
           searchInput.removeEventListener('input', debouncedHandler); // Prevenir duplicação no input
           searchInput.addEventListener('input', debouncedHandler);
       }
@@ -669,12 +673,6 @@ const Maintenance = (() => {
    function handleNextToStep2() {
         console.log("Botão Próximo (Step 1) clicado. Validando Etapa 1...");
         
-        // Diagnóstico: verificar se a função validateStep1 existe
-        if (typeof validateStep1 !== 'function') {
-            console.error("ERRO CRÍTICO: função validateStep1 não encontrada!");
-            return;
-        }
-        
         // Adicionar try/catch para capturar erros na validação
         try {
             const isValid = validateStep1();
@@ -683,14 +681,6 @@ const Maintenance = (() => {
             if (isValid) {
                 console.log("Validação Etapa 1: OK");
                 saveStep1Data();
-                
-                // Verificar se showStep existe
-                if (typeof showStep !== 'function') {
-                    console.error("ERRO CRÍTICO: função showStep não encontrada!");
-                    return;
-                }
-                
-                // Tentar mostrar a próxima etapa
                 showStep(2);
                 
                 // Verificar se o elemento problem-category existe
@@ -718,12 +708,6 @@ const Maintenance = (() => {
    function handleNextToStep3() {
         console.log("Botão Próximo (Step 2) clicado. Validando Etapa 2...");
         
-        // Diagnóstico: verificar se a função validateStep2 existe
-        if (typeof validateStep2 !== 'function') {
-            console.error("ERRO CRÍTICO: função validateStep2 não encontrada!");
-            return;
-        }
-        
         try {
             const isValid = validateStep2();
             console.log("Resultado da validação Etapa 2:", isValid);
@@ -732,13 +716,6 @@ const Maintenance = (() => {
                 console.log("Validação Etapa 2: OK");
                 saveStep2Data();
                 updateSummary();
-                
-                // Verificar se showStep existe
-                if (typeof showStep !== 'function') {
-                    console.error("ERRO CRÍTICO: função showStep não encontrada!");
-                    return;
-                }
-                
                 showStep(3);
                 
                 const submitButton = document.getElementById('submit-maintenance');
@@ -977,6 +954,7 @@ const Maintenance = (() => {
            console.log("Etapa 3 mostrada");
        } else {
            console.error(`Etapa inválida: ${step}`);
+           return;
        }
        
        // Atualizar indicadores de etapa, se existirem
@@ -1360,6 +1338,6 @@ const Maintenance = (() => {
   return {
     initialize,
     openMaintenanceForm,
-    loadMaintenanceList // Necessário para ser chamado por main.js
+    loadMaintenanceList
   };
 })();
