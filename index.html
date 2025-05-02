@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>GrupoGPS Mecanizada - Sistema de Dupla Checagem de Manutenção</title>
-  
+
   <!-- Favicon -->
   <link rel="icon" href="data:,">
 
@@ -13,7 +13,7 @@
 
   <!-- Estilos CSS -->
   <link rel="stylesheet" href="css/styles.css">
-  
+
   <!-- JavaScript principal será carregado no final do body -->
 </head>
 
@@ -130,12 +130,13 @@
       <!-- Gráficos Avançados -->
       <div class="section">
         <h3 class="section-title">Análises Avançadas</h3>
-        
+
         <div class="grid-container">
-          <!-- Distribuição por Área (Interna/Externa) -->
+          <!-- Alteração 1: Mudar "Distribuição por Área" para "Local de Manutenção" -->
+          <!-- Localização: Dentro da seção de gráficos avançados no dashboard -->
           <div class="section sub-section">
             <h4 class="section-title">
-              Distribuição por Área
+              Local de Manutenção
               <div class="section-actions">
                 <button class="btn-icon" id="refresh-area-chart" title="Atualizar">↻</button>
               </div>
@@ -144,7 +145,7 @@
               <canvas id="area-distribution-chart"></canvas>
             </div>
           </div>
-          
+
           <!-- Categorias de Problemas -->
           <div class="section sub-section">
             <h4 class="section-title">
@@ -158,7 +159,7 @@
             </div>
           </div>
         </div>
-        
+
         <div class="grid-container">
           <!-- Tendência Mensal -->
           <div class="section sub-section">
@@ -172,7 +173,7 @@
               <canvas id="monthly-trend-chart"></canvas>
             </div>
           </div>
-          
+
           <!-- Críticas vs Regulares -->
           <div class="section sub-section">
             <h4 class="section-title">
@@ -186,7 +187,7 @@
             </div>
           </div>
         </div>
-        
+
         <div class="grid-container">
           <!-- Resultados das Verificações -->
           <div class="section sub-section">
@@ -200,7 +201,7 @@
               <canvas id="verification-results-chart"></canvas>
             </div>
           </div>
-          
+
           <!-- Frequência de Manutenções -->
           <div class="section sub-section">
             <h4 class="section-title">
@@ -441,7 +442,7 @@
       <div class="form-container">
         <div class="form-header">
           <h2 class="form-title">Registrar Nova Manutenção</h2>
-          <button class="form-close" id="close-maintenance-form">&times;</button>
+          <button class="form-close" id="close-maintenance-form">×</button>
         </div>
 
         <div class="form-steps">
@@ -641,7 +642,7 @@
       <div class="form-container">
         <div class="form-header">
           <h2 class="form-title">Verificação de Manutenção</h2>
-          <button class="form-close" id="close-verification-form">&times;</button>
+          <button class="form-close" id="close-verification-form">×</button>
         </div>
 
         <form id="verification-form">
@@ -704,7 +705,7 @@
       <div class="form-container">
         <div class="form-header">
           <h2 class="form-title">Detalhes da Manutenção</h2>
-          <button class="form-close" id="close-detail">&times;</button>
+          <button class="form-close" id="close-detail">×</button>
         </div>
 
         <div class="maintenance-detail" id="maintenance-detail-content">
