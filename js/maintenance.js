@@ -14,9 +14,9 @@ const Maintenance = (() => {
   // Estado do formulário
   let formData = {
     equipmentType: '',
-    equipmentId: '',
-    otherEquipment: '',
-    newEquipmentId: '', // Campo adicionado para Aspirador/Poliguindaste
+    equipmentId: '', // Para dropdown padrão
+    otherEquipment: '', // Para tipo 'Outro'
+    customEquipmentId: '', // Campo renomeado/clarificado para Aspirador/Poliguindaste
     technician: '',
     date: '',
     area: '',
@@ -27,6 +27,8 @@ const Maintenance = (() => {
     otherCategory: '',
     problemDescription: '',
     additionalNotes: ''
+    // Adicionar status se for relevante manter em edição
+    // status: ''
   };
 
   // Variável para controlar se é um formulário de edição
@@ -43,7 +45,7 @@ const Maintenance = (() => {
   function loadDropdownData() {
     loadEquipmentTypes(); // Esta função agora também chama setupEquipmentTypeEvents
     loadProblemCategories();
-    // loadEquipmentIds() é chamado via evento change do tipo de equipamento
+    // loadEquipmentIds() é chamado via evento change do tipo de equipamento (pelo listener em setupEventListeners)
   }
 
   function setupEventListeners() {
@@ -81,16 +83,23 @@ const Maintenance = (() => {
     const problemCategorySelect = document.getElementById('problem-category');
     if (problemCategorySelect) problemCategorySelect.addEventListener('change', handleProblemCategoryChange);
 
-    // Listener para o select de Tipo de Equipamento para carregar IDs (se necessário, pois setupEquipmentTypeEvents já faz)
+    // Listener para o select de Tipo de Equipamento para carregar IDs
+    // A função setupEquipmentTypeEvents também adiciona um listener de change, mas este
+    // é específico para carregar os IDs via loadEquipmentIds QUANDO um tipo padrão é selecionado.
     const equipmentTypeSelect = document.getElementById('equipment-type');
-    // O listener principal para Tipo de Equipamento agora é setupEquipmentTypeEvents
-    // Mas ainda podemos precisar carregar IDs *após* a seleção (se não for Outro/Aspirador/Poli)
     if (equipmentTypeSelect) {
         equipmentTypeSelect.addEventListener('change', () => {
             const selectedType = equipmentTypeSelect.value;
-            // Só carrega IDs se não for um tipo especial que usa campo de texto
+            // Só carrega IDs se for um tipo padrão (não Outro, não Aspirador, não Poliguindaste)
             if (selectedType && selectedType !== 'Outro' && selectedType !== 'Aspirador' && selectedType !== 'Poliguindaste') {
                 loadEquipmentIds();
+            } else {
+                // Para tipos especiais, pode ser útil limpar o select de IDs, embora loadEquipmentIds já o faça.
+                 const idSelect = document.getElementById('equipment-id');
+                 if(idSelect) {
+                      idSelect.innerHTML = `<option value="">${selectedType ? 'Não aplicável para este tipo' : 'Selecione o tipo primeiro'}</option>`;
+                      idSelect.disabled = true;
+                 }
             }
         });
     }
@@ -102,9 +111,9 @@ const Maintenance = (() => {
 
     // Listeners para filtros e busca na aba Manutenções
     const searchInput = document.getElementById('maintenance-search');
-    if (searchInput) searchInput.addEventListener('input', debounce(filterAndRenderList, 300)); // Aplica debounce
+    if (searchInput) searchInput.addEventListener('input', debounce(handleSearchInput, 300)); // Aplica debounce
 
-    const filterItems = document.querySelectorAll('.filter-container .filter-item');
+    const filterItems = document.querySelectorAll('#tab-maintenance .filter-container .filter-item'); // Escopo para aba Manutenção
     filterItems.forEach(item => {
         item.addEventListener('click', handleFilterClick);
     });
@@ -126,135 +135,149 @@ const Maintenance = (() => {
       if (maintenanceId && dataToEdit) {
           isEditMode = true;
           editingMaintenanceId = maintenanceId;
-          populateFormForEdit(dataToEdit); // Popula antes de mostrar o overlay
           document.querySelector('#maintenance-form-overlay .form-title').textContent = 'Editar Manutenção';
-           // Mudar texto do botão de submit
-           const submitButton = document.getElementById('submit-maintenance');
-           if(submitButton) submitButton.textContent = 'Salvar Alterações';
+          const submitButton = document.getElementById('submit-maintenance');
+          if(submitButton) submitButton.textContent = 'Salvar Alterações';
+          // Popula o formulário DEPOIS de definir o modo de edição
+          populateFormForEdit(dataToEdit);
       } else {
           isEditMode = false;
           editingMaintenanceId = null;
           document.querySelector('#maintenance-form-overlay .form-title').textContent = 'Registrar Nova Manutenção';
-           // Resetar texto do botão de submit
-           const submitButton = document.getElementById('submit-maintenance');
-           if(submitButton) submitButton.textContent = 'Finalizar Registro';
+          const submitButton = document.getElementById('submit-maintenance');
+          if(submitButton) submitButton.textContent = 'Finalizar Registro';
+          // Para novo form, garantir que os dropdowns estejam carregados (se ainda não estiverem)
+          // loadDropdownData(); // Pode causar recargas desnecessárias se já carregado
+           // Assegurar que o estado visual inicial dos campos de equipamento esteja correto
+           const typeSelect = document.getElementById('equipment-type');
+           if(typeSelect) {
+               typeSelect.dispatchEvent(new Event('change')); // Dispara evento para ajustar visibilidade inicial
+           }
       }
       showStep(1); // Começa sempre na etapa 1
       const overlay = document.getElementById('maintenance-form-overlay');
       if(overlay) overlay.style.display = 'block';
-
-       // Após popular e tornar visível, garantir que o estado visual dos campos de equipamento esteja correto
-       const typeSelect = document.getElementById('equipment-type');
-       if(typeSelect) {
-           // Dispara manualmente o evento change para garantir que setupEquipmentTypeEvents seja executado
-           // com os valores preenchidos do modo de edição.
-           typeSelect.dispatchEvent(new Event('change'));
-       }
+       document.getElementById('equipment-type')?.focus(); // Foco no primeiro campo
   }
 
    function populateFormForEdit(data) {
-       // Preencher campos da Etapa 1
+       // Pré-carrega o formData com os dados existentes para referência
+       formData = { ...formData, ...data }; // Sobrescreve chaves existentes com dados da API
+
+       // --- Etapa 1 ---
+       // Tipo de Equipamento
        setSelectValue('equipment-type', data.tipoEquipamento);
 
-       // Esperar o carregamento dos tipos (se necessário) e então definir o valor
-       // O evento change disparado em openMaintenanceForm cuidará da lógica de exibição
-       const selectedType = data.tipoEquipamento;
-       if (selectedType === 'Outro') {
-           document.getElementById('other-equipment').value = data.placaOuId || '';
-       } else if (selectedType === 'Aspirador' || selectedType === 'Poliguindaste') {
-            // O campo #new-equipment-id pode não existir ainda, setupEquipmentTypeEvents o criará
-            // Precisamos definir o valor DEPOIS que o campo for criado pelo evento change
-            // Solução: Armazenar temporariamente e definir no listener de change se estiver em modo de edição
-            // OU chamar setupEquipmentTypeEvents aqui e então preencher
-            setupEquipmentTypeEvents(); // Garante que o campo existe se necessário
-            const newEquipInput = document.getElementById('new-equipment-id');
-            if (newEquipInput) {
-                 newEquipInput.value = data.placaOuId || '';
-            } else {
-                 console.warn("Campo new-equipment-id não encontrado após setupEquipmentTypeEvents.");
+       // Necessário disparar 'change' no tipo ANTES de definir os valores dos campos dependentes
+       const typeSelect = document.getElementById('equipment-type');
+       if (typeSelect) {
+           // Disparar evento para que setupEquipmentTypeEvents ajuste a visibilidade dos campos
+           typeSelect.dispatchEvent(new Event('change'));
+           // Agora preencher o campo de ID correto que ficou visível
+            const selectedType = data.tipoEquipamento;
+            if (selectedType === 'Outro') {
+                document.getElementById('other-equipment').value = data.placaOuId || '';
+            } else if (selectedType === 'Aspirador' || selectedType === 'Poliguindaste') {
+                // O campo #custom-equipment-id foi criado/tornado visível pelo evento 'change'
+                const customIdInput = document.getElementById('custom-equipment-id');
+                if (customIdInput) {
+                     customIdInput.value = data.placaOuId || '';
+                } else {
+                     console.warn("Campo custom-equipment-id não encontrado após disparar 'change' no tipo.");
+                }
+            } else if (selectedType) {
+                // Tipo padrão, carregar IDs e então selecionar o valor
+                // É importante que loadEquipmentIds retorne uma Promise
+                loadEquipmentIds().then(() => {
+                    setSelectValue('equipment-id', data.placaOuId);
+                }).catch(err => {
+                     console.error("Erro ao carregar IDs para edição:", err);
+                     // Mesmo com erro, tentar definir o valor (pode ser que já estivesse carregado)
+                     setSelectValue('equipment-id', data.placaOuId);
+                });
             }
-            // Esconder dropdown padrão (o evento change fará isso)
-       } else {
-            // Tipo padrão, carregar IDs e selecionar
-            loadEquipmentIds().then(() => {
-                setSelectValue('equipment-id', data.placaOuId);
-            });
        }
 
+       // Outros campos da Etapa 1
        document.getElementById('technician-name').value = data.responsavel || '';
-       document.getElementById('maintenance-date').value = data.dataManutencao || '';
+       document.getElementById('maintenance-date').value = data.dataManutencao ? data.dataManutencao.split('T')[0] : ''; // Formato YYYY-MM-DD
        setSelectValue('area', data.area);
        document.getElementById('office').value = data.localOficina || '';
        setSelectValue('maintenance-type', data.tipoManutencao);
-       document.getElementById('is-critical').checked = data.eCritico || false;
+       document.getElementById('is-critical').checked = data.eCritico || data.isCritical || false; // Compatibilidade de nomes
 
-       // Preencher campos da Etapa 2
-       formData = { ...formData, ...data }; // Atualiza formData com dados existentes
+       // --- Etapa 2 ---
+       // Categoria de Problema
        setSelectValue('problem-category', data.categoriaProblema);
-        // Precisamos garantir que handleProblemCategoryChange seja chamado
-        const categorySelect = document.getElementById('problem-category');
-        if(categorySelect) categorySelect.dispatchEvent(new Event('change')); // Dispara o evento
+       const categorySelect = document.getElementById('problem-category');
+        if(categorySelect) {
+             // Disparar evento para ajustar o campo 'Outro'
+             categorySelect.dispatchEvent(new Event('change'));
+              // Preencher campo 'Outro' SE A CATEGORIA FOR 'Outro'
+              if (data.categoriaProblema === 'Outro') {
+                   // A API pode retornar o texto no campo principal ou num campo 'categoriaProblemaOutro'
+                   document.getElementById('other-category').value = data.categoriaProblemaOutro || data.categoriaProblema || '';
+              }
+        }
 
-       if (data.categoriaProblema === 'Outro') {
-            document.getElementById('other-category').value = data.categoriaProblemaOutro || data.categoriaProblema; // Usa campo específico se houver
-            document.getElementById('other-category-field').style.display = 'block';
-       } else {
-            document.getElementById('other-category-field').style.display = 'none';
-       }
-       document.getElementById('problem-description').value = data.detalhesproblema || '';
-       document.getElementById('additional-notes').value = data.observacoes || '';
+       document.getElementById('problem-description').value = data.detalhesproblema || data.problemDescription || '';
+       document.getElementById('additional-notes').value = data.observacoes || data.additionalNotes || '';
    }
 
     // Função auxiliar para definir valor de um select (tratando caso a option não exista)
     function setSelectValue(selectId, value) {
         const select = document.getElementById(selectId);
-        if (select && value !== undefined && value !== null) {
-            // Procurar pelo valor exato
-            let optionExists = Array.from(select.options).some(opt => opt.value === value);
+        if (!select) {
+             console.warn(`Select element with ID "${selectId}" not found.`);
+             return;
+        }
+        if (value === undefined || value === null) {
+             select.value = ""; // Define como vazio se o valor for nulo/undefined
+             return;
+        }
 
-            if (optionExists) {
-                select.value = value;
+         const stringValue = String(value); // Trabalhar com string para consistência
+
+        // Tenta encontrar pelo valor exato
+        let optionExists = Array.from(select.options).some(opt => opt.value === stringValue);
+
+        if (optionExists) {
+            select.value = stringValue;
+        } else {
+            // Tenta encontrar valor case-insensitive ou com espaços
+            const lowerTrimmedValue = stringValue.toLowerCase().trim();
+            const foundOptionByValue = Array.from(select.options).find(opt => opt.value.toLowerCase().trim() === lowerTrimmedValue);
+            if (foundOptionByValue) {
+                select.value = foundOptionByValue.value; // Usa o valor original da option
+                optionExists = true;
             } else {
-                 // Tentar encontrar valor case-insensitive ou com espaços (flexibilidade)
-                 const lowerValue = String(value).toLowerCase().trim();
-                 const foundOption = Array.from(select.options).find(opt => opt.value.toLowerCase().trim() === lowerValue);
-                 if (foundOption) {
-                      select.value = foundOption.value; // Usa o valor original da option encontrada
-                      optionExists = true;
-                 }
-            }
-
-            if (!optionExists) {
-                console.warn(`Valor "${value}" não encontrado no select "${selectId}". Verificando texto...`);
-                 // Tentar encontrar pelo texto da option como fallback
-                 const textValue = String(value).trim();
-                 const foundOptionByText = Array.from(select.options).find(opt => opt.textContent.trim() === textValue);
+                 // Tenta encontrar pelo texto da option como fallback
+                 const trimmedTextValue = stringValue.trim();
+                 const foundOptionByText = Array.from(select.options).find(opt => opt.textContent.trim() === trimmedTextValue);
                  if (foundOptionByText) {
                      select.value = foundOptionByText.value;
-                     console.log(`Valor "${value}" encontrado pelo TEXTO no select "${selectId}". Usando value "${foundOptionByText.value}".`);
                      optionExists = true;
-                 } else {
-                    console.warn(`Valor "${value}" TAMBÉM não encontrado pelo TEXTO no select "${selectId}". Definindo como vazio.`);
-                    select.value = ""; // Define como vazio ou outra opção padrão
+                     console.log(`Valor "${value}" encontrado pelo TEXTO no select "${selectId}". Usando value "${foundOptionByText.value}".`);
                  }
             }
-             // Disparar evento change é importante mas pode causar loops ou chamadas indesejadas
-             // É melhor chamar explicitamente as funções que dependem dele após setar todos os valores.
-             // select.dispatchEvent(new Event('change')); // CUIDADO com esta linha aqui
-        } else if (select) {
-             select.value = ""; // Define como vazio se o valor for nulo/undefined
+        }
+
+        if (!optionExists) {
+            console.warn(`Valor "${value}" não encontrado no select "${selectId}". Definindo como vazio.`);
+            select.value = ""; // Define como vazio ou outra opção padrão
         }
     }
 
   function closeForm() {
     // Usar uma função global de confirmação se existir
     const confirmationMessage = isEditMode ? 'Descartar alterações não salvas?' : 'Cancelar o registro da nova manutenção?';
-     if (typeof showConfirmation === 'function') {
-         showConfirmation(confirmationMessage, () => {
+     if (typeof Utilities !== 'undefined' && Utilities.showConfirmation) {
+         Utilities.showConfirmation(confirmationMessage, () => {
               document.getElementById('maintenance-form-overlay').style.display = 'none';
               resetForm(); // Limpa o formulário ao fechar
          });
      } else {
+        // Fallback para confirm padrão
         if (confirm(confirmationMessage)) {
           document.getElementById('maintenance-form-overlay').style.display = 'none';
           resetForm();
@@ -265,7 +288,7 @@ const Maintenance = (() => {
   function resetForm() {
     // Limpar dados do estado interno
     formData = {
-      equipmentType: '', equipmentId: '', otherEquipment: '', newEquipmentId: '',
+      equipmentType: '', equipmentId: '', otherEquipment: '', customEquipmentId: '',
       technician: '', date: '', area: '', office: '', maintenanceType: '', isCritical: false,
       problemCategory: '', otherCategory: '', problemDescription: '', additionalNotes: ''
     };
@@ -276,30 +299,30 @@ const Maintenance = (() => {
     const form = document.getElementById('maintenance-form');
     if (form) form.reset();
 
-    // Esconder campos condicionais
+    // Esconder campos condicionais e remover os dinamicamente criados
     const otherEquipField = document.getElementById('other-equipment-field');
     if (otherEquipField) otherEquipField.style.display = 'none';
     const otherCatField = document.getElementById('other-category-field');
     if (otherCatField) otherCatField.style.display = 'none';
-    const newEquipField = document.getElementById('new-equipment-field'); // Campo para Aspirador/Poli
-    if (newEquipField) newEquipField.style.display = 'none';
+    const customEquipField = document.getElementById('custom-equipment-id-field'); // Campo customizado para Aspirador/Poli
+    if (customEquipField) {
+         // Remover o campo inteiro ou apenas esconder e limpar? Melhor esconder e limpar.
+         customEquipField.style.display = 'none';
+         const customInput = document.getElementById('custom-equipment-id');
+         if(customInput) customInput.value = '';
+    }
 
-     // Garantir que o dropdown de ID padrão esteja visível
-     const equipIdSelect = document.getElementById('equipment-id');
-     if (equipIdSelect && equipIdSelect.parentElement) {
-        equipIdSelect.parentElement.style.display = 'block'; // Ou 'flex' ou o que for apropriado
+     // Garantir que o dropdown de ID padrão esteja potencialmente visível (dependerá do tipo selecionado depois)
+     const equipIdSelectContainer = document.getElementById('equipment-id')?.parentElement;
+     if (equipIdSelectContainer) {
+        // Inicialmente escondido, pois nenhum tipo está selecionado
+        equipIdSelectContainer.style.display = 'none';
      }
 
-
     // Redefinir bordas de validação e mensagens de erro
-    document.querySelectorAll('#maintenance-form .form-control, #maintenance-form .form-check input').forEach(el => {
-        if(el.style) el.style.borderColor = ''; // Resetar borda
-    });
-    document.querySelectorAll('#maintenance-form .error-message-field').forEach(span => {
-        span.textContent = '';
-        span.style.display = 'none';
-    });
-
+    clearValidationErrors(1);
+    clearValidationErrors(2);
+    clearValidationErrors(3); // Limpar erros do resumo (se houver)
 
      // Resetar título e botão de submit
      const titleElement = document.querySelector('#maintenance-form-overlay .form-title');
@@ -307,292 +330,300 @@ const Maintenance = (() => {
      const submitButton = document.getElementById('submit-maintenance');
      if(submitButton) submitButton.textContent = 'Finalizar Registro';
 
-
     // Voltar para etapa 1
     showStep(1);
   }
 
   // --- Funções de Carregamento de Dados (Dropdowns, Lista) ---
 
-  // === INÍCIO: CÓDIGO DA ATUALIZAÇÃO PARA loadEquipmentTypes ===
-  // Modificação na função loadEquipmentTypes
-    function loadEquipmentTypes() {
-      // Usando a API correta - verificar se o método existe
-      if (typeof API.getEquipmentTypes === 'function') {
-        API.getEquipmentTypes()
-          .then(response => {
+  // ================================================================
+  // === INÍCIO: CÓDIGO ATUALIZADO PARA TIPOS DE EQUIPAMENTO      ===
+  // ================================================================
+  function loadEquipmentTypes() {
+    try {
+      showLoading(true, 'Carregando tipos de equipamento...');
+      // Tenta usar a API primeiro (assumindo que API.getMaintenanceFormData retorna os tipos)
+      // Se a API for diferente, ajuste a chamada. Ex: API.getEquipmentTypes()
+      API.getMaintenanceFormData()
+        .then(response => {
+          if (response.success && response.formData) {
             const select = document.getElementById('equipment-type');
-            if (!select) return; // Sai se o select não existe
+            if (!select) return;
 
             select.innerHTML = '<option value="">Selecione o tipo...</option>';
 
-            if (response.success) {
-              // Tipos básicos a serem garantidos
-              let combinedTypes = [];
+            // Lista base de tipos
+            let equipmentTypes = [];
 
-              // Adicionar tipos da resposta da API, evitando duplicatas
-              if (response.types && Array.isArray(response.types)) {
-                response.types.forEach(type => {
-                    // Normaliza para comparação (remove espaços extras, minúsculas)
-                    const normalizedType = type ? String(type).trim().toLowerCase() : null;
-                    if (normalizedType && !combinedTypes.some(t => String(t).trim().toLowerCase() === normalizedType)) {
-                        combinedTypes.push(String(type).trim()); // Adiciona o tipo original trimado
-                    }
-                });
-              } else {
-                 console.warn("API.getEquipmentTypes retornou sucesso mas 'types' não é um array ou está ausente.");
+            // Adicionar tipos da resposta da API (ajuste a chave se necessário, ex: response.formData.tiposEquipamento)
+            const apiTypes = response.formData.opcoesTipoEquipe || response.formData.equipmentTypes;
+            if (apiTypes && Array.isArray(apiTypes)) {
+              apiTypes.forEach(type => {
+                if (type && !equipmentTypes.includes(type)) {
+                  equipmentTypes.push(type);
+                }
+              });
+            } else {
+               console.warn("API retornou sucesso, mas os tipos de equipamento não foram encontrados ou não são um array na resposta:", response.formData);
+            }
+
+            // Garantir que os novos tipos ('Aspirador', 'Poliguindaste') estejam incluídos
+            const requiredTypes = ['Aspirador', 'Poliguindaste'];
+            requiredTypes.forEach(type => {
+              if (!equipmentTypes.includes(type)) {
+                equipmentTypes.push(type);
               }
+            });
 
-              // Garantir que os tipos necessários estão presentes (comparação case-insensitive)
-              const requiredTypes = ['Alta Pressão', 'Auto Vácuo / Hiper Vácuo', 'Aspirador', 'Poliguindaste'];
-              requiredTypes.forEach(reqType => {
-                 const normalizedReqType = reqType.toLowerCase().trim();
-                 if (!combinedTypes.some(t => String(t).toLowerCase().trim() === normalizedReqType)) {
-                    combinedTypes.push(reqType); // Adiciona se não existir
+            // Opcional: Ordenar alfabeticamente
+            // equipmentTypes.sort((a, b) => a.localeCompare(b));
+
+            // Adicionar todos os tipos (combinados e únicos) ao select
+            equipmentTypes.forEach(type => {
+              const option = document.createElement('option');
+              option.value = type;
+              option.textContent = type;
+              select.appendChild(option);
+            });
+
+            // Adicionar opção "Outro" no final, garantindo que não esteja duplicada
+            if (!equipmentTypes.includes('Outro')) {
+                 const otherOption = document.createElement('option');
+                 otherOption.value = 'Outro';
+                 otherOption.textContent = 'Outro';
+                 select.appendChild(otherOption);
+            } else {
+                 // Se 'Outro' já veio da API, mover para o final se necessário
+                 const outroOpt = Array.from(select.options).find(opt => opt.value === 'Outro');
+                 if (outroOpt && outroOpt !== select.options[select.options.length - 1]) {
+                      select.appendChild(outroOpt); // Move para o fim
                  }
-              });
-
-              // Ordenar alfabeticamente? Opcional.
-              // combinedTypes.sort();
-
-              // Adicionar tipos ao select
-              combinedTypes.forEach(type => {
-                const option = document.createElement('option');
-                option.value = type; // Usar o valor como veio (com casing original)
-                option.textContent = type;
-                select.appendChild(option);
-              });
-
-              // Adicionar "Outro" no final
-              const otherOption = document.createElement('option');
-              otherOption.value = 'Outro';
-              otherOption.textContent = 'Outro';
-              select.appendChild(otherOption);
-
-            } else {
-                 console.error("Erro reportado pela API ao carregar tipos de equipamento:", response.message || "Erro desconhecido");
-                 loadDefaultEquipmentTypes(); // Carrega padrões em caso de erro da API
             }
-          })
-          .catch(error => {
-            console.error("Erro de rede/conexão ao carregar tipos de equipamento:", error);
-            // Carregar tipos padrão em caso de erro de rede/conexão
-            loadDefaultEquipmentTypes();
-          })
-          .finally(() => {
-             // Configurar evento para mostrar/esconder campo de ID (sempre, após sucesso ou falha/fallback)
-             // Isso garante que mesmo com fallback, a lógica de exibição funcione.
-             setupEquipmentTypeEvents();
-          });
-      } else {
-        console.error("API.getEquipmentTypes não está disponível. Usando valores padrão.");
-        loadDefaultEquipmentTypes();
-        // Configurar evento mesmo com fallback
-        setupEquipmentTypeEvents();
-      }
-    }
 
-    // Função para carregar tipos padrão em caso de erro
-    function loadDefaultEquipmentTypes() {
-      const select = document.getElementById('equipment-type');
-      if (!select) return;
-
-      select.innerHTML = '<option value="">Selecione o tipo...</option>';
-
-      const defaultTypes = [
-        'Alta Pressão',
-        'Auto Vácuo / Hiper Vácuo',
-        'Aspirador',
-        'Poliguindaste',
-        'Outro' // Outro já está aqui
-      ];
-
-      defaultTypes.forEach(type => {
-        if (type) { // Adiciona verificação para evitar nulos/vazios
-            const option = document.createElement('option');
-            option.value = type;
-            option.textContent = type;
-            select.appendChild(option);
-        }
-      });
-
-       // Não precisa chamar setupEquipmentTypeEvents aqui se for chamado no .finally ou no .catch de loadEquipmentTypes
-    }
-
-    // Configurar eventos para o campo de tipo de equipamento
-    function setupEquipmentTypeEvents() {
-      const typeSelect = document.getElementById('equipment-type');
-      if (!typeSelect) return;
-
-      // Remover listener antigo para evitar duplicação se esta função for chamada múltiplas vezes
-      // typeSelect.removeEventListener('change', handleEquipmentTypeLogic); // Precisa de uma função nomeada
-
-      // Usando uma função nomeada para poder remover depois se necessário
-      const handleEquipmentTypeLogic = function() {
-        const selectedType = this.value;
-        const equipIdSelectContainer = document.getElementById('equipment-id')?.parentElement; // Container do select padrão
-        const equipIdSelect = document.getElementById('equipment-id');
-        const otherEquipField = document.getElementById('other-equipment-field');
-        const newEquipFieldContainerId = 'new-equipment-field'; // ID do container do novo campo
-        let newEquipFieldContainer = document.getElementById(newEquipFieldContainerId);
-        const newEquipInputId = 'new-equipment-id'; // ID do input dentro do novo container
-
-
-        // 1. Mostrar/esconder campo de texto "Outro Equipamento"
-        if (otherEquipField) {
-          otherEquipField.style.display = selectedType === 'Outro' ? 'block' : 'none';
-          const otherInput = document.getElementById('other-equipment');
-          if (otherInput) otherInput.required = (selectedType === 'Outro'); // Define required
-        }
-
-        // 2. Lógica para Aspirador e Poliguindaste (campo de texto customizado)
-        if (selectedType === 'Aspirador' || selectedType === 'Poliguindaste') {
-          // Esconder o dropdown de equipamentos padrão
-          if (equipIdSelectContainer) {
-            equipIdSelectContainer.style.display = 'none';
-          }
-           if (equipIdSelect) equipIdSelect.required = false; // Não é mais obrigatório
-
-          // Verificar/criar campo para ID personalizado (#new-equipment-field)
-          if (!newEquipFieldContainer) {
-            // Criar novo campo
-            newEquipFieldContainer = document.createElement('div');
-            newEquipFieldContainer.id = newEquipFieldContainerId;
-            newEquipFieldContainer.className = 'form-group form-col'; // Adiciona classes para layout
-            newEquipFieldContainer.innerHTML = `
-              <label for="${newEquipInputId}">Identificação do ${selectedType} <span class="form-required">*</span></label>
-              <input type="text" class="form-control" id="${newEquipInputId}" name="${newEquipInputId}" required placeholder="Digite a identificação do equipamento">
-            `;
-
-            // Inserir após o dropdown de TIPO de equipamentos (ou onde fizer sentido no layout)
-            const typeSelectContainer = typeSelect.parentElement; // Container do select de tipo
-             if (typeSelectContainer && typeSelectContainer.parentElement) {
-                // Insere DEPOIS do container do select de tipo
-                typeSelectContainer.parentElement.insertBefore(newEquipFieldContainer, typeSelectContainer.nextElementSibling);
-            } else {
-                 console.error("Não foi possível encontrar o local para inserir o campo de ID customizado.");
-                 // Fallback: Adicionar ao final do step-content?
-                 document.getElementById('step-1-content')?.appendChild(newEquipFieldContainer);
-            }
+            // Configurar eventos DEPOIS de popular o select
+            setupEquipmentTypeEvents();
 
           } else {
-            // Atualizar campo existente (label e visibilidade)
-            const label = newEquipFieldContainer.querySelector('label');
-            if (label) {
-              label.innerHTML = `Identificação do ${selectedType} <span class="form-required">*</span>`; // Usa innerHTML para incluir o span
-            }
-            newEquipFieldContainer.style.display = 'block'; // Garante visibilidade
+             // A API retornou sucesso=false ou formData inválido
+             console.error("Erro reportado pela API ou dados inválidos:", response?.message || "Dados do formulário inválidos");
+             throw new Error(response?.message || "Dados do formulário inválidos"); // Joga erro para o catch
           }
-          // Garantir que o input dentro do container seja obrigatório
-          const newEquipInput = document.getElementById(newEquipInputId);
-          if (newEquipInput) newEquipInput.required = true;
-
-        } else {
-          // 3. Para outros tipos (incluindo vazio e "Outro"), esconder campo personalizado e mostrar dropdown padrão
-          if (newEquipFieldContainer) {
-            newEquipFieldContainer.style.display = 'none';
-            const newEquipInput = document.getElementById(newEquipInputId);
-             if (newEquipInput) newEquipInput.required = false; // Não é obrigatório
-          }
-
-          // Mostrar o dropdown de equipamentos padrão (exceto se for "Outro")
-          if (equipIdSelectContainer) {
-               // Só mostrar se um tipo válido (não vazio e não 'Outro') for selecionado
-               equipIdSelectContainer.style.display = (selectedType && selectedType !== 'Outro') ? 'block' : 'none';
-          }
-          if (equipIdSelect) {
-               // Obrigatório apenas se um tipo for selecionado e não for 'Outro'
-               equipIdSelect.required = (selectedType && selectedType !== 'Outro');
-          }
-        }
-
-        // 4. Limpar campos não relevantes ao trocar o tipo
-        if(selectedType !== 'Outro' && document.getElementById('other-equipment')) {
-             document.getElementById('other-equipment').value = '';
-        }
-        if(selectedType !== 'Aspirador' && selectedType !== 'Poliguindaste' && document.getElementById(newEquipInputId)) {
-             document.getElementById(newEquipInputId).value = '';
-        }
-        if((selectedType === 'Aspirador' || selectedType === 'Poliguindaste' || selectedType === 'Outro') && equipIdSelect) {
-             equipIdSelect.value = ''; // Limpa seleção do dropdown padrão
-        }
-
-      };
-
-       // Anexar o listener (removendo antes para segurança, caso seja chamada múltiplas vezes)
-       typeSelect.removeEventListener('change', handleEquipmentTypeLogic); // Previne duplicatas
-       typeSelect.addEventListener('change', handleEquipmentTypeLogic);
-
-       // Disparar o evento uma vez na configuração inicial para garantir o estado correto
-       // CUIDADO: Isso pode causar chamadas indesejadas se loadEquipmentTypes for chamado muitas vezes
-       // typeSelect.dispatchEvent(new Event('change')); // Comentado por segurança, chamado em openMaintenanceForm se necessário
+        })
+        .catch(error => {
+          // Erro na chamada API ou erro jogado do .then()
+          console.error("Erro ao carregar tipos de equipamento via API:", error);
+          showNotification("Falha ao buscar tipos de equipamento. Usando lista padrão.", "warning");
+          // Em caso de erro, carregue os tipos padrão
+          loadDefaultEquipmentTypes();
+           // Configurar eventos mesmo com fallback
+           setupEquipmentTypeEvents();
+        })
+        .finally(() => {
+           showLoading(false);
+        });
+    } catch (e) {
+       // Erro síncrono (raro aqui, mas possível)
+      console.error("Erro inesperado ao iniciar carregamento de tipos de equipamento:", e);
+       showNotification("Erro interno ao carregar tipos. Usando lista padrão.", "error");
+      loadDefaultEquipmentTypes();
+       setupEquipmentTypeEvents();
+       showLoading(false);
     }
-  // === FIM: CÓDIGO DA ATUALIZAÇÃO PARA loadEquipmentTypes ===
+  }
+
+  // Função para carregar tipos padrão quando a API falha ou não está disponível
+  function loadDefaultEquipmentTypes() {
+    const select = document.getElementById('equipment-type');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">Selecione o tipo...</option>';
+
+    // Lista padrão incluindo os novos tipos
+    const defaultTypes = [
+      'Alta Pressão',
+      'Auto Vácuo / Hiper Vácuo',
+      'Aspirador',
+      'Poliguindaste',
+      'Outro' // Garantir que 'Outro' esteja aqui
+    ];
+
+    defaultTypes.forEach(type => {
+      const option = document.createElement('option');
+      option.value = type;
+      option.textContent = type;
+      select.appendChild(option);
+    });
+
+     // setupEquipmentTypeEvents será chamado no final de loadEquipmentTypes (no catch/finally)
+  }
+
+  // Função para configurar eventos relacionados ao tipo de equipamento (mostrar/esconder campos)
+  function setupEquipmentTypeEvents() {
+    const typeSelect = document.getElementById('equipment-type');
+    if (!typeSelect) {
+       console.warn("Select 'equipment-type' não encontrado para configurar eventos.");
+       return;
+    }
+
+     // Usar uma função nomeada para poder remover o listener se necessário
+    const handleTypeChangeLogic = function() {
+      const selectedType = this.value;
+      const equipIdSelectContainer = document.getElementById('equipment-id')?.parentElement; // Div que contém o select padrão
+      const equipIdSelect = document.getElementById('equipment-id');
+      const otherEquipField = document.getElementById('other-equipment-field'); // Div do campo 'Outro'
+      const customEquipFieldId = 'custom-equipment-id-field'; // ID da div para o campo customizado
+      const customEquipInputId = 'custom-equipment-id'; // ID do input dentro da div customizada
+      let customEquipField = document.getElementById(customEquipFieldId);
+
+      // 1. Lógica para Campo "Outro Equipamento"
+      if (otherEquipField) {
+        otherEquipField.style.display = selectedType === 'Outro' ? 'block' : 'none';
+         const otherInput = otherEquipField.querySelector('input');
+         if(otherInput) otherInput.required = (selectedType === 'Outro');
+      }
+
+      // 2. Lógica para Tipos Especiais (Aspirador, Poliguindaste)
+      if (selectedType === 'Aspirador' || selectedType === 'Poliguindaste') {
+        // Esconder o dropdown de equipamento padrão
+        if (equipIdSelectContainer) {
+          equipIdSelectContainer.style.display = 'none';
+        }
+        if(equipIdSelect) equipIdSelect.required = false;
+
+        // Mostrar/Criar campo de ID personalizado
+        if (!customEquipField) {
+          // Criar a div se não existir
+          customEquipField = document.createElement('div');
+          customEquipField.id = customEquipFieldId;
+          customEquipField.className = 'form-group'; // Usar a mesma classe dos outros campos
+
+          customEquipField.innerHTML = `
+            <label for="${customEquipInputId}">Identificação do ${selectedType} <span class="form-required">*</span></label>
+            <input type="text" class="form-control" id="${customEquipInputId}" name="${customEquipInputId}" required>
+          `;
+
+          // Inserir o novo campo no DOM
+          // Tenta inserir após o campo 'other-equipment-field' se ele existir, senão após o dropdown de tipo.
+          const referenceNode = otherEquipField || typeSelect?.parentElement;
+          if (referenceNode && referenceNode.parentElement) {
+              // Insere DEPOIS do nó de referência
+               referenceNode.parentElement.insertBefore(customEquipField, referenceNode.nextSibling);
+          } else {
+               console.error("Não foi possível determinar onde inserir o campo de ID customizado.");
+               // Fallback: inserir no final da etapa 1
+               document.getElementById('step-1-content')?.appendChild(customEquipField);
+          }
+        } else {
+          // Se já existe, apenas atualiza o label e garante a visibilidade
+          const label = customEquipField.querySelector('label');
+          if (label) {
+            label.innerHTML = `Identificação do ${selectedType} <span class="form-required">*</span>`;
+          }
+          customEquipField.style.display = 'block'; // Garante que está visível
+        }
+         // Garante que o input dentro do campo customizado seja obrigatório
+         const customInput = document.getElementById(customEquipInputId);
+         if(customInput) customInput.required = true;
+
+      } else {
+        // 3. Lógica para Tipos Padrão ou Seleção Vazia
+        // Esconder o campo de ID personalizado
+        if (customEquipField) {
+          customEquipField.style.display = 'none';
+           const customInput = document.getElementById(customEquipInputId);
+           if(customInput) customInput.required = false;
+        }
+
+        // Mostrar/Esconder o dropdown de equipamento padrão
+        if (equipIdSelectContainer) {
+           // Mostrar APENAS se um tipo for selecionado E não for 'Outro'
+           const shouldShowStandardSelect = selectedType && selectedType !== 'Outro';
+           equipIdSelectContainer.style.display = shouldShowStandardSelect ? 'block' : 'none';
+           if(equipIdSelect) equipIdSelect.required = shouldShowStandardSelect;
+        }
+      }
+
+       // 4. Limpar valores de campos irrelevantes ao mudar o tipo
+       if (selectedType !== 'Outro') {
+           const otherInput = document.getElementById('other-equipment');
+           if (otherInput) otherInput.value = '';
+       }
+       if (selectedType !== 'Aspirador' && selectedType !== 'Poliguindaste') {
+           const customInput = document.getElementById(customEquipInputId);
+           if (customInput) customInput.value = '';
+       }
+       if (selectedType === 'Outro' || selectedType === 'Aspirador' || selectedType === 'Poliguindaste') {
+           if (equipIdSelect) equipIdSelect.value = ''; // Limpa seleção do dropdown padrão
+       }
+    };
+
+     // Remover listener antigo para evitar duplicação
+     typeSelect.removeEventListener('change', handleTypeChangeLogic);
+     // Adicionar o novo listener
+     typeSelect.addEventListener('change', handleTypeChangeLogic);
+  }
+  // ================================================================
+  // === FIM: CÓDIGO ATUALIZADO PARA TIPOS DE EQUIPAMENTO         ===
+  // ================================================================
 
 
   // Função para carregar IDs/Placas baseado no tipo selecionado
   function loadEquipmentIds() {
       const typeSelect = document.getElementById('equipment-type');
       const idSelect = document.getElementById('equipment-id');
-      if (!typeSelect || !idSelect) return Promise.resolve();
+      if (!typeSelect || !idSelect) return Promise.resolve(); // Retorna promise resolvida se elementos não existem
 
       const selectedType = typeSelect.value;
-      idSelect.innerHTML = '<option value="">Carregando...</option>'; // Feedback visual
+      idSelect.innerHTML = '<option value="">Carregando IDs...</option>'; // Feedback
       idSelect.disabled = true;
 
-      // Não carregar se: tipo vazio, 'Outro', 'Aspirador' ou 'Poliguindaste'
+      // Não carregar se tipo for vazio ou especial (Outro, Aspirador, Poliguindaste)
       if (!selectedType || selectedType === 'Outro' || selectedType === 'Aspirador' || selectedType === 'Poliguindaste') {
-          idSelect.innerHTML = `<option value="">${selectedType ? 'Não aplicável para este tipo' : 'Selecione o tipo primeiro'}</option>`;
-          idSelect.disabled = true;
-           // Garantir que o container do select esteja escondido se necessário (redundante c/ setupEvents?)
-           if(idSelect.parentElement) idSelect.parentElement.style.display = 'none';
+          idSelect.innerHTML = `<option value="">${selectedType ? 'Não aplicável' : 'Selecione o tipo'}</option>`;
+          // Container já deve estar escondido por setupEquipmentTypeEvents
           return Promise.resolve();
       }
 
-       // Garantir que o container do select esteja visível
-       if(idSelect.parentElement) idSelect.parentElement.style.display = 'block';
-
-      return API.getEquipmentIdsByType(selectedType) // Assumindo que existe essa função na API
+      // Chamar a API para buscar os IDs (ajuste o nome da função API se necessário)
+      return API.getEquipmentIdsByType(selectedType) // Ex: API.getPlacasPorTipo(selectedType)
           .then(response => {
               if (response && response.success && Array.isArray(response.ids)) {
                   idSelect.innerHTML = '<option value="">Selecione a placa/ID...</option>';
                   if (response.ids.length === 0) {
-                      idSelect.innerHTML = '<option value="">Nenhum ID encontrado</option>';
-                      idSelect.disabled = true; // Desabilitar se não há opções
+                      idSelect.innerHTML = '<option value="">Nenhum ID encontrado para este tipo</option>';
+                      idSelect.disabled = true;
                   } else {
                       response.ids.forEach(id => {
-                          if(id) {
+                          if (id !== null && id !== undefined) { // Checa se ID não é nulo/undefined
                               const option = document.createElement('option');
                               option.value = id;
                               option.textContent = id;
                               idSelect.appendChild(option);
                           }
                       });
-                       idSelect.disabled = false; // Habilitar após carregar
+                      idSelect.disabled = false; // Habilita após carregar
                   }
               } else {
-                  idSelect.innerHTML = '<option value="">Nenhum encontrado</option>';
-                  console.warn("Resposta inválida ou sem IDs para o tipo:", selectedType, response);
+                  console.warn("Resposta da API inválida ou sem sucesso para IDs:", selectedType, response);
+                  idSelect.innerHTML = '<option value="">Nenhum ID encontrado</option>';
                   idSelect.disabled = true;
               }
           })
           .catch(error => {
               console.error(`Erro ao carregar IDs para o tipo ${selectedType}:`, error);
-              idSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+              idSelect.innerHTML = '<option value="">Erro ao carregar IDs</option>';
               showNotification(`Erro ao buscar placas/IDs para ${selectedType}.`, "error");
               idSelect.disabled = true;
+               return Promise.reject(error); // Propaga o erro se necessário
           });
-          // .finally(() => {
-          //     // A lógica de enable/disable é mais complexa agora, feita dentro do then/catch
-          // });
   }
 
 
   function loadProblemCategories() {
-    // Usar cache simples
+    // Usar cache simples para evitar recargas
     if (loadProblemCategories.loaded) return Promise.resolve();
 
-    return API.getProblemCategories()
+    return API.getProblemCategories() // Ajuste se o método API for diferente
       .then(response => {
         if (response && response.success && Array.isArray(response.categories)) {
           const select = document.getElementById('problem-category');
@@ -601,28 +632,28 @@ const Maintenance = (() => {
           select.innerHTML = '<option value="">Selecione a categoria...</option>';
 
           response.categories.forEach(category => {
-             if(category) {
+             if(category) { // Ignora categorias vazias/nulas
                 const option = document.createElement('option');
                 option.value = category;
                 option.textContent = category;
                 select.appendChild(option);
              }
           });
-          // Adicionar opção "Outro"
+          // Adicionar opção "Outro" no final
            const otherOption = document.createElement('option');
            otherOption.value = 'Outro';
            otherOption.textContent = 'Outro (Especificar)';
            select.appendChild(otherOption);
 
-           loadProblemCategories.loaded = true;
+           loadProblemCategories.loaded = true; // Marca como carregado
         } else {
-             console.error("Resposta inválida ao carregar categorias:", response);
+             console.error("Resposta inválida ou sem sucesso ao carregar categorias de problema:", response);
               showNotification("Não foi possível carregar as categorias de problema.", "warning");
         }
       })
       .catch(error => {
-        console.error("Erro na API ao carregar categorias:", error);
-         showNotification("Erro ao buscar categorias: " + error.message, "error");
+        console.error("Erro na API ao carregar categorias de problema:", error);
+         showNotification("Erro ao buscar categorias: " + (error.message || 'Erro desconhecido'), "error");
           const select = document.getElementById('problem-category');
           if(select) select.innerHTML = '<option value="">Erro ao carregar</option>';
       });
@@ -640,23 +671,23 @@ const Maintenance = (() => {
        if (!tableBody) return;
 
        showLoading(true, 'Carregando lista de manutenções...');
-       tableBody.innerHTML = '<tr><td colspan="10" class="text-center">Carregando...</td></tr>'; // Colspan ajustado para 10 colunas
+       tableBody.innerHTML = '<tr><td colspan="10" class="text-center loading-message">Carregando manutenções...</td></tr>'; // Colspan ajustado para 10 colunas
 
-       API.getMaintenanceList()
+       API.getMaintenanceList() // Ajuste se o método API for diferente
            .then(response => {
                if (response && response.success && Array.isArray(response.maintenances)) {
                    fullMaintenanceList = response.maintenances;
                    filterAndRenderList(); // Aplica filtros e renderiza
                } else {
-                   console.error("Resposta inválida da API de manutenções:", response);
+                   console.error("Resposta inválida ou sem sucesso da API de manutenções:", response);
                    showNotification("Não foi possível carregar a lista de manutenções.", "error");
-                   tableBody.innerHTML = '<tr><td colspan="10" class="text-center error-message">Erro ao carregar dados.</td></tr>';
+                   tableBody.innerHTML = '<tr><td colspan="10" class="text-center error-message">Erro ao carregar dados. Verifique o console.</td></tr>';
                }
            })
            .catch(error => {
                console.error("Erro ao buscar lista de manutenções:", error);
-               showNotification("Erro ao buscar manutenções: " + error.message, "error");
-               tableBody.innerHTML = `<tr><td colspan="10" class="text-center error-message">Falha ao conectar com o servidor. Tente novamente.</td></tr>`;
+               showNotification("Erro ao buscar manutenções: " + (error.message || 'Erro desconhecido'), "error");
+               tableBody.innerHTML = `<tr><td colspan="10" class="text-center error-message">Falha ao conectar com o servidor (${error.message || ''}). Tente novamente.</td></tr>`;
            })
            .finally(() => {
                showLoading(false);
@@ -665,23 +696,24 @@ const Maintenance = (() => {
 
    // Filtra a lista baseado no termo de busca e filtro de status
    function filterAndRenderList() {
-       let filteredList = [...fullMaintenanceList];
+       let filteredList = [...fullMaintenanceList]; // Cria cópia para não modificar a original
 
        // 1. Filtrar por Status (currentFilter)
        if (currentFilter !== 'all') {
            filteredList = filteredList.filter(item => {
-               const status = (item.status || 'pendente').toLowerCase();
+               const status = (item.status || 'pendente').toLowerCase().trim(); // Normaliza status
                // Mapeamento flexível de status para filtros
                switch (currentFilter) {
                    case 'pending':
-                       return ['pendente', 'aguardando verificação'].includes(status);
+                       return ['pendente', 'aguardando verificacao', 'aguardando verificação'].includes(status);
                    case 'verified':
-                       // 'Verificados' pode incluir 'Aprovado', 'Ajustes', 'Reprovado' após verificação
+                       // 'Verificados' pode incluir 'Aprovado', 'Ajustes', 'Reprovado' (status PÓS verificação)
                        return ['verificado', 'aprovado', 'ajustes', 'reprovado'].includes(status);
                    case 'completed':
-                       // 'Concluído' geralmente é um status final após verificação/aprovação
-                       return ['concluído', 'concluido'].includes(status);
+                       // 'Concluído' é status final
+                       return ['concluído', 'concluido', 'completed'].includes(status);
                    case 'critical':
+                       // Filtrar por flag de crítico
                        return item.eCritico || item.isCritical;
                    default:
                        return true; // Caso 'all' ou filtro desconhecido
@@ -694,17 +726,21 @@ const Maintenance = (() => {
        const searchTerm = currentSearchTerm.toLowerCase().trim();
        if (searchTerm) {
            filteredList = filteredList.filter(item => {
-               // Buscar em múltiplos campos
-               return (
-                   String(item.id || '').toLowerCase().includes(searchTerm) ||
-                   String(item.placaOuId || '').toLowerCase().includes(searchTerm) || // ID/Placa
-                   String(item.tipoEquipamento || '').toLowerCase().includes(searchTerm) ||
-                   String(item.responsavel || '').toLowerCase().includes(searchTerm) ||
-                   String(item.area || '').toLowerCase().includes(searchTerm) ||
-                   String(item.localOficina || '').toLowerCase().includes(searchTerm) ||
-                   String(item.tipoManutencao || '').toLowerCase().includes(searchTerm) ||
-                   String(item.categoriaProblema || '').toLowerCase().includes(searchTerm) ||
-                   String(item.status || '').toLowerCase().includes(searchTerm)
+                // Função auxiliar para verificar se algum valor do item contém o termo
+               const includesTerm = (...values) => values.some(val => String(val || '').toLowerCase().includes(searchTerm));
+
+               return includesTerm(
+                   item.id,
+                   item.placaOuId, // ID/Placa/Texto
+                   item.tipoEquipamento,
+                   item.responsavel,
+                   item.area,
+                   item.localOficina,
+                   item.tipoManutencao,
+                   item.categoriaProblema,
+                   item.categoriaProblemaOutro, // Incluir busca no texto de 'Outro'
+                   item.status,
+                   item.detalhesproblema // Buscar também nos detalhes? Pode ser útil.
                );
            });
        }
@@ -730,53 +766,64 @@ const Maintenance = (() => {
 
         maintenanceList.forEach(item => {
             const row = document.createElement('tr');
-            row.setAttribute('data-maintenance-id', item.id); // Adiciona ID à linha
+            row.setAttribute('data-maintenance-id', item.id); // Adiciona ID à linha para referência futura
 
             const id = item.id || 'N/A';
-            const equipmentId = item.placaOuId || '-'; // Este é o ID/Placa/Texto
+            const equipmentId = item.placaOuId || '-'; // Este é o ID/Placa/Texto do equipamento
             const equipmentType = item.tipoEquipamento || 'N/A';
-            const equipmentDisplay = `${equipmentId} (${equipmentType})`; // Combina ID e Tipo
+             // Combina ID/Texto e Tipo para exibição, tratando tipos especiais
+             let equipmentDisplay = `${equipmentType}`;
+             if (equipmentId !== '-') {
+                 equipmentDisplay += ` (${equipmentId})`; // Ex: "Aspirador (ASP-001)" ou "Alta Pressão (ABC-1234)" ou "Outro (Nome do Equipamento)"
+             }
 
             const maintenanceType = item.tipoManutencao || '-';
-             // Usar formatDate global ou local
-            const regDateStr = item.dataRegistro || item.registrationDate || item.dataManutencao; // Data da manutenção é mais relevante?
-            const regDate = typeof formatDate === 'function' ? formatDate(regDateStr, true) : (regDateStr ? new Date(regDateStr).toLocaleString('pt-BR') : '-');
+            const regDateStr = item.dataRegistro || item.registrationDate || item.dataManutencao; // Usa data da manutenção como fallback
+            const regDate = typeof Utilities !== 'undefined' && Utilities.formatDate ? Utilities.formatDate(regDateStr, false) : formatDate(regDateStr, false); // Usa função global ou local
 
             const responsible = item.responsavel || '-';
             const area = item.area || '-';
             const office = item.localOficina || '-';
-            // Mostrar categoria principal, ou 'Outro' se for o caso
-            const problemCat = item.categoriaProblema !== 'Outro' ? item.categoriaProblema : (item.categoriaProblemaOutro || 'Outro');
+            // Mostrar categoria: usar texto de 'Outro' se aplicável
+            const problemCat = item.categoriaProblema === 'Outro' ? (item.categoriaProblemaOutro || 'Outro (não especificado)') : item.categoriaProblema;
             const problem = problemCat || '-';
 
             const status = item.status || 'Pendente';
-            const statusClass = typeof getStatusClass === 'function' ? getStatusClass(status) : status.toLowerCase().replace(/\s+/g, '-');
-            const allowVerification = ['pendente', 'aguardando verificação'].includes(status.toLowerCase());
-            const allowEdit = ['pendente', 'aguardando verificação', 'ajustes'].includes(status.toLowerCase()); // Permitir edição se pendente ou precisar ajustes?
+            const statusClass = typeof Utilities !== 'undefined' && Utilities.getStatusClass ? Utilities.getStatusClass(status) : getStatusClass(status); // Usa função global ou local
+            const isCritical = item.eCritico || item.isCritical || false;
+
+            // Define quais ações são permitidas baseado no status
+            const lowerStatus = status.toLowerCase().trim();
+            const allowVerification = ['pendente', 'aguardando verificacao', 'aguardando verificação'].includes(lowerStatus);
+            const allowEdit = ['pendente', 'aguardando verificacao', 'aguardando verificação', 'ajustes'].includes(lowerStatus); // Permitir editar se pendente ou precisar ajustes
+            // const allowDelete = true; // Ou baseado em permissões/status
 
             row.innerHTML = `
                 <td>${id}</td>
                 <td>${equipmentDisplay}</td>
-                <td>${maintenanceType} ${item.eCritico ? '<span class="critical-indicator" title="Manutenção Crítica">!</span>' : ''}</td>
+                <td>${maintenanceType} ${isCritical ? '<span class="critical-indicator" title="Manutenção Crítica">❗️</span>' : ''}</td>
                 <td>${regDate}</td>
                 <td>${responsible}</td>
                 <td>${area}</td>
                 <td>${office}</td>
-                <td>${problem}</td>
+                <td><span title="${item.detalhesproblema || ''}">${problem}</span></td>
                 <td><span class="status-badge status-${statusClass}">${status}</span></td>
                 <td class="action-buttons">
-                    <button class="btn-icon view-maintenance" data-id="${id}" title="Ver detalhes">👁️</button>
-                    ${allowVerification ? `<button class="btn-icon verify-maintenance" data-id="${id}" title="Verificar">✓</button>` : ''}
-                    ${allowEdit ? `<button class="btn-icon edit-maintenance" data-id="${id}" title="Editar">✏️</button>` : ''}
-                    <!-- <button class="btn-icon delete-maintenance" data-id="${id}" title="Excluir">🗑️</button> -->
+                    <button class="btn-icon view-maintenance" data-id="${id}" title="Ver Detalhes">👁️</button>
+                    ${allowVerification ? `<button class="btn-icon verify-maintenance" data-id="${id}" title="Iniciar Verificação">✔️</button>` : ''}
+                    ${allowEdit ? `<button class="btn-icon edit-maintenance" data-id="${id}" title="Editar Manutenção">✏️</button>` : ''}
+                    <!-- Adicionar botão de excluir se necessário -->
+                    <!-- ${allowDelete ? `<button class="btn-icon delete-maintenance" data-id="${id}" title="Excluir Manutenção">🗑️</button>` : ''} -->
                 </td>
             `;
             tableBody.appendChild(row);
         });
-         // Reaplicar tooltips ou outros plugins se necessário após renderizar
-         if (typeof tippy === 'function') { // Exemplo com Tippy.js
+         // Reaplicar tooltips ou outros plugins após renderizar
+         // Exemplo com Tippy.js (se estiver usando)
+         if (typeof tippy === 'function') {
              tippy('#maintenance-tbody .btn-icon[title]');
              tippy('#maintenance-tbody .critical-indicator[title]');
+             tippy('#maintenance-tbody [title]'); // Tooltip genérico para o problema
          }
     }
 
@@ -786,6 +833,7 @@ const Maintenance = (() => {
     if (validateStep1()) {
       saveStep1Data();
       showStep(2);
+       document.getElementById('problem-category')?.focus(); // Foco no primeiro campo da etapa 2
     }
   }
 
@@ -794,29 +842,25 @@ const Maintenance = (() => {
       saveStep2Data();
       updateSummary(); // Atualiza o resumo antes de mostrar
       showStep(3);
+       document.getElementById('submit-maintenance')?.focus(); // Foco no botão de finalizar
     }
   }
 
   function handleFormSubmit(event) {
       event.preventDefault(); // Previne o submit padrão do HTML
-      // A validação final é feita implicitamente ao salvar os dados das etapas.
-      // Garantir que os dados da última etapa (Etapa 2) sejam salvos antes do submit
-      if (validateStep2()) { // Re-valida caso o usuário tenha voltado
-          saveStep2Data();
+      // A validação final deveria ser na etapa 3, mas como não há campos,
+      // podemos assumir que se chegou aqui, as etapas anteriores são válidas.
+      // Revalidar a etapa 2 como garantia antes de submeter.
+      if (validateStep2()) {
+          saveStep2Data(); // Garante que os últimos dados foram salvos
           submitMaintenance();
       } else {
           showStep(2); // Volta para a etapa 2 se inválida
-          showNotification("Verifique os campos obrigatórios na Etapa 2.", "warning");
+          showNotification("Verifique os campos obrigatórios na Etapa 2 antes de finalizar.", "warning");
       }
   }
 
-  // REMOVIDO: handleEquipmentTypeChange original foi substituído pela lógica em setupEquipmentTypeEvents
-  /*
-  function handleEquipmentTypeChange(event) {
-      // ... código antigo removido ...
-  }
-  */
-
+  // Handler para mudança na categoria de problema (mostrar/esconder campo 'Outro')
   function handleProblemCategoryChange(event) {
       const otherField = document.getElementById('other-category-field');
       const otherInput = document.getElementById('other-category');
@@ -825,6 +869,7 @@ const Maintenance = (() => {
       if (event.target.value === 'Outro') {
           otherField.style.display = 'block';
           otherInput.required = true;
+          otherInput.focus(); // Foco no campo quando ele aparece
       } else {
           otherField.style.display = 'none';
            otherInput.value = ''; // Limpa o campo
@@ -832,13 +877,20 @@ const Maintenance = (() => {
       }
   }
 
+  // Handler para input de busca
+  function handleSearchInput(event) {
+      currentSearchTerm = event.target.value || '';
+      filterAndRenderList(); // Aplica busca e filtros atuais
+  }
+
+
   // Handler para cliques nos filtros de status
    function handleFilterClick(event) {
        const target = event.currentTarget; // O div.filter-item clicado
        currentFilter = target.getAttribute('data-filter') || 'all';
 
        // Atualizar classe 'active' visualmente
-       document.querySelectorAll('.filter-container .filter-item').forEach(item => {
+       document.querySelectorAll('#tab-maintenance .filter-container .filter-item').forEach(item => {
            item.classList.remove('active');
        });
        target.classList.add('active');
@@ -849,91 +901,119 @@ const Maintenance = (() => {
 
     // Handler para cliques nos botões de ação da tabela
     function handleTableActionClick(event) {
-        const button = event.target.closest('.btn-icon'); // Encontra o botão clicado
-        if (!button) return;
+        const button = event.target.closest('.btn-icon'); // Encontra o botão mais próximo clicado
+        if (!button) return; // Sai se o clique não foi em um botão
 
         const maintenanceId = button.getAttribute('data-id');
-        if (!maintenanceId) return;
-
-        // Encontrar os dados da linha correspondente na lista completa
-        const maintenanceData = findMaintenanceByIdInList(maintenanceId);
-        if (!maintenanceData) {
-            console.error(`Dados para manutenção ID ${maintenanceId} não encontrados na lista local.`);
-             showNotification(`Não foi possível encontrar os detalhes da manutenção ${maintenanceId}. Tente atualizar a lista.`, "warning");
-            return; // Impede a ação se os dados não forem encontrados
+        if (!maintenanceId) {
+             console.warn("Botão de ação clicado não possui data-id.");
+             return;
         }
 
+        // Buscar os dados completos da manutenção clicada na lista local
+        const maintenanceData = findMaintenanceByIdInList(maintenanceId);
+        if (!maintenanceData) {
+            console.error(`Dados completos para manutenção ID ${maintenanceId} não encontrados na lista local.`);
+            showNotification(`Não foi possível encontrar os detalhes completos da manutenção ${maintenanceId}. Tente atualizar a lista.`, "warning");
+            // Poderia tentar buscar da API aqui como fallback? API.getMaintenanceDetails(maintenanceId)
+            return; // Impede a ação se os dados não forem encontrados localmente
+        }
 
+        // Executa a ação baseada na classe do botão
         if (button.classList.contains('view-maintenance')) {
+            // Tenta chamar função global ou do módulo Details
             if (typeof viewMaintenanceDetails === 'function') {
-                viewMaintenanceDetails(maintenanceId, maintenanceData); // Passa os dados encontrados
+                viewMaintenanceDetails(maintenanceId, maintenanceData); // Passa os dados completos
+            } else if (typeof Details !== 'undefined' && Details.openDetailsModal) {
+                 Details.openDetailsModal(maintenanceId, maintenanceData);
             } else {
-                 console.error("Função viewMaintenanceDetails não encontrada.");
-                 alert(`Visualizar ID: ${maintenanceId}\nDados:\n${JSON.stringify(maintenanceData, null, 2)}`);
+                 console.error("Função para visualizar detalhes não encontrada (viewMaintenanceDetails ou Details.openDetailsModal).");
+                 alert(`Visualizar ID: ${maintenanceId}\n\n${JSON.stringify(maintenanceData, null, 2)}`); // Fallback
             }
         } else if (button.classList.contains('verify-maintenance')) {
+             // Tenta chamar função do módulo Verification
             if (typeof Verification !== 'undefined' && Verification.openVerificationForm) {
                 Verification.openVerificationForm(maintenanceId, maintenanceData);
             } else {
-                 console.error("Módulo/Função de Verificação não encontrado.");
-                 alert(`Verificar ID: ${maintenanceId}`);
+                 console.error("Módulo/Função de Verificação não encontrado (Verification.openVerificationForm).");
+                 alert(`Verificar ID: ${maintenanceId}`); // Fallback
             }
         } else if (button.classList.contains('edit-maintenance')) {
-             openMaintenanceForm(maintenanceId, maintenanceData); // Abre o form em modo de edição com os dados
+             openMaintenanceForm(maintenanceId, maintenanceData); // Abre o form de manutenção em modo de edição
         } else if (button.classList.contains('delete-maintenance')) {
-             handleDeleteMaintenance(maintenanceId);
+             handleDeleteMaintenance(maintenanceId, maintenanceData); // Passa dados para mensagem de confirmação
         }
     }
 
-    // Função auxiliar para buscar dados na lista carregada
+    // Função auxiliar para buscar dados na lista carregada (fullMaintenanceList)
     function findMaintenanceByIdInList(id) {
-        // Converte ambos para string para comparação segura, caso ID venha como número ou string
-        return fullMaintenanceList.find(item => String(item.id) === String(id)) || null;
+        // Converte ambos para string para comparação segura, caso ID venha como número
+        const stringId = String(id);
+        return fullMaintenanceList.find(item => String(item.id) === stringId) || null;
     }
 
-     // Handler para exclusão (exemplo)
-     function handleDeleteMaintenance(id) {
-         const maintenanceData = findMaintenanceByIdInList(id);
-         const message = `Tem certeza que deseja excluir a manutenção ${id} (${maintenanceData?.placaOuId || ''} - ${maintenanceData?.tipoEquipamento || ''})? Esta ação não pode ser desfeita.`;
+     // Handler para exclusão (se implementado)
+     function handleDeleteMaintenance(id, maintenanceData) {
+          // Extrair informações para a mensagem de confirmação
+         const equipDisplay = maintenanceData?.tipoEquipamento
+             ? `${maintenanceData.tipoEquipamento} (${maintenanceData.placaOuId || 'ID desconhecido'})`
+             : `ID ${id}`;
+         const message = `Tem certeza que deseja excluir a manutenção para ${equipDisplay}? Esta ação não pode ser desfeita.`;
 
-         showConfirmation(message, () => {
+         const confirmCallback = () => {
              showLoading(true, `Excluindo manutenção ${id}...`);
-             API.deleteMaintenance(id)
+             API.deleteMaintenance(id) // Assumindo que existe API.deleteMaintenance(id)
                  .then(response => {
                      if (response && response.success) {
                          showNotification(`Manutenção ${id} excluída com sucesso.`, 'success');
-                         // Remover da lista local e rerenderizar
+                         // Remover da lista local e rerenderizar a tabela
                          fullMaintenanceList = fullMaintenanceList.filter(item => String(item.id) !== String(id));
                          filterAndRenderList();
-                         // Atualizar dashboard também
+                         // Atualizar contadores/gráficos do dashboard
                          if (typeof Dashboard !== 'undefined' && Dashboard.loadDashboardData) {
                              Dashboard.loadDashboardData(true); // Força recarga do dashboard
                          }
                      } else {
-                         showNotification(`Erro ao excluir manutenção ${id}: ${response?.message || 'Erro desconhecido'}.`, 'error');
+                          console.error(`Erro ao excluir manutenção ${id} (API):`, response);
+                         showNotification(`Erro ao excluir manutenção ${id}: ${response?.message || 'Erro desconhecido da API'}.`, 'error');
                      }
                  })
                  .catch(error => {
-                     console.error(`Erro ao excluir manutenção ${id}:`, error);
-                     showNotification(`Falha na comunicação ao excluir manutenção ${id}.`, 'error');
+                     console.error(`Erro de rede/conexão ao excluir manutenção ${id}:`, error);
+                     showNotification(`Falha na comunicação ao excluir manutenção ${id}: ${error.message || 'Erro de rede'}.`, 'error');
                  })
                  .finally(() => {
                      showLoading(false);
                  });
-         });
+         };
+
+         // Usa função de confirmação global ou fallback
+          if (typeof Utilities !== 'undefined' && Utilities.showConfirmation) {
+             Utilities.showConfirmation(message, confirmCallback);
+         } else {
+              if(confirm(message)) {
+                 confirmCallback();
+              }
+         }
      }
 
 
-  // --- Funções de Validação e Persistência ---
+  // --- Funções de Navegação, Validação e Persistência ---
 
   function showStep(step) {
-    // Atualizar indicadores visuais das etapas
-    document.querySelectorAll('.form-steps .form-step').forEach((el, index) => {
-      if ((index + 1) == step) {
-        el.classList.add('active');
-      } else {
-        el.classList.remove('active');
-      }
+    // Atualizar indicadores visuais das etapas (bolinhas/números)
+    document.querySelectorAll('.form-steps .form-step').forEach((el) => {
+        const stepNumber = parseInt(el.getAttribute('data-step'), 10);
+        if (stepNumber == step) {
+            el.classList.add('active');
+             el.classList.remove('completed'); // Remove completed se voltamos para a etapa
+        } else if (stepNumber < step) {
+             el.classList.remove('active');
+             el.classList.add('completed'); // Marca etapas anteriores como completas
+        } else {
+             el.classList.remove('active');
+             el.classList.remove('completed'); // Garante que etapas futuras não estejam ativas/completas
+        }
     });
 
     // Mostrar/Esconder conteúdo das etapas
@@ -944,85 +1024,112 @@ const Maintenance = (() => {
     if (currentStepContent) {
         currentStepContent.style.display = 'block';
     } else {
-        console.error(`Conteúdo da etapa ${step} não encontrado.`);
+        console.error(`Conteúdo da etapa ${step} (ID: step-${step}-content) não encontrado.`);
     }
   }
 
+  // ================================================================
+  // === INÍCIO: CÓDIGO ATUALIZADO PARA VALIDAÇÃO E SALVAMENTO    ===
+  // ================================================================
   // Valida os campos obrigatórios da etapa 1
   function validateStep1() {
-      let isValid = true;
-      let firstInvalidElement = null;
+    let isValid = true;
+    let firstInvalid = null;
 
-      // Limpar erros anteriores
-      clearValidationErrors(1);
+     // Limpar erros anteriores da Etapa 1
+     clearValidationErrors(1);
 
-      // Campos obrigatórios básicos (sempre requeridos)
-      const requiredFields = [
-          { id: 'equipment-type', name: 'Tipo de Equipamento' },
-          { id: 'technician-name', name: 'Responsável pelo Relatório' },
-          { id: 'maintenance-date', name: 'Data da Manutenção' },
-          { id: 'area', name: 'Área' },
-          { id: 'office', name: 'Local/Oficina' }, // Tornando oficina obrigatória
-          { id: 'maintenance-type', name: 'Tipo de Manutenção' }
-      ];
+    // Lista base de campos obrigatórios
+    const requiredFields = [
+      { id: 'equipment-type', name: 'Tipo de Equipamento' },
+      { id: 'technician-name', name: 'Responsável pelo Relatório' }, // Nome do campo pode variar
+      { id: 'maintenance-date', name: 'Data da Manutenção' },
+      { id: 'area', name: 'Área' },
+      { id: 'office', name: 'Local/Oficina' },
+      { id: 'maintenance-type', name: 'Tipo de Manutenção' }
+    ];
 
-       // Validação condicional de Equipamento baseado no tipo selecionado
-       const equipType = document.getElementById('equipment-type')?.value;
+    // Verificar tipo de equipamento para adicionar validação do campo de ID correto
+    const equipType = document.getElementById('equipment-type').value;
 
-       if (equipType === 'Outro') {
-           requiredFields.push({ id: 'other-equipment', name: 'Especificar Equipamento' });
-       } else if (equipType === 'Aspirador' || equipType === 'Poliguindaste') {
-           requiredFields.push({ id: 'new-equipment-id', name: `Identificação do ${equipType}` });
-       } else if (equipType) { // Tipo selecionado que não é especial (requer o dropdown de ID)
-           requiredFields.push({ id: 'equipment-id', name: 'Placa ou ID' });
-       }
-       // Se equipType for vazio, o próprio campo 'equipment-type' será marcado como inválido na validação abaixo
+    if (equipType === 'Outro') {
+      requiredFields.push({ id: 'other-equipment', name: 'Especificar Equipamento' });
+    }
+    // Validar o campo customizado para Aspirador/Poliguindaste
+    else if (equipType === 'Aspirador' || equipType === 'Poliguindaste') {
+      // Usa o ID do input customizado que foi criado dinamicamente
+      requiredFields.push({ id: 'custom-equipment-id', name: `Identificação do ${equipType}` });
+    }
+    // Para outros tipos (exceto vazio), validar o dropdown padrão
+    else if (equipType) {
+      requiredFields.push({ id: 'equipment-id', name: 'Placa ou ID' });
+    }
+     // Se equipType for vazio, o próprio 'equipment-type' será marcado como inválido abaixo
 
-      // Iterar e validar campos
-      requiredFields.forEach(fieldInfo => {
-          const element = document.getElementById(fieldInfo.id);
-          // Checa se o elemento existe e se seu valor (trimado) é vazio ou se é um select não selecionado
-          if (!element || !element.value || !element.value.trim()) {
-              isValid = false;
-               // Se o elemento não existir no DOM, logar um erro mais específico
-               if (!element) {
-                   console.error(`Elemento de formulário não encontrado para validação: #${fieldInfo.id}`);
-                   // Marcar o campo relacionado (ex: tipo de equipamento se o ID não existe) pode ser um fallback
-                   const relatedElement = document.getElementById('equipment-type'); // Exemplo
-                   markFieldError(relatedElement, `Erro interno: Campo ${fieldInfo.name} não encontrado.`);
-               } else {
-                   markFieldError(element, `${fieldInfo.name} é obrigatório.`);
-                   if (!firstInvalidElement) firstInvalidElement = element;
-               }
-          }
-      });
+    // Iterar e validar
+    requiredFields.forEach(field => {
+      const element = document.getElementById(field.id);
+      let isFieldValid = false;
 
-      if (!isValid) {
-          showNotification("Por favor, preencha todos os campos obrigatórios da Etapa 1.", "warning");
-          if (firstInvalidElement) {
-              firstInvalidElement.focus();
-          }
+      if (element) {
+           // Checa se o valor existe e não é apenas espaços em branco
+           // Para selects, value vazio ('') significa que nenhuma opção válida foi selecionada
+           if (element.value && element.value.trim() !== '') {
+               isFieldValid = true;
+           }
+      } else {
+         console.warn(`Elemento de validação não encontrado: #${field.id} (Campo: ${field.name})`);
+          // Considera inválido se o elemento esperado não existe
       }
 
-      return isValid;
+      if (!isFieldValid) {
+          isValid = false;
+          // Marcar erro visualmente no campo (se existir)
+          if (element) {
+               markFieldError(element, `${field.name} é obrigatório.`);
+               if (!firstInvalid) firstInvalid = element; // Guarda o primeiro campo inválido para focar
+          } else {
+              // Se o campo não existe, mostrar um erro mais genérico ou logar
+              console.error(`Campo obrigatório "${field.name}" (ID: ${field.id}) não está presente no formulário.`);
+               // Opcional: Marcar erro em um campo relacionado, ex: o tipo de equipamento
+               const typeSelect = document.getElementById('equipment-type');
+               if(typeSelect && field.id !== 'equipment-type') {
+                    markFieldError(typeSelect, `Erro: ${field.name} não encontrado.`);
+                    if (!firstInvalid) firstInvalid = typeSelect;
+               }
+          }
+      }
+    });
+
+    if (!isValid) {
+      showNotification("Por favor, preencha todos os campos obrigatórios da Etapa 1.", "warning");
+      if (firstInvalid) {
+          // Scroll para o elemento e foca nele
+          firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          firstInvalid.focus();
+      }
+    }
+
+    return isValid;
   }
+
 
     // Valida os campos obrigatórios da etapa 2
     function validateStep2() {
         let isValid = true;
         let firstInvalidElement = null;
 
-         // Limpar erros anteriores
+         // Limpar erros anteriores da Etapa 2
          clearValidationErrors(2);
 
         // Campos obrigatórios
         const requiredFields = [
             { id: 'problem-category', name: 'Categoria do Problema' },
-            { id: 'problem-description', name: 'Detalhes do Problema' }
+            { id: 'problem-description', name: 'Detalhes do Problema' } // Textarea
         ];
 
-         // Validação condicional de Categoria (Outro)
-         const categoryValue = document.getElementById('problem-category').value;
+         // Validação condicional para 'Outra Categoria'
+         const categoryValue = document.getElementById('problem-category')?.value;
          if (categoryValue === 'Outro') {
              requiredFields.push({ id: 'other-category', name: 'Especificar Categoria' });
          }
@@ -1030,15 +1137,27 @@ const Maintenance = (() => {
         // Iterar e validar
         requiredFields.forEach(fieldInfo => {
             const element = document.getElementById(fieldInfo.id);
-             if (!element || !element.value || !element.value.trim()) {
-                 isValid = false;
-                  if (!element) {
-                       console.error(`Elemento de formulário não encontrado para validação: #${fieldInfo.id}`);
-                       const relatedElement = document.getElementById('problem-category');
-                       markFieldError(relatedElement, `Erro interno: Campo ${fieldInfo.name} não encontrado.`);
-                  } else {
+            let isFieldValid = false;
+             if (element) {
+                  if (element.value && element.value.trim() !== '') {
+                      isFieldValid = true;
+                  }
+             } else {
+                  console.warn(`Elemento de validação não encontrado: #${fieldInfo.id} (Campo: ${fieldInfo.name})`);
+             }
+
+             if (!isFieldValid) {
+                  isValid = false;
+                  if(element) {
                       markFieldError(element, `${fieldInfo.name} é obrigatório.`);
                       if (!firstInvalidElement) firstInvalidElement = element;
+                  } else {
+                       console.error(`Campo obrigatório "${fieldInfo.name}" (ID: ${fieldInfo.id}) não está presente na Etapa 2.`);
+                       const fallbackElement = document.getElementById('problem-category');
+                       if(fallbackElement) {
+                           markFieldError(fallbackElement, `Erro: ${fieldInfo.name} não encontrado.`);
+                           if (!firstInvalidElement) firstInvalidElement = fallbackElement;
+                       }
                   }
              }
         });
@@ -1046,6 +1165,7 @@ const Maintenance = (() => {
         if (!isValid) {
             showNotification("Por favor, preencha todos os campos obrigatórios da Etapa 2.", "warning");
              if (firstInvalidElement) {
+                 firstInvalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
                  firstInvalidElement.focus();
              }
         }
@@ -1056,27 +1176,29 @@ const Maintenance = (() => {
     function markFieldError(element, message) {
         if (!element) return;
         element.style.borderColor = 'red';
-        // Adicionar mensagem de erro perto do campo
+        element.setAttribute('aria-invalid', 'true'); // Para acessibilidade
+
+        // Encontrar ou criar span de erro associado
         const errorSpanId = element.id + '-error';
         let errorSpan = document.getElementById(errorSpanId);
-        const parent = element.parentElement; // Container do campo
+        const parent = element.parentElement; // Assume que o span deve ir dentro do mesmo container
 
-        if (!errorSpan && parent) { // Cria o span apenas se não existir e tiver um pai
+        if (!errorSpan && parent) {
             errorSpan = document.createElement('span');
             errorSpan.id = errorSpanId;
-            errorSpan.className = 'error-message-field'; // Classe para estilização
-            // Inserir após o elemento
-             if (element.nextSibling) {
-                parent.insertBefore(errorSpan, element.nextSibling);
-             } else {
-                parent.appendChild(errorSpan);
-             }
+            errorSpan.className = 'error-message-field'; // Classe para estilização CSS
+            errorSpan.setAttribute('role', 'alert'); // Acessibilidade
+            errorSpan.style.display = 'none'; // Começa escondido
+             // Inserir após o elemento ou no final do pai
+             parent.appendChild(errorSpan); // Mais simples
         }
          if(errorSpan) {
             errorSpan.textContent = message;
-            errorSpan.style.display = 'block';
-            errorSpan.style.color = 'red'; // Estilo básico
-            errorSpan.style.fontSize = '0.8em'; // Estilo básico
+            errorSpan.style.display = 'block'; // Torna visível
+            // Estilos básicos (idealmente via CSS)
+            errorSpan.style.color = '#d93025'; // Vermelho erro
+            errorSpan.style.fontSize = '0.8em';
+            errorSpan.style.marginTop = '4px';
          }
     }
 
@@ -1085,36 +1207,52 @@ const Maintenance = (() => {
         const stepContent = document.getElementById(`step-${step}-content`);
         if (!stepContent) return;
 
-        stepContent.querySelectorAll('.form-control, .form-check input, .form-select').forEach(el => {
+        stepContent.querySelectorAll('[aria-invalid="true"]').forEach(el => {
             if(el.style) el.style.borderColor = ''; // Resetar borda
+            el.removeAttribute('aria-invalid');
+            const errorSpan = document.getElementById(el.id + '-error');
+            if (errorSpan) {
+                errorSpan.textContent = ''; // Limpar mensagem
+                errorSpan.style.display = 'none'; // Esconder span
+            }
         });
-        stepContent.querySelectorAll('.error-message-field').forEach(span => {
-            span.textContent = ''; // Limpar mensagem
-            span.style.display = 'none'; // Esconder span
-        });
+         // Limpa também spans de erro que possam ter ficado órfãos
+         stepContent.querySelectorAll('.error-message-field').forEach(span => {
+             if (!document.getElementById(span.id.replace('-error', ''))?.hasAttribute('aria-invalid')) {
+                 span.textContent = '';
+                 span.style.display = 'none';
+             }
+         });
     }
 
   // Salva os dados da etapa 1 no estado 'formData'
   function saveStep1Data() {
     formData.equipmentType = document.getElementById('equipment-type')?.value || '';
-    // Decide qual ID salvar baseado no tipo
-    if (formData.equipmentType === 'Outro') {
-        formData.equipmentId = ''; // ID padrão fica vazio
-        formData.otherEquipment = document.getElementById('other-equipment')?.value || '';
-        formData.newEquipmentId = ''; // ID customizado fica vazio
-    } else if (formData.equipmentType === 'Aspirador' || formData.equipmentType === 'Poliguindaste') {
-        formData.equipmentId = ''; // ID padrão fica vazio
-        formData.otherEquipment = ''; // Outro fica vazio
-        formData.newEquipmentId = document.getElementById('new-equipment-id')?.value || '';
+
+    // Capturar o ID apropriado com base no tipo de equipamento selecionado
+    if (formData.equipmentType === 'Aspirador' || formData.equipmentType === 'Poliguindaste') {
+      // Pega o valor do campo de input customizado
+      const customIdInput = document.getElementById('custom-equipment-id');
+      formData.customEquipmentId = customIdInput ? customIdInput.value.trim() : ''; // Salva no campo customizado
+      formData.equipmentId = ''; // Limpa o campo de ID padrão
+      formData.otherEquipment = ''; // Limpa o campo 'Outro'
+    } else if (formData.equipmentType === 'Outro') {
+      // Pega o valor do campo 'Especificar Equipamento'
+      formData.otherEquipment = document.getElementById('other-equipment')?.value.trim() || '';
+      formData.equipmentId = ''; // Limpa o campo de ID padrão
+      formData.customEquipmentId = ''; // Limpa o campo customizado
     } else {
-        formData.equipmentId = document.getElementById('equipment-id')?.value || '';
-        formData.otherEquipment = ''; // Outro fica vazio
-        formData.newEquipmentId = ''; // ID customizado fica vazio
+      // Pega o valor do dropdown de ID padrão
+      formData.equipmentId = document.getElementById('equipment-id')?.value || '';
+      formData.otherEquipment = ''; // Limpa o campo 'Outro'
+      formData.customEquipmentId = ''; // Limpa o campo customizado
     }
-    formData.technician = document.getElementById('technician-name')?.value || '';
+
+    // Salva os demais campos da Etapa 1
+    formData.technician = document.getElementById('technician-name')?.value.trim() || '';
     formData.date = document.getElementById('maintenance-date')?.value || '';
     formData.area = document.getElementById('area')?.value || '';
-    formData.office = document.getElementById('office')?.value || '';
+    formData.office = document.getElementById('office')?.value.trim() || '';
     formData.maintenanceType = document.getElementById('maintenance-type')?.value || '';
     formData.isCritical = document.getElementById('is-critical')?.checked || false;
   }
@@ -1124,41 +1262,42 @@ const Maintenance = (() => {
     formData.problemCategory = document.getElementById('problem-category')?.value || '';
     // Salva o valor de 'Outro' apenas se for a categoria selecionada
     if (formData.problemCategory === 'Outro') {
-        formData.otherCategory = document.getElementById('other-category')?.value || '';
+        formData.otherCategory = document.getElementById('other-category')?.value.trim() || '';
     } else {
         formData.otherCategory = ''; // Limpa se não for 'Outro'
     }
-    formData.problemDescription = document.getElementById('problem-description')?.value || '';
-    formData.additionalNotes = document.getElementById('additional-notes')?.value || '';
+    formData.problemDescription = document.getElementById('problem-description')?.value.trim() || '';
+    formData.additionalNotes = document.getElementById('additional-notes')?.value.trim() || '';
   }
 
-  // Atualiza o resumo na etapa 3 com os dados do 'formData'
+   // Atualiza o resumo na etapa 3 com os dados do 'formData'
   function updateSummary() {
-      // Função auxiliar para buscar texto de um select
+      // Função auxiliar para buscar texto de um select, tratando caso não ache
       const getSelectText = (id) => {
           const select = document.getElementById(id);
-          return select ? (select.selectedIndex >= 0 ? select.options[select.selectedIndex].text : '-') : '-';
+          if (select && select.selectedIndex >= 0) {
+              // Verifica se a opção selecionada tem um valor (não é o placeholder)
+               if (select.value) {
+                   return select.options[select.selectedIndex].text;
+               }
+          }
+          return '-'; // Retorna '-' se select não encontrado, sem seleção ou seleção de placeholder
       };
 
-      // Equipamento (lógica atualizada)
+      // Equipamento (lógica atualizada para mostrar o ID correto)
       let equipmentDisplay = '-';
-      let equipmentDetail = '';
       const equipType = formData.equipmentType;
-      const typeText = getSelectText('equipment-type'); // Pega o texto do tipo selecionado
+      const typeText = getSelectText('equipment-type');
 
       if (equipType === 'Outro') {
-          equipmentDetail = formData.otherEquipment || '(Não especificado)';
-          equipmentDisplay = `${typeText}: ${equipmentDetail}`;
+          equipmentDisplay = `${typeText}: ${formData.otherEquipment || '(Não especificado)'}`;
       } else if (equipType === 'Aspirador' || equipType === 'Poliguindaste') {
-          equipmentDetail = formData.newEquipmentId || '(ID não especificado)';
-          equipmentDisplay = `${typeText} (${equipmentDetail})`;
+          equipmentDisplay = `${typeText} (${formData.customEquipmentId || 'ID não informado'})`;
       } else if (equipType) {
-           equipmentDetail = formData.equipmentId ? getSelectText('equipment-id') : '(ID não selecionado)';
-            // Se getSelectText retornar '-', usar o formData.equipmentId como fallback
-           if (equipmentDetail === '-' && formData.equipmentId) {
-               equipmentDetail = formData.equipmentId;
-           }
-           equipmentDisplay = `${typeText} (${equipmentDetail})`;
+           const idText = getSelectText('equipment-id');
+           // Se o texto do ID for '-', usar o valor do formData.equipmentId como fallback
+           const detail = (idText !== '-') ? idText : (formData.equipmentId || 'ID não selecionado');
+           equipmentDisplay = `${typeText} (${detail})`;
       }
        document.getElementById('summary-equipment').textContent = equipmentDisplay;
 
@@ -1166,26 +1305,14 @@ const Maintenance = (() => {
       document.getElementById('summary-technician').textContent = formData.technician || '-';
 
       // Data
-      let formattedDate = '-';
-       if(formData.date) {
-           // Tenta usar a função global primeiro
-           if (typeof formatDate === 'function') {
-                formattedDate = formatDate(formData.date); // Sem hora para o resumo
-           } else {
-                // Fallback para formatação básica
-                try {
-                     const dateObj = new Date(formData.date + 'T00:00:00'); // Assume input date é local
-                     if (!isNaN(dateObj)) {
-                         formattedDate = dateObj.toLocaleDateString('pt-BR');
-                     }
-                 } catch(e){ console.error("Erro ao formatar data:", e); }
-           }
-       }
+       const formattedDate = (typeof Utilities !== 'undefined' && Utilities.formatDate)
+            ? Utilities.formatDate(formData.date, false)
+            : formatDate(formData.date, false); // Usa função global ou local
       document.getElementById('summary-date').textContent = formattedDate;
 
-      // Local
+      // Local (Área / Oficina)
       const areaText = getSelectText('area');
-      const location = `${areaText} / ${formData.office || '-'}`;
+      const location = `${areaText !== '-' ? areaText : (formData.area || 'Área não informada')} / ${formData.office || 'Oficina não informada'}`;
       document.getElementById('summary-location').textContent = location;
 
       // Tipo Manutenção
@@ -1216,114 +1343,120 @@ const Maintenance = (() => {
       const loadingMessage = isEditMode ? `Atualizando manutenção ${editingMaintenanceId}...` : 'Registrando nova manutenção...';
       showLoading(true, loadingMessage);
 
-      // Construir o payload final para a API a partir do formData (lógica de ID atualizada)
-      let finalEquipmentId = '';
+      // Construir o payload final para a API a partir do formData
+      // Decidir qual campo de ID/nome enviar para a API
+      let finalEquipmentIdentifier = '';
       if (formData.equipmentType === 'Outro') {
-          finalEquipmentId = formData.otherEquipment;
+          finalEquipmentIdentifier = formData.otherEquipment; // Enviar o texto digitado
       } else if (formData.equipmentType === 'Aspirador' || formData.equipmentType === 'Poliguindaste') {
-          finalEquipmentId = formData.newEquipmentId;
+          finalEquipmentIdentifier = formData.customEquipmentId; // Enviar o ID customizado
       } else {
-          finalEquipmentId = formData.equipmentId;
+          finalEquipmentIdentifier = formData.equipmentId; // Enviar o ID do dropdown
       }
 
-      // Construir categoria: se 'Outro', envia o texto, senão a categoria
+      // Lógica para categoria de problema
        let finalProblemCategory = formData.problemCategory;
-       let finalOtherCategory = ''; // Campo separado para o texto de 'Outro'
+       let finalOtherCategoryValue = null; // Campo para enviar o texto 'Outro' separadamente se necessário
        if (formData.problemCategory === 'Outro') {
-           // A API espera a categoria 'Outro' e o texto em um campo separado? Ou só o texto?
-           // Assumindo que a API espera 'Outro' na categoria e o texto em outro campo (ex: categoriaProblemaOutro)
-           finalProblemCategory = 'Outro';
-           finalOtherCategory = formData.otherCategory;
-           // Se a API espera SÓ o texto do 'Outro' no campo principal:
+           // Opção 1: API espera 'Outro' na categoria e o texto em outro campo
+           finalOtherCategoryValue = formData.otherCategory;
+           // Opção 2: API espera apenas o texto digitado no campo categoria principal
            // finalProblemCategory = formData.otherCategory;
        }
 
-
+      // Mapear formData para o formato esperado pela API
+      // Atenção aos nomes das chaves esperadas pela API!
       const apiData = {
           tipoEquipamento: formData.equipmentType,
-          placaOuId: finalEquipmentId, // Usa o ID correto baseado no tipo
+          placaOuId: finalEquipmentIdentifier, // Nome da chave pode variar
+          // Se a API diferenciar o tipo de ID:
+          // equipamentoId: formData.equipmentId,
+          // equipamentoOutroNome: formData.otherEquipment,
+          // equipamentoCustomId: formData.customEquipmentId,
           responsavel: formData.technician,
           dataManutencao: formData.date,
           area: formData.area,
           localOficina: formData.office,
           tipoManutencao: formData.maintenanceType,
-          eCritico: formData.isCritical,
+          eCritico: formData.isCritical, // Nome da chave pode ser isCritical
           categoriaProblema: finalProblemCategory,
-          // Adicionar campo para texto 'Outro' se a API esperar separado:
-          // categoriaProblemaOutro: finalOtherCategory,
-          detalhesproblema: formData.problemDescription, // Verificar se o nome da chave na API está correto
+          // Se a API espera o texto 'Outro' separado:
+          // categoriaProblemaOutro: finalOtherCategoryValue,
+          detalhesproblema: formData.problemDescription, // Nome da chave pode variar
           observacoes: formData.additionalNotes,
-          // Status: Definir status inicial ou manter o atual em edições?
-          // Se for edição e a API permitir, talvez enviar o status atual para não resetar.
-          status: isEditMode ? (formData.status || 'Pendente') : 'Pendente' // Exemplo: mantém status se existir no formData (de populateFormForEdit)
+          // Se for edição, pode ser necessário enviar o status atual ou deixar a API definir
+          // status: isEditMode ? formData.status : 'Pendente' // Exemplo
       };
 
        // Escolher a função da API correta (salvar vs atualizar)
        const apiCall = isEditMode
-           ? API.updateMaintenance(editingMaintenanceId, apiData) // Assumindo que existe API.updateMaintenance(id, data)
-           : API.saveMaintenance(apiData);
+           ? API.updateMaintenance(editingMaintenanceId, apiData) // Assumindo API.updateMaintenance(id, data)
+           : API.saveMaintenance(apiData); // Assumindo API.saveMaintenance(data)
 
       apiCall
           .then(response => {
               if (response && response.success) {
                   const successMessage = isEditMode
                       ? `Manutenção ${editingMaintenanceId} atualizada com sucesso!`
-                      : `Manutenção registrada com sucesso! ID: ${response.id || '(sem ID retornado)'}`;
+                      : `Manutenção registrada com sucesso! ID: ${response.id || '(sem ID)'}`; // Usa o ID retornado pela API se houver
                   showNotification(successMessage, 'success');
                   document.getElementById('maintenance-form-overlay').style.display = 'none';
-                   resetForm(); // Limpa o formulário após sucesso
+                  resetForm(); // Limpa o formulário
 
-                  // Atualizar a lista na aba Manutenções
-                  loadMaintenanceList(); // Recarrega a lista para refletir a mudança
-
-                  // Atualizar o dashboard se existir e estiver visível/ativo
+                  // Atualizar a lista de manutenções e o dashboard
+                  loadMaintenanceList();
                   if (typeof Dashboard !== 'undefined' && Dashboard.loadDashboardData) {
-                     // Opcional: verificar se a tab do dashboard está ativa antes de recarregar
-                      if (document.getElementById('tab-dashboard')?.classList.contains('active')) {
-                           Dashboard.loadDashboardData(true); // Força recarga do dashboard
-                      }
+                       Dashboard.loadDashboardData(true); // Força recarga do dashboard
                   }
 
               } else {
-                  console.error("Erro ao salvar/atualizar manutenção:", response);
+                   // API retornou sucesso=false
+                  console.error("Erro retornado pela API ao salvar/atualizar:", response);
                   const errorMessage = isEditMode ? 'Erro ao atualizar manutenção' : 'Erro ao salvar manutenção';
-                  showNotification(`${errorMessage}: ${response?.message || 'Erro desconhecido da API'}. Verifique os dados e tente novamente.`, 'error');
+                  // Tenta usar a mensagem da API, senão uma genérica
+                  showNotification(`${errorMessage}: ${response?.message || 'Verifique os dados e tente novamente.'}.`, 'error');
               }
           })
           .catch(error => {
+               // Erro de rede, conexão ou exceção não tratada
               console.error("Erro na requisição API:", error);
-               const failureMessage = isEditMode ? 'Falha ao atualizar manutenção' : 'Falha ao registrar manutenção';
-               // Tentar extrair mensagem de erro mais detalhada, se disponível
-               let detail = error.message;
+               const failureMessage = isEditMode ? 'Falha ao comunicar com o servidor para atualizar' : 'Falha ao comunicar com o servidor para registrar';
+               // Tenta extrair detalhes do erro
+               let detail = error.message || 'Erro desconhecido';
                if (error.response && error.response.data && error.response.data.message) {
-                   detail = error.response.data.message; // Exemplo se a API retornar JSON com erro
+                   detail = error.response.data.message; // Se a API retornar JSON com erro
                }
               showNotification(`${failureMessage}: ${detail}. Verifique sua conexão ou contate o suporte.`, 'error');
           })
           .finally(() => {
-              showLoading(false);
+              showLoading(false); // Esconde o indicador de loading
           });
   }
+  // ================================================================
+  // === FIM: CÓDIGO ATUALIZADO PARA VALIDAÇÃO E SALVAMENTO       ===
+  // ================================================================
 
 
-  // --- Funções Auxiliares (Debounce, etc.) ---
+  // --- Funções Auxiliares (Podem ir para utilities.js) ---
    // Mover debounce para utilities.js se possível
     function debounce(func, wait) {
         let timeout;
         return function executedFunction(...args) {
+            const context = this; // Preserva o contexto original
             const later = () => {
-                clearTimeout(timeout);
-                func(...args);
+                timeout = null; // Limpa timeout antes de executar
+                func.apply(context, args); // Usa apply para manter contexto e argumentos
             };
             clearTimeout(timeout);
             timeout = setTimeout(later, wait);
         };
     }
 
-     // --- Funções Globais Auxiliares (Esperadas de utilities.js ou globalmente) ---
-     // Implementações de exemplo (DEVEM existir em outro lugar)
+     // --- Funções Globais Auxiliares (Esperadas de utilities.js ou global) ---
+     // Implementações de exemplo (DEVEM existir em outro lugar ou em Utilities)
      function showLoading(show, message = 'Carregando...') {
-         const loader = document.getElementById('global-loader'); // Exemplo de ID
+          // Idealmente chamar Utilities.showLoading(show, message);
+         const loader = document.getElementById('global-loader');
          const loaderMessage = document.getElementById('global-loader-message');
          if (loader) {
              loader.style.display = show ? 'flex' : 'none';
@@ -1331,58 +1464,49 @@ const Maintenance = (() => {
                  loaderMessage.textContent = message;
              }
          } else if (show) {
-             console.log("Loading:", message);
+             console.log("Loading indicator not found. Message:", message);
          }
      }
      function showNotification(message, type = 'info') {
-         // Usar biblioteca como Toastify, Noty ou uma implementação customizada
-         console.log(`[${type.toUpperCase()}] Notification: ${message}`);
-         // Exemplo simples com alert (substituir por algo melhor)
-         // alert(`[${type.toUpperCase()}] ${message}`);
-         // Exemplo: Chamar uma função global se existir
+          // Idealmente chamar Utilities.showNotification(message, type);
          if (typeof Utilities !== 'undefined' && Utilities.showToast) {
              Utilities.showToast(message, type);
          } else {
-              alert(`[${type.toUpperCase()}] ${message}`); // Fallback
+              console.log(`[${type.toUpperCase()}] Notification: ${message}`);
+              alert(`[${type.toUpperCase()}] ${message}`); // Fallback muito básico
          }
      }
      function showConfirmation(message, onConfirm, onCancel = null) {
-         // Usar um modal de confirmação customizado ou a função confirm() do navegador
-         if (confirm(message)) {
+          // Idealmente chamar Utilities.showConfirmation(message, onConfirm, onCancel);
+         if (confirm(message)) { // Fallback básico
              if (typeof onConfirm === 'function') onConfirm();
          } else {
              if (typeof onCancel === 'function') onCancel();
          }
      }
+     // Função formatDate movida para utilities.js idealmente, mas mantida aqui como fallback
      function formatDate(dateString, includeTime = false) {
          if (!dateString) return '-';
          try {
-             // Tenta criar data, tratando strings de data e datetime
-             const date = new Date(dateString);
-             // Corrige problema de timezone assumindo que a string de data (YYYY-MM-DD) está no fuso local
-             if (typeof dateString === 'string' && dateString.length === 10) {
-                 const parts = dateString.split('-');
-                 if (parts.length === 3) {
-                      // Cria data com hora 00:00:00 no fuso local
-                     date = new Date(parts[0], parts[1] - 1, parts[2]);
-                 }
+             // Tenta analisar a string. Date.parse é mais robusto.
+             const timestamp = Date.parse(dateString);
+             if (isNaN(timestamp)) {
+                  // Se falhar, pode ser um formato inesperado. Retorna original.
+                  console.warn(`Formato de data inválido encontrado: ${dateString}`);
+                  return dateString;
              }
+             const date = new Date(timestamp);
 
-             if (isNaN(date.getTime())) { // Verifica se a data é válida
-                 return dateString; // Retorna a string original se inválida
-             }
-
-             const optionsDate = { day: '2-digit', month: '2-digit', year: 'numeric' };
-             const optionsTime = { hour: '2-digit', minute: '2-digit' };
+             const optionsDate = { day: '2-digit', month: '2-digit', year: 'numeric' }; // Ex: 15/07/2024
+             const optionsTime = { hour: '2-digit', minute: '2-digit' }; // Ex: 14:30
 
              let formatted = date.toLocaleDateString('pt-BR', optionsDate);
              if (includeTime) {
-                 // Verifica se a data original tinha informação de hora relevante
-                 // (não apenas 00:00:00 resultante da conversão de 'YYYY-MM-DD')
-                 const hasTimeInfo = date.getUTCHours() !== 0 || date.getUTCMinutes() !== 0 || date.getUTCSeconds() !== 0;
-                  if (hasTimeInfo || typeof dateString !== 'string' || dateString.includes('T') || dateString.includes(' ')) {
-                     formatted += ' ' + date.toLocaleTimeString('pt-BR', optionsTime);
-                 }
+                  // Adiciona hora apenas se a data original provavelmente continha hora
+                  const originalHasTime = /\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(dateString);
+                  if (originalHasTime || (date.getHours() !== 0 || date.getMinutes() !== 0)) {
+                      formatted += ' ' + date.toLocaleTimeString('pt-BR', optionsTime);
+                  }
              }
              return formatted;
          } catch (e) {
@@ -1390,69 +1514,71 @@ const Maintenance = (() => {
              return dateString; // Retorna original em caso de erro
          }
      }
+     // Função getStatusClass movida para utilities.js idealmente, mas mantida aqui como fallback
      function getStatusClass(status) {
           if (!status) return 'pendente';
-          // Converte para minúsculas e substitui espaços/acentos por hífens para usar como classe CSS
+          // Converte para minúsculas, remove acentos, substitui espaços e caracteres não alfanuméricos
           return status.toLowerCase()
-                     .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
-                     .replace(/\s+/g, '-') // Substitui espaços por hífens
-                     .replace(/[^a-z0-9-]/g, ''); // Remove caracteres não alfanuméricos (exceto hífen)
+                     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                     .replace(/[^a-z0-9]+/g, '-') // Substitui sequências de não-alfanuméricos por hífen
+                     .replace(/^-+|-+$/g, ''); // Remove hífens no início/fim
      }
      // --- Fim Funções Globais Auxiliares ---
 
 
-  // Expor funções públicas do módulo
+  // Expor funções públicas necessárias para interação externa (ex: botões, outras tabs)
   return {
     initialize,
-    openMaintenanceForm, // Expor para ser chamada por botões de editar/novo
-    loadMaintenanceList // Expor para ser chamada ao mudar para a aba ou refresh
+    openMaintenanceForm, // Para botão "Nova Manutenção" e botão "Editar"
+    loadMaintenanceList // Para refresh manual ou ao ativar a aba
   };
 })();
 
-// Inicializar o módulo Maintenance quando o DOM estiver pronto
+// Inicializar o módulo Maintenance quando o DOM estiver pronto e dependências carregadas
 document.addEventListener('DOMContentLoaded', function() {
-   // Verificação de dependências aprimorada
-   let dependenciesLoaded = true;
-   if (typeof API === 'undefined') {
-        console.error("Erro CRÍTICO: API.js não carregado antes de maintenance.js");
-        dependenciesLoaded = false;
-   }
-   if (typeof Utilities === 'undefined') {
-        // Se Utilities for opcional ou algumas funções forem globais, este erro pode ser um aviso
-        console.warn("Aviso: Utilities.js pode não ter sido carregado antes de maintenance.js. Funções auxiliares podem falhar.");
-        // Se Utilities for essencial, mudar para console.error e dependenciesLoaded = false;
-        // Exemplo: Se showNotification/showLoading/etc VEM de Utilities:
-        // console.error("Erro CRÍTICO: Utilities.js não carregado antes de maintenance.js");
-        // dependenciesLoaded = false;
-   }
-
-   if (!dependenciesLoaded) {
-        alert("Erro crítico na inicialização da aplicação (Módulo Manutenção). Verifique o console.");
-        // Desabilitar botões ou funcionalidades relacionadas à manutenção aqui
-        const newMaintButton = document.getElementById('new-maintenance');
-        if(newMaintButton) newMaintButton.disabled = true;
+   // Verificação robusta de dependências essenciais (API)
+   if (typeof API === 'undefined' || typeof API.getMaintenanceFormData !== 'function' /* adicione outras funções API essenciais */) {
+        console.error("Erro CRÍTICO: O módulo API ou suas funções essenciais não estão disponíveis. O módulo Maintenance não pode ser inicializado.");
+        // Mostrar mensagem de erro para o usuário e desabilitar funcionalidades
+        const errorMsg = "Falha ao carregar componentes essenciais (API). Funcionalidades de manutenção estão indisponíveis.";
+        showNotification(errorMsg, 'error');
+         // Desabilitar botão de nova manutenção, etc.
+         const newMaintButton = document.getElementById('new-maintenance');
+         if(newMaintButton) {
+             newMaintButton.disabled = true;
+             newMaintButton.title = errorMsg;
+         }
+         // Poderia esconder a tab inteira ou mostrar uma mensagem nela
         return; // Impede a inicialização do módulo
    }
 
+   // Verificar dependências opcionais (Utilities)
+   if (typeof Utilities === 'undefined') {
+        console.warn("Aviso: Módulo Utilities não encontrado. Funções auxiliares como notificações e formatação podem usar fallbacks básicos.");
+   }
+
   // Se as dependências essenciais estão OK, inicializar
-  console.log("DOM carregado. Inicializando Maintenance module...");
-  Maintenance.initialize();
-
-  // Carregar a lista de manutenções se a aba de manutenção for a ativa inicialmente
-  // Ou se não houver sistema de abas e a lista deve sempre carregar no início
-  const maintenanceListContainer = document.getElementById('maintenance-list-container'); // ID do container da lista/tabela
-  const maintenanceTab = document.getElementById('tab-maintenance'); // ID da aba (se houver)
-
-  if (maintenanceListContainer) { // Verifica se o container da lista existe na página atual
-      if (maintenanceTab && maintenanceTab.classList.contains('active')) {
-           console.log("Aba Manutenção ativa na inicialização. Carregando lista...");
-          Maintenance.loadMaintenanceList();
-      } else if (!maintenanceTab) {
-          // Se não há sistema de abas e a lista está sempre presente, carregar
-           console.log("Container da lista presente (sem abas detectadas). Carregando lista...");
-           Maintenance.loadMaintenanceList();
-      }
-  } else {
-      console.log("Container da lista de manutenção não encontrado no DOM inicial.");
+  console.log("DOM carregado. Inicializando módulo Maintenance...");
+  try {
+     Maintenance.initialize();
+  } catch(initError) {
+       console.error("Erro fatal durante a inicialização do módulo Maintenance:", initError);
+       showNotification("Erro crítico ao iniciar o módulo de Manutenção. Verifique o console.", "error");
+       // Desabilitar funcionalidades aqui também
+       const newMaintButton = document.getElementById('new-maintenance');
+       if(newMaintButton) newMaintButton.disabled = true;
+       return;
   }
+
+  // Carregar a lista de manutenções se a aba correspondente estiver ativa
+  // (Assumindo que existe um sistema de abas e a função 'getCurrentActiveTab' ou similar)
+   const maintenanceTab = document.getElementById('tab-maintenance');
+   // Verifica se a aba existe E está ativa OU se não há sistema de abas detectado (ex: maintenanceTab é null mas a tabela existe)
+   const maintenanceTableBody = document.getElementById('maintenance-tbody');
+   if (maintenanceTableBody && (!maintenanceTab || maintenanceTab.classList.contains('active'))) {
+        console.log("Carregando lista de manutenções na inicialização (Tab ativa ou sem sistema de tabs).");
+       Maintenance.loadMaintenanceList();
+   } else {
+        console.log("Lista de manutenções não será carregada na inicialização (Tab inativa ou tabela não encontrada).");
+   }
 });
