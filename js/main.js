@@ -6,7 +6,7 @@ if (!window.API || !window.API_LOADED || !window.UTILITIES_LOADED) {
   const initWithDelay = function() {
     if (window.API && window.API_LOADED && window.UTILITIES_LOADED) {
       console.log("Dependências detectadas. Inicializando sistema...");
-      initializeSystem();
+      initializeApp();
     } else {
       console.log("Aguardando carregamento de dependências...");
       setTimeout(initWithDelay, 500);
@@ -19,7 +19,7 @@ if (!window.API || !window.API_LOADED || !window.UTILITIES_LOADED) {
   console.log("Main.js - Dependências carregadas corretamente");
   // Se as dependências já estiverem carregadas, inicializar imediatamente.
   // (Assumindo que a inicialização deve ocorrer assim que possível)
-  initializeSystem();
+  initializeApp();
 }
 
 // Atualizar o rodapé para exibir o nome correto
@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', function() {
 /**
  * Inicializa o sistema
  */
-function initializeSystem() {
+function initializeApp() {
   console.log("Inicializando o sistema..."); // Log para confirmar a chamada
 
   // Configurar navegação por tabs
@@ -59,13 +59,21 @@ function initializeSystem() {
 
   // Se a data de atualização não foi definida no DOMContentLoaded (devido a dependências),
   // tentar definir aqui.
-  if (typeof formatDate === 'function' && !document.getElementById('last-update').textContent) {
+  if (typeof formatDate === 'function' && document.getElementById('last-update') && !document.getElementById('last-update').textContent) {
       document.getElementById('last-update').textContent = formatDate(new Date(), true);
-      console.log("Data de atualização definida dentro de initializeSystem.");
+      console.log("Data de atualização definida dentro de initializeApp.");
   }
 
    // Carregar a lista inicial se a tab 'maintenance' for a padrão (ou se necessário)
    // loadMaintenanceList(); // Descomente se precisar carregar na inicialização
+   
+   // Ativar a primeira tab se nenhuma estiver ativa
+   if (!document.querySelector('.tab.active')) {
+     const defaultTab = document.querySelector('.tab[data-tab="dashboard"]') || document.querySelector('.tab');
+     if (defaultTab) {
+       defaultTab.click();
+     }
+   }
 }
 
 /**
@@ -402,7 +410,7 @@ function updateMaintenanceTable() {
  */
 function setupMaintenanceFilters() {
   // Remover listeners antigos para evitar duplicação se esta função for chamada múltiplas vezes
-  const filterContainer = document.querySelector('#tab-maintenance .filter-bar'); // Ajuste o seletor se necessário
+  const filterContainer = document.querySelector('#tab-maintenance .filter-container'); // Ajuste o seletor se necessário
   if (filterContainer) {
     filterContainer.querySelectorAll('.filter-item').forEach(filter => {
         const newFilter = filter.cloneNode(true); // Clonar para remover listeners antigos
@@ -682,70 +690,3 @@ function openVerificationForm(id) {
       if (typeof showLoading === 'function') showLoading(false);
     });
 }
-
-// ===============================================
-// Funções Utilitárias (Exemplos - Devem vir de Utilities.js ou ser definidas aqui se não vierem)
-// ===============================================
-
-/*
- Exemplo: Se Utilities.js não carregar, estas funções podem ser definidas aqui como fallback,
- mas o ideal é que venham do arquivo de utilitários.
-
- function formatDate(dateString, includeTime = false) {
-   if (!dateString) return '-';
-   try {
-     const date = new Date(dateString);
-     if (isNaN(date.getTime())) return '-'; // Data inválida
-
-     const optionsDate = { day: '2-digit', month: '2-digit', year: 'numeric' };
-     const optionsTime = { hour: '2-digit', minute: '2-digit' };
-
-     let formatted = date.toLocaleDateString('pt-BR', optionsDate);
-     if (includeTime) {
-       formatted += ' ' + date.toLocaleTimeString('pt-BR', optionsTime);
-     }
-     return formatted;
-   } catch (e) {
-     console.error("Erro ao formatar data:", dateString, e);
-     return '-';
-   }
- }
-
- function getStatusClass(status) {
-   if (!status) return 'desconhecido';
-   const lowerStatus = status.toLowerCase();
-   if (lowerStatus.includes('pendente')) return 'pending';
-   if (lowerStatus.includes('verificado') || lowerStatus.includes('aprovado') || lowerStatus.includes('ajustes')) return 'verified';
-   if (lowerStatus.includes('concluído') || lowerStatus.includes('concluido')) return 'completed';
-   return 'desconhecido'; // Fallback
- }
-
- function showNotification(message, type = 'info') {
-   // Implementação de como mostrar notificações (ex: usando uma biblioteca ou div customizada)
-   console.log(`[${type.toUpperCase()}] Notification: ${message}`);
-   alert(`[${type.toUpperCase()}] ${message}`); // Exemplo simples com alert
- }
-
- function showLoading(show, message = 'Carregando...') {
-    // Implementação para mostrar/esconder um indicador de loading
-    const loader = document.getElementById('loading-indicator'); // Exemplo
-    if (loader) {
-        loader.style.display = show ? 'flex' : 'none';
-        const loaderText = loader.querySelector('.loading-text'); // Exemplo
-        if (loaderText) loaderText.textContent = message;
-    } else {
-        console.log(`Loading: ${show} (${message})`);
-    }
- }
-
- function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func.apply(this, args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
- }
