@@ -1,3 +1,12 @@
+// Adicione este código no início do arquivo dashboard.js
+// Verificar se as dependências necessárias estão carregadas
+if (!window.API || !window.API_LOADED || !window.UTILITIES_LOADED) {
+  console.error("Erro: Dependências API.js ou Utilities.js não carregadas antes de dashboard.js");
+} else {
+  console.log("Dashboard.js - Dependências carregadas corretamente");
+}
+
+// A partir daqui, o código original continua:
 const Dashboard = (() => {
   // Armazenar gráficos para atualização
   let charts = {};
@@ -1608,8 +1617,10 @@ const Dashboard = (() => {
 // Garantir que utilities.js e api.js sejam carregados ANTES deste script
 document.addEventListener('DOMContentLoaded', function() {
   // Verificar se as dependências (API, Utilities) estão carregadas
+  // Nota: A verificação principal foi movida para o topo do arquivo.
+  // Esta verificação secundária pode ser mantida como um fallback antes da inicialização.
   if (typeof API === 'undefined' || typeof Utilities === 'undefined') {
-      console.error("Erro: Dependências API.js ou Utilities.js não carregadas antes de dashboard.js");
+      console.error("Erro: Dependências API.js ou Utilities.js não carregadas antes de dashboard.js (verificação DOMContentLoaded)");
       // Poderia mostrar uma mensagem de erro para o usuário
       alert("Erro crítico na inicialização da aplicação. Verifique o console.");
       return;
