@@ -738,7 +738,7 @@
     <div id="global-loader-message">Carregando...</div>
   </div>
 
-  <!-- ****** INÍCIO DA SEÇÃO DE SCRIPTS ATUALIZADA ****** -->
+<!-- ****** INÍCIO DA SEÇÃO DE SCRIPTS ATUALIZADA ****** -->
 <!-- JavaScript - Sistema de carregamento robusto -->
 <script>
 // Configurações do sistema
@@ -765,28 +765,82 @@ const ScriptLoader = {
   init: function() {
     console.log("Iniciando carregamento das dependências...");
     // Primeiro carregar as dependências essenciais
-    this.loadCoreScripts();
+    this.loadCoreScriptsSequentially();
   },
 
-  loadCoreScripts: function() {
+  loadCoreScriptsSequentially: function() {
     // Identificar scripts essenciais
     const coreScripts = scriptConfig.scripts.filter(s => s.required);
-
-    // Carregar scripts essenciais de forma sequencial para mais consistência
-    this.loadScriptsSequentially(coreScripts, 0, () => {
-      console.log("Dependências essenciais carregadas sequencialmente.");
-
-      // Verificar se as flags foram definidas
-      if (!window.API_LOADED) {
-        console.warn("Flag window.API_LOADED não definida em api.js!");
-      }
-      if (!window.UTILITIES_LOADED) {
-        console.warn("Flag window.UTILITIES_LOADED não definida em utilities.js!");
-      }
-
-      // Continue carregando os scripts restantes mesmo que as flags não estejam definidas
+    
+    console.log("Carregando scripts essenciais sequencialmente...");
+    // Carregar primeiro script
+    if (coreScripts.length > 0) {
+      this.loadScriptSequential(coreScripts, 0, () => {
+        console.log("Scripts essenciais carregados. Verificando flags...");
+        
+        // Verificar flags após carregar todos os scripts essenciais
+        setTimeout(() => {
+          // Verificar se as flags estão definidas
+          const apiLoaded = (window.API !== undefined) && window.API_LOADED;
+          const utilitiesLoaded = (window.Utilities !== undefined) && window.UTILITIES_LOADED;
+          
+          if (!apiLoaded) {
+            console.warn("API não foi carregada corretamente!");
+          }
+          if (!utilitiesLoaded) {
+            console.warn("Utilities não foram carregadas corretamente!");
+          }
+          
+          // Continuar mesmo com problemas (o sistema tentará recuperar)
+          this.loadRemainingScripts();
+        }, 100); // Pequeno timeout para garantir que flags sejam definidas
+      });
+    } else {
       this.loadRemainingScripts();
-    });
+    }
+  },
+  
+  loadScriptSequential: function(scripts, index, onComplete) {
+    if (index >= scripts.length) {
+      if (typeof onComplete === 'function') {
+        onComplete();
+      }
+      return;
+    }
+    
+    const script = scripts[index];
+    console.log(`Carregando script essencial: ${script.name}`);
+    
+    this.loadScript(script.name, script.path)
+      .then(() => {
+        // Verifica se o script foi realmente carregado
+        const scriptLoaded = this.checkScriptLoaded(script.name);
+        if (!scriptLoaded) {
+          console.warn(`Script ${script.name} não foi carregado corretamente.`);
+        }
+        
+        // Um pequeno intervalo para garantir que o script seja processado
+        setTimeout(() => {
+          this.loadScriptSequential(scripts, index + 1, onComplete);
+        }, 100);
+      })
+      .catch(error => {
+        console.error(`Erro ao carregar script essencial ${script.name}:`, error);
+        // Continua mesmo com erro (menos crítico, o sistema tentará recuperar)
+        setTimeout(() => {
+          this.loadScriptSequential(scripts, index + 1, onComplete);
+        }, 100);
+      });
+  },
+  
+  checkScriptLoaded: function(name) {
+    // Verifica se o script foi carregado corretamente
+    if (name === 'api') {
+      return window.API !== undefined;
+    } else if (name === 'utilities') {
+      return window.Utilities !== undefined;
+    }
+    return this.loadedScripts[name] === true;
   },
 
   loadRemainingScripts: function() {
@@ -813,10 +867,26 @@ const ScriptLoader = {
 
     // Verificar dependências antes de tentar carregar
     if (script.depends && script.depends.length > 0) {
-      const allDependenciesLoaded = script.depends.every(dep => this.loadedScripts[dep]);
+      const allDependenciesLoaded = script.depends.every(dep => {
+        // Verifica explicitamente cada dependência
+        if (dep === 'api' && !window.API) {
+          console.warn("Dependência API não está disponível para " + script.name);
+          return false;
+        }
+        if (dep === 'utilities' && !window.Utilities) {
+          console.warn("Dependência Utilities não está disponível para " + script.name);
+          return false;
+        }
+        return this.loadedScripts[dep];
+      });
 
       if (!allDependenciesLoaded) {
-        console.warn(`Dependências para ${script.name} (${script.depends.join(', ')}) não estão totalmente carregadas. Tentando carregar mesmo assim, mas pode causar erros.`);
+        console.warn(`Dependências para ${script.name} não estão carregadas. Adiando carregamento.`);
+        // Adiar o carregamento e tentar novamente mais tarde
+        setTimeout(() => {
+          this.loadScriptsSequentially(scripts, index, onComplete);
+        }, 300);
+        return;
       }
     }
 
