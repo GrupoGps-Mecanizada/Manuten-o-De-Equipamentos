@@ -749,6 +749,3 @@ function openVerificationForm(id) {
         timeout = setTimeout(later, wait);
     };
  }
-
-// Adicione aqui outras funções auxiliares que podem faltar de Utilities.js
-*/
