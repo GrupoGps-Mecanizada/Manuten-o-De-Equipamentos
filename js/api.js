@@ -208,6 +208,6 @@ const API = (function() {
   
   console.log("API.js carregado com sucesso!");
   window.API_LOADED = true;
-  
+  window.API = publicAPI;
   return publicAPI;
 })();
