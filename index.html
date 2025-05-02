@@ -739,372 +739,334 @@
   </div>
 
   <!-- ****** INÍCIO DA SEÇÃO DE SCRIPTS ATUALIZADA ****** -->
-  <!-- JavaScript - Sistema de carregamento robusto -->
-  <script>
-  // Configurações do sistema
-  const scriptConfig = {
-    baseUrl: '', // URL base para os scripts, deixe vazio se estiverem na mesma pasta que o HTML
-    scripts: [
-      {name: 'api', path: 'js/api.js', required: true},
-      {name: 'utilities', path: 'js/utilities.js', required: true},
-      {name: 'dashboard', path: 'js/dashboard.js', depends: ['api', 'utilities']},
-      {name: 'maintenance', path: 'js/maintenance.js', depends: ['api', 'utilities']},
-      {name: 'verification', path: 'js/verification.js', depends: ['api', 'utilities']},
-      {name: 'reports', path: 'js/reports.js', depends: ['api', 'utilities']},
-      {name: 'main', path: 'js/main.js', depends: ['api', 'utilities']}
-    ],
-    maxRetries: 3,
-    timeout: 10000 // 10 segundos
-  };
+<!-- JavaScript - Sistema de carregamento robusto -->
+<script>
+// Configurações do sistema
+const scriptConfig = {
+  baseUrl: '', // URL base para os scripts, deixe vazio se estiverem na mesma pasta que o HTML
+  scripts: [
+    {name: 'api', path: 'js/api.js', required: true},
+    {name: 'utilities', path: 'js/utilities.js', required: true},
+    {name: 'dashboard', path: 'js/dashboard.js', depends: ['api', 'utilities']},
+    {name: 'maintenance', path: 'js/maintenance.js', depends: ['api', 'utilities']},
+    {name: 'verification', path: 'js/verification.js', depends: ['api', 'utilities']},
+    {name: 'reports', path: 'js/reports.js', depends: ['api', 'utilities']},
+    {name: 'main', path: 'js/main.js', depends: ['api', 'utilities']}
+  ],
+  maxRetries: 3,
+  timeout: 15000 // Aumentado para 15 segundos
+};
 
-  // Sistema de carregamento de scripts com retentativas
-  const ScriptLoader = {
-    loadedScripts: {},
-    pendingScripts: {},
+// Sistema de carregamento de scripts com retentativas
+const ScriptLoader = {
+  loadedScripts: {},
+  pendingScripts: {},
 
-    init: function() {
-      console.log("Iniciando carregamento das dependências...");
-      // Primeiro carregar as dependências essenciais
-      this.loadCoreScripts();
-    },
+  init: function() {
+    console.log("Iniciando carregamento das dependências...");
+    // Primeiro carregar as dependências essenciais
+    this.loadCoreScripts();
+  },
 
-    loadCoreScripts: function() {
-      // Identificar scripts essenciais
-      const coreScripts = scriptConfig.scripts.filter(s => s.required);
+  loadCoreScripts: function() {
+    // Identificar scripts essenciais
+    const coreScripts = scriptConfig.scripts.filter(s => s.required);
 
-      // Carregar scripts essenciais primeiro
-      const promises = coreScripts.map(script => this.loadScript(script.name, script.path));
+    // Carregar scripts essenciais de forma sequencial para mais consistência
+    this.loadScriptsSequentially(coreScripts, 0, () => {
+      console.log("Dependências essenciais carregadas sequencialmente.");
 
-      Promise.all(promises)
-        .then(() => {
-          console.log("Dependências essenciais (api.js, utilities.js) carregadas via Promise.all.");
-
-          // Verificar se as flags foram definidas nos scripts essenciais
-          // Nota: A definição das flags window.API_LOADED e window.UTILITIES_LOADED
-          // DEVE ocorrer dentro dos respectivos arquivos .js para garantir que
-          // o código deles foi realmente executado.
-          if (!window.API_LOADED) {
-            console.warn("Flag window.API_LOADED não definida em api.js!");
-          }
-          if (!window.UTILITIES_LOADED) {
-            console.warn("Flag window.UTILITIES_LOADED não definida em utilities.js!");
-          }
-
-          // Continue carregando os scripts restantes mesmo que as flags não estejam definidas (ou com aviso)
-          this.loadRemainingScripts();
-        })
-        .catch((error) => {
-          console.error("Erro ao carregar scripts essenciais via Promise.all:", error);
-
-          // Tente uma abordagem sequencial como fallback se Promise.all falhar
-          console.log("Tentando carregar scripts essenciais sequencialmente...");
-          this.loadScriptsSequentially(coreScripts, 0, () => {
-            // Mesmo com erro, tenta carregar o resto, mas o sistema pode falhar.
-            // A verificação das flags pode ser feita novamente aqui, se necessário.
-             if (!window.API_LOADED || !window.UTILITIES_LOADED) {
-                 console.error("Falha crítica: Scripts essenciais não puderam ser carregados nem sequencialmente.");
-                 this.showErrorMessage(); // Mostra erro ao usuário
-                 return; // Impede o carregamento do resto
-             }
-             console.log("Scripts essenciais carregados sequencialmente com sucesso.");
-             this.loadRemainingScripts();
-          });
-        });
-    },
-
-    loadRemainingScripts: function() {
-      // Filtrar scripts que não são essenciais
-      const remainingScripts = scriptConfig.scripts.filter(s => !s.required);
-
-      // Carregar scripts sequencialmente para garantir dependências
-      console.log("Carregando scripts restantes...");
-      this.loadScriptsSequentially(remainingScripts, 0, () => {
-        console.log("Todos os scripts (essenciais e restantes) foram carregados.");
-        this.initializeSystem();
-      });
-    },
-
-    loadScriptsSequentially: function(scripts, index, onComplete) {
-      if (index >= scripts.length) {
-        if (typeof onComplete === 'function') {
-          onComplete();
-        }
-        return;
+      // Verificar se as flags foram definidas
+      if (!window.API_LOADED) {
+        console.warn("Flag window.API_LOADED não definida em api.js!");
+      }
+      if (!window.UTILITIES_LOADED) {
+        console.warn("Flag window.UTILITIES_LOADED não definida em utilities.js!");
       }
 
-      const script = scripts[index];
-
-      // Verificar dependências antes de tentar carregar
-      if (script.depends && script.depends.length > 0) {
-        const allDependenciesLoaded = script.depends.every(dep => this.loadedScripts[dep]);
-
-        if (!allDependenciesLoaded) {
-          // Isso pode indicar um problema na ordem ou falha no carregamento de uma dependência essencial
-          console.warn(`Dependências para ${script.name} (${script.depends.join(', ')}) não estão totalmente carregadas. Tentando carregar mesmo assim, mas pode causar erros.`);
-          // O ideal seria ter um mecanismo para reordenar ou esperar, mas por simplicidade, continuamos.
-        }
-      }
-
-      this.loadScript(script.name, script.path)
-        .then(() => {
-          this.loadScriptsSequentially(scripts, index + 1, onComplete);
-        })
-        .catch((error) => {
-          console.error(`Erro ao carregar script ${script.name}:`, error);
-          // Decide se quer parar ou continuar. Aqui, continua carregando os outros.
-          this.loadScriptsSequentially(scripts, index + 1, onComplete);
-        });
-    },
-
-    loadScript: function(name, path, retryCount = 0) {
-      // Se o script já foi carregado, retorne imediatamente.
-      if (this.loadedScripts[name]) {
-        // console.log(`Script ${name} já carregado.`); // Log opcional
-        return Promise.resolve();
-      }
-
-      // Se o script já está sendo carregado (pendente), retorne a promise existente.
-      if (this.pendingScripts[name]) {
-        // console.log(`Script ${name} já está pendente de carregamento.`); // Log opcional
-        return this.pendingScripts[name];
-      }
-
-      const url = scriptConfig.baseUrl + path;
-      console.log(`Iniciando carregamento de: ${name} (${url})`);
-
-      // Criar nova promise para carregar o script
-      const promise = new Promise((resolve, reject) => {
-        const scriptElement = document.createElement('script');
-        scriptElement.src = url;
-        scriptElement.async = true; // Carregar assíncrono, mas a ordem é controlada pelo loadScriptsSequentially/Promise.all
-
-        let timeoutId = null;
-
-        // Função para limpar recursos (timeout, listeners)
-        const cleanup = () => {
-          clearTimeout(timeoutId);
-          scriptElement.onload = null;
-          scriptElement.onerror = null;
-          // Remover o elemento script do DOM em caso de erro pode ser considerado,
-          // mas pode dificultar o debug. Deixaremos por enquanto.
-          // if (scriptElement.parentNode) {
-          //   scriptElement.parentNode.removeChild(scriptElement);
-          // }
-        };
-
-        // Configurar timeout
-        timeoutId = setTimeout(() => {
-          console.error(`Timeout ao carregar ${name} (${url}) após ${scriptConfig.timeout}ms`);
-          scriptElement.remove(); // Remove o script que deu timeout
-          delete this.pendingScripts[name]; // Remove da lista de pendentes
-
-          if (retryCount < scriptConfig.maxRetries) {
-            console.log(`Tentando carregar ${name} novamente (tentativa ${retryCount + 1}/${scriptConfig.maxRetries})...`);
-            // Chama recursivamente para tentar novamente
-            this.loadScript(name, path, retryCount + 1)
-              .then(resolve) // Se a retentativa funcionar, resolve a promise original
-              .catch(reject); // Se a retentativa falhar, rejeita a promise original
-          } else {
-            cleanup(); // Limpa listeners antes de rejeitar
-            reject(new Error(`Falha ao carregar ${name} após ${scriptConfig.maxRetries} tentativas (timeout)`));
-          }
-        }, scriptConfig.timeout);
-
-        // Evento de sucesso
-        scriptElement.onload = () => {
-          console.log(`Script ${name} (${path}) carregado com sucesso.`);
-          cleanup(); // Limpa o timeout e listeners
-          this.loadedScripts[name] = true; // Marca como carregado
-          delete this.pendingScripts[name]; // Remove da lista de pendentes
-          resolve(); // Resolve a promise
-        };
-
-        // Evento de erro
-        scriptElement.onerror = (event) => {
-          console.error(`Erro ao carregar ${name} (${url})`, event);
-          scriptElement.remove(); // Remove o script que falhou
-          delete this.pendingScripts[name]; // Remove da lista de pendentes
-
-          if (retryCount < scriptConfig.maxRetries) {
-            console.log(`Tentando carregar ${name} novamente (tentativa ${retryCount + 1}/${scriptConfig.maxRetries})...`);
-            // Espera um pouco antes de tentar novamente (backoff simples)
-            setTimeout(() => {
-                this.loadScript(name, path, retryCount + 1)
-                    .then(resolve)
-                    .catch(reject);
-            }, 500 * (retryCount + 1)); // Aumenta o tempo de espera a cada tentativa
-          } else {
-            cleanup(); // Limpa o timeout e listeners
-            reject(new Error(`Falha ao carregar ${name} (${url}) após ${scriptConfig.maxRetries} tentativas`));
-          }
-        };
-
-        // Adicionar ao body para iniciar o carregamento
-        document.body.appendChild(scriptElement);
-      });
-
-      // Armazena a promise enquanto o script está carregando
-      this.pendingScripts[name] = promise;
-      return promise;
-    },
-
-    initializeSystem: function() {
-      console.log("Tentando inicializar o sistema...");
-      const loader = document.getElementById('global-loader');
-      if (loader) loader.style.display = 'flex'; // Mostra o loader durante a inicialização
-
-      try {
-        // Tenta chamar a função global de inicialização definida em main.js (ou outro script)
-        if (typeof window.initializeApp === 'function') {
-          window.initializeApp();
-          console.log("Sistema inicializado via window.initializeApp().");
-        } else if (typeof initializeApp === 'function') { // Fallback para escopo global direto
-           initializeApp();
-           console.log("Sistema inicializado via initializeApp().");
-        } else {
-          console.error("Função de inicialização 'initializeApp' não encontrada. A aplicação pode não funcionar corretamente.");
-          // Tentar inicializar componentes individuais como fallback extremo
-          this.initializeComponentsFallback();
-        }
-      } catch (error) {
-        console.error("Erro GERAL durante a inicialização do sistema:", error);
-        this.showErrorMessage(); // Mostra mensagem de erro ao usuário
-      } finally {
-         // Esconde o loader após tentativa de inicialização (mesmo com erro, para não bloquear a UI)
-         setTimeout(() => { // Pequeno delay para garantir renderização
-            if (loader) loader.style.display = 'none';
-         }, 200);
-      }
-    },
-
-    initializeComponentsFallback: function() {
-        console.warn("Tentando inicializar componentes individuais como fallback...");
-        let initializedSomething = false;
-
-        // Tenta inicializar componentes comuns (exemplo)
-        if (typeof Dashboard !== 'undefined' && typeof Dashboard.initialize === 'function') {
-          try {
-            Dashboard.initialize();
-            console.log("Dashboard inicializado (fallback).");
-            initializedSomething = true;
-          } catch (e) { console.error("Erro ao inicializar Dashboard (fallback):", e); }
-        }
-
-        if (typeof Maintenance !== 'undefined' && typeof Maintenance.initialize === 'function') {
-           try {
-             Maintenance.initialize();
-             console.log("Maintenance inicializado (fallback).");
-             initializedSomething = true;
-           } catch (e) { console.error("Erro ao inicializar Maintenance (fallback):", e); }
-        }
-
-         if (typeof Verification !== 'undefined' && typeof Verification.initialize === 'function') {
-           try {
-             Verification.initialize();
-             console.log("Verification inicializado (fallback).");
-             initializedSomething = true;
-           } catch (e) { console.error("Erro ao inicializar Verification (fallback):", e); }
-        }
-
-        if (typeof Reports !== 'undefined' && typeof Reports.initialize === 'function') {
-           try {
-             Reports.initialize();
-             console.log("Reports inicializado (fallback).");
-             initializedSomething = true;
-           } catch (e) { console.error("Erro ao inicializar Reports (fallback):", e); }
-        }
-
-        if (!initializedSomething) {
-            console.error("Nenhum componente pôde ser inicializado via fallback.");
-            this.showErrorMessage(); // Mostra erro se nada funcionou
-        }
-    },
-
-    showErrorMessage: function() {
-      // Garante que não haja múltiplas mensagens de erro
-      if (document.getElementById('script-load-error-message')) {
-          return;
-      }
-
-      // Criar mensagem de erro visível
-      const errorDiv = document.createElement('div');
-      errorDiv.id = 'script-load-error-message'; // Adiciona ID para evitar duplicação
-      errorDiv.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background-color: #ffebe6; /* Cor de fundo mais suave para erro */
-        color: #bf2600; /* Cor do texto de erro */
-        padding: 25px;
-        border: 1px solid #ffbdad; /* Borda correspondente */
-        border-radius: 8px;
-        box-shadow: 0 6px 16px rgba(0,0,0,0.15);
-        z-index: 10000; /* Acima de outros elementos */
-        max-width: 90%;
-        width: 450px; /* Largura fixa para melhor formatação */
-        text-align: center;
-        font-family: sans-serif; /* Fonte padrão */
-      `;
-
-      errorDiv.innerHTML = `
-        <h2 style="color: #bf2600; margin-top: 0; margin-bottom: 15px; font-size: 1.3em;">Erro ao Carregar o Sistema</h2>
-        <p style="margin-bottom: 20px; line-height: 1.5; font-size: 0.95em;">Ocorreu um problema ao carregar alguns componentes essenciais da aplicação. Por favor, tente as seguintes ações:</p>
-        <ul style="text-align: left; margin: 0 auto 20px auto; padding-left: 20px; max-width: 300px; font-size: 0.9em;">
-          <li style="margin-bottom: 8px;">Atualize a página (F5 ou Ctrl+R).</li>
-          <li style="margin-bottom: 8px;">Limpe o cache do seu navegador.</li>
-          <li style="margin-bottom: 8px;">Verifique sua conexão com a internet.</li>
-          <li>Tente usar um navegador diferente (Chrome, Firefox, Edge).</li>
-        </ul>
-        <button id="retry-load-btn" style="
-          background-color: #de350b; /* Botão vermelho para erro */
-          color: white;
-          border: none;
-          padding: 10px 20px;
-          border-radius: 5px;
-          cursor: pointer;
-          font-weight: 600;
-          font-size: 1em;
-          transition: background-color 0.2s ease;
-        ">Tentar Carregar Novamente</button>
-        <p style="margin-top: 20px; font-size: 0.8em; color: #5e6c84;">
-          Se o problema persistir após tentar as soluções acima, por favor, contate o suporte técnico.
-        </p>
-      `;
-
-      document.body.appendChild(errorDiv);
-
-      // Adicionar evento ao botão para recarregar a página
-      const retryButton = document.getElementById('retry-load-btn');
-      if(retryButton) {
-          retryButton.addEventListener('click', function() {
-              // Remove a mensagem de erro antes de recarregar para evitar flash
-              errorDiv.remove();
-              location.reload();
-          });
-           retryButton.onmouseover = () => retryButton.style.backgroundColor = '#bf2600'; // Hover effect
-           retryButton.onmouseout = () => retryButton.style.backgroundColor = '#de350b'; // Reset hover
-      }
-
-       // Esconder o loader global se ele ainda estiver visível
-       const loader = document.getElementById('global-loader');
-       if (loader) loader.style.display = 'none';
-    }
-  };
-
-  // Iniciar carregamento quando o DOM estiver pronto e os recursos básicos carregados
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-      console.log("DOM carregado. Iniciando ScriptLoader.");
-      ScriptLoader.init();
+      // Continue carregando os scripts restantes mesmo que as flags não estejam definidas
+      this.loadRemainingScripts();
     });
-  } else {
-    // DOM já está pronto
-     console.log("DOM já estava carregado. Iniciando ScriptLoader.");
-     ScriptLoader.init();
+  },
+
+  loadRemainingScripts: function() {
+    // Filtrar scripts que não são essenciais
+    const remainingScripts = scriptConfig.scripts.filter(s => !s.required);
+
+    // Carregar scripts sequencialmente para garantir dependências
+    console.log("Carregando scripts restantes...");
+    this.loadScriptsSequentially(remainingScripts, 0, () => {
+      console.log("Todos os scripts (essenciais e restantes) foram carregados.");
+      this.initializeSystem();
+    });
+  },
+
+  loadScriptsSequentially: function(scripts, index, onComplete) {
+    if (index >= scripts.length) {
+      if (typeof onComplete === 'function') {
+        onComplete();
+      }
+      return;
+    }
+
+    const script = scripts[index];
+
+    // Verificar dependências antes de tentar carregar
+    if (script.depends && script.depends.length > 0) {
+      const allDependenciesLoaded = script.depends.every(dep => this.loadedScripts[dep]);
+
+      if (!allDependenciesLoaded) {
+        console.warn(`Dependências para ${script.name} (${script.depends.join(', ')}) não estão totalmente carregadas. Tentando carregar mesmo assim, mas pode causar erros.`);
+      }
+    }
+
+    this.loadScript(script.name, script.path)
+      .then(() => {
+        this.loadScriptsSequentially(scripts, index + 1, onComplete);
+      })
+      .catch((error) => {
+        console.error(`Erro ao carregar script ${script.name}:`, error);
+        // Continua carregando os outros scripts
+        this.loadScriptsSequentially(scripts, index + 1, onComplete);
+      });
+  },
+
+  loadScript: function(name, path, retryCount = 0) {
+    // Se o script já foi carregado, retorne imediatamente.
+    if (this.loadedScripts[name]) {
+      return Promise.resolve();
+    }
+
+    // Se o script já está sendo carregado (pendente), retorne a promise existente.
+    if (this.pendingScripts[name]) {
+      return this.pendingScripts[name];
+    }
+
+    const url = scriptConfig.baseUrl + path;
+    console.log(`Iniciando carregamento de: ${name} (${url})`);
+
+    // Criar nova promise para carregar o script
+    const promise = new Promise((resolve, reject) => {
+      const scriptElement = document.createElement('script');
+      scriptElement.src = url;
+      scriptElement.async = true;
+
+      let timeoutId = null;
+
+      // Função para limpar recursos
+      const cleanup = () => {
+        clearTimeout(timeoutId);
+        scriptElement.onload = null;
+        scriptElement.onerror = null;
+      };
+
+      // Configurar timeout
+      timeoutId = setTimeout(() => {
+        console.error(`Timeout ao carregar ${name} (${url}) após ${scriptConfig.timeout}ms`);
+        scriptElement.remove();
+        delete this.pendingScripts[name];
+
+        if (retryCount < scriptConfig.maxRetries) {
+          console.log(`Tentando carregar ${name} novamente (tentativa ${retryCount + 1}/${scriptConfig.maxRetries})...`);
+          this.loadScript(name, path, retryCount + 1)
+            .then(resolve)
+            .catch(reject);
+        } else {
+          cleanup();
+          reject(new Error(`Falha ao carregar ${name} após ${scriptConfig.maxRetries} tentativas (timeout)`));
+        }
+      }, scriptConfig.timeout);
+
+      // Evento de sucesso
+      scriptElement.onload = () => {
+        console.log(`Script ${name} (${path}) carregado com sucesso.`);
+        cleanup();
+        this.loadedScripts[name] = true;
+        delete this.pendingScripts[name];
+        resolve();
+      };
+
+      // Evento de erro
+      scriptElement.onerror = (event) => {
+        console.error(`Erro ao carregar ${name} (${url})`, event);
+        scriptElement.remove();
+        delete this.pendingScripts[name];
+
+        if (retryCount < scriptConfig.maxRetries) {
+          console.log(`Tentando carregar ${name} novamente (tentativa ${retryCount + 1}/${scriptConfig.maxRetries})...`);
+          setTimeout(() => {
+            this.loadScript(name, path, retryCount + 1)
+              .then(resolve)
+              .catch(reject);
+          }, 500 * (retryCount + 1));
+        } else {
+          cleanup();
+          reject(new Error(`Falha ao carregar ${name} (${url}) após ${scriptConfig.maxRetries} tentativas`));
+        }
+      };
+
+      // Adicionar ao body para iniciar o carregamento
+      document.body.appendChild(scriptElement);
+    });
+
+    // Armazena a promise enquanto o script está carregando
+    this.pendingScripts[name] = promise;
+    return promise;
+  },
+
+  initializeSystem: function() {
+    console.log("Tentando inicializar o sistema...");
+    const loader = document.getElementById('global-loader');
+    if (loader) loader.style.display = 'flex';
+
+    try {
+      // Tenta chamar a função global de inicialização
+      if (typeof window.initializeApp === 'function') {
+        window.initializeApp();
+        console.log("Sistema inicializado via window.initializeApp().");
+      } else if (typeof initializeApp === 'function') { // Fallback
+        initializeApp();
+        console.log("Sistema inicializado via initializeApp().");
+      } else {
+        console.error("Função de inicialização 'initializeApp' não encontrada. A aplicação pode não funcionar corretamente.");
+        // Tentar inicializar componentes individuais como fallback
+        this.initializeComponentsFallback();
+      }
+    } catch (error) {
+      console.error("Erro GERAL durante a inicialização do sistema:", error);
+      this.showErrorMessage();
+    } finally {
+      setTimeout(() => {
+        if (loader) loader.style.display = 'none';
+      }, 200);
+    }
+  },
+
+  initializeComponentsFallback: function() {
+    console.warn("Tentando inicializar componentes individuais como fallback...");
+    let initializedSomething = false;
+
+    // Tenta inicializar componentes comuns
+    if (typeof Dashboard !== 'undefined' && typeof Dashboard.initialize === 'function') {
+      try {
+        Dashboard.initialize();
+        console.log("Dashboard inicializado (fallback).");
+        initializedSomething = true;
+      } catch (e) { console.error("Erro ao inicializar Dashboard (fallback):", e); }
+    }
+
+    if (typeof Maintenance !== 'undefined' && typeof Maintenance.initialize === 'function') {
+      try {
+        Maintenance.initialize();
+        console.log("Maintenance inicializado (fallback).");
+        initializedSomething = true;
+      } catch (e) { console.error("Erro ao inicializar Maintenance (fallback):", e); }
+    }
+
+    if (typeof Verification !== 'undefined' && typeof Verification.initialize === 'function') {
+      try {
+        Verification.initialize();
+        console.log("Verification inicializado (fallback).");
+        initializedSomething = true;
+      } catch (e) { console.error("Erro ao inicializar Verification (fallback):", e); }
+    }
+
+    if (typeof Reports !== 'undefined' && typeof Reports.initialize === 'function') {
+      try {
+        Reports.initialize();
+        console.log("Reports inicializado (fallback).");
+        initializedSomething = true;
+      } catch (e) { console.error("Erro ao inicializar Reports (fallback):", e); }
+    }
+
+    if (!initializedSomething) {
+      console.error("Nenhum componente pôde ser inicializado via fallback.");
+      this.showErrorMessage();
+    }
+  },
+
+  showErrorMessage: function() {
+    // Garante que não haja múltiplas mensagens de erro
+    if (document.getElementById('script-load-error-message')) {
+      return;
+    }
+
+    // Criar mensagem de erro visível
+    const errorDiv = document.createElement('div');
+    errorDiv.id = 'script-load-error-message';
+    errorDiv.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: #ffebe6;
+      color: #bf2600;
+      padding: 25px;
+      border: 1px solid #ffbdad;
+      border-radius: 8px;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+      z-index: 10000;
+      max-width: 90%;
+      width: 450px;
+      text-align: center;
+      font-family: sans-serif;
+    `;
+
+    errorDiv.innerHTML = `
+      <h2 style="color: #bf2600; margin-top: 0; margin-bottom: 15px; font-size: 1.3em;">Erro ao Carregar o Sistema</h2>
+      <p style="margin-bottom: 20px; line-height: 1.5; font-size: 0.95em;">Ocorreu um problema ao carregar alguns componentes essenciais da aplicação. Por favor, tente as seguintes ações:</p>
+      <ul style="text-align: left; margin: 0 auto 20px auto; padding-left: 20px; max-width: 300px; font-size: 0.9em;">
+        <li style="margin-bottom: 8px;">Atualize a página (F5 ou Ctrl+R).</li>
+        <li style="margin-bottom: 8px;">Limpe o cache do seu navegador.</li>
+        <li style="margin-bottom: 8px;">Verifique sua conexão com a internet.</li>
+        <li>Tente usar um navegador diferente (Chrome, Firefox, Edge).</li>
+      </ul>
+      <button id="retry-load-btn" style="
+        background-color: #de350b;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 1em;
+        transition: background-color 0.2s ease;
+      ">Tentar Carregar Novamente</button>
+      <p style="margin-top: 20px; font-size: 0.8em; color: #5e6c84;">
+        Se o problema persistir após tentar as soluções acima, por favor, contate o suporte técnico.
+      </p>
+    `;
+
+    document.body.appendChild(errorDiv);
+
+    // Adicionar evento ao botão para recarregar a página
+    const retryButton = document.getElementById('retry-load-btn');
+    if(retryButton) {
+      retryButton.addEventListener('click', function() {
+        errorDiv.remove();
+        location.reload();
+      });
+      retryButton.onmouseover = () => retryButton.style.backgroundColor = '#bf2600';
+      retryButton.onmouseout = () => retryButton.style.backgroundColor = '#de350b';
+    }
+
+    const loader = document.getElementById('global-loader');
+    if (loader) loader.style.display = 'none';
   }
-  </script>
-  <!-- ****** FIM DA SEÇÃO DE SCRIPTS ATUALIZADA ****** -->
+};
+
+// Iniciar carregamento quando o DOM estiver pronto
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOM carregado. Iniciando ScriptLoader.");
+    ScriptLoader.init();
+  });
+} else {
+  console.log("DOM já estava carregado. Iniciando ScriptLoader.");
+  ScriptLoader.init();
+}
+</script>
+<!-- ****** FIM DA SEÇÃO DE SCRIPTS ATUALIZADA ****** -->
 
 </body>
 </html>
