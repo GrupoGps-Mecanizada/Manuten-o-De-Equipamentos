@@ -1,10 +1,10 @@
-<artifact id="fixed-api-js" type="application/vnd.ant.code" language="javascript">
+<artifact id="api-js" type="application/vnd.ant.code" language="javascript">
 /**
  * Sistema de Dupla Checagem de Manutenção
  * Módulo: API para comunicação com o backend
  */
 
-const API = (() => {
+const API = (function() {
   // URL base da API (Web App do Google Apps Script publicado)
   const API_URL = 'https://script.google.com/macros/s/AKfycbxlQDfskwbp4S9rrcMrNb823irz7O3pU-kfMeauzREV-7jy0JDIgXCxhxQBlQ4aM3MQ2w/exec';
   
@@ -123,7 +123,7 @@ const API = (() => {
   }
   
   // API pública
-  return {
+  const publicAPI = {
     // Dashboard
     getDashboardData: (period = 'current-month') => callAPI('getDashboardData', { period }),
     
@@ -181,9 +181,10 @@ const API = (() => {
         });
     }
   };
+  
+  console.log("API.js carregado com sucesso!");
+  window.API_LOADED = true;
+  
+  return publicAPI;
 })();
-
-// Indicar que API.js foi carregado corretamente
-window.API_LOADED = true;
-console.log("API.js carregado com sucesso.");
 </artifact>
