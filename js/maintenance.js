@@ -18,13 +18,9 @@ const Maintenance = (() => {
   
   // Lista de categorias de problemas padrão
   const DEFAULT_PROBLEM_CATEGORIES = [
-    "Elétrico",
-    "Mecânico", 
-    "Hidráulico",
-    "Estrutural",
-    "Software",
-    "Operacional",
-    "Outro"
+    "Motor Estacionário", "Motor Principal", "Tanque", "Válvulas", "Bomba de Água", 
+    "Sistema Hidráulico", "Sistema Elétrico", "Painel de Comando", "Freios", "Suspensão", 
+    "Pneus", "Transmissão", "Documentação", "Sinalização", "Carroceria", "Outros"
   ];
   
   let formData = {};
@@ -771,7 +767,18 @@ const Maintenance = (() => {
     
     // Preparar dados para envio
     const dataToSend = {
-      ...formData
+      ...formData,
+      // Adicionar mapeamentos de campos para o backend
+      equipmentId: formData.placaOuId,
+      date: formData.dataRegistro,
+      equipmentType: formData.tipoEquipamento,
+      technician: formData.responsavel,
+      location: formData.localOficina,
+      maintenanceType: formData.tipoManutencao,
+      isCritical: formData.eCritico,
+      problemCategory: formData.categoriaProblema,
+      problemDescription: formData.detalhesproblema,
+      additionalNotes: formData.observacoes
     };
     
     // Se estiver editando, incluir ID
