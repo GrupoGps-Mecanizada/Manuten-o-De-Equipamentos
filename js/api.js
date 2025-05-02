@@ -1,4 +1,3 @@
-<artifact id="api-js" type="application/vnd.ant.code" language="javascript">
 /**
  * Sistema de Dupla Checagem de Manutenção
  * Módulo: API para comunicação com o backend
@@ -179,6 +178,31 @@ const API = (function() {
           }
           return { success: false, message: "Dados não disponíveis", categories: [] };
         });
+    },
+    
+    // Método para buscar IDs de equipamento por tipo
+    getEquipmentIdsByType: function(type) {
+      return callAPI('getEquipmentIdsByType', { type })
+        .then(response => {
+          if (!response || !response.success) {
+            return { success: false, message: "Falha ao buscar IDs", ids: [] };
+          }
+          return response;
+        })
+        .catch(error => {
+          console.error(`Erro ao buscar IDs para o tipo ${type}:`, error);
+          return { success: false, message: error.message, ids: [] };
+        });
+    },
+    
+    // Método para atualizar uma manutenção existente
+    updateMaintenance: function(id, data) {
+      return callAPI('updateMaintenance', { id, ...data });
+    },
+    
+    // Método para deletar uma manutenção
+    deleteMaintenance: function(id) {
+      return callAPI('deleteMaintenance', { id });
     }
   };
   
@@ -187,4 +211,3 @@ const API = (function() {
   
   return publicAPI;
 })();
-</artifact>
