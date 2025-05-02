@@ -1,14 +1,16 @@
-/**
- * Sistema de Dupla Checagem de Manutenção
- * Módulo: Principal (Inicialização e navegação)
- */
-
+// Atualizar o rodapé para exibir o nome correto
 document.addEventListener('DOMContentLoaded', function() {
   // Inicializar o sistema
   initializeSystem();
   
   // Configurar última atualização
   document.getElementById('last-update').textContent = formatDate(new Date(), true);
+  
+  // Atualizar desenvolvedor no rodapé
+  const footerDeveloper = document.querySelector('.developer-credit');
+  if (footerDeveloper) {
+    footerDeveloper.textContent = 'Desenvolvido por Warlison Abreu';
+  }
 });
 
 /**
