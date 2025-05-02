@@ -675,133 +675,140 @@ select.form-control option[value=""] {
 /* ======================================== */
 /* == Início Bloco Atualizado para Steps == */
 /* ======================================== */
-/* Estilos atualizados para .form-steps e .form-step */
+
+/* Container dos steps */
 .form-steps {
   display: flex;
-  justify-content: center; /* Alterado para centralizar */
-  background-color: #f5f6f7;
-  border-bottom: 1px solid #dfe1e6;
-  padding: 20px; /* Aumentado para mais espaço */
-  position: sticky;
-  top: 69px; /* Ajustar com base na altura real do .form-header */
-  z-index: 9; /* Abaixo do header, acima do conteúdo */
-  width: 100%; /* Garantir largura total */
+  /* justify-content: space-between; /* Alternativa: Distribui espaço entre eles */
+  justify-content: center; /* Centraliza o grupo de steps */
+  align-items: flex-start; /* Alinha itens no topo */
+  background-color: #f5f6f7; /* Cor de fundo da área dos steps */
+  border-bottom: 1px solid #dfe1e6; /* Linha separadora abaixo */
+  padding: 20px 40px; /* Espaçamento interno (vertical, horizontal) */
+  position: sticky; /* Fixa no topo durante o scroll do form */
+  top: 69px; /* Ajustar se a altura do .form-header for diferente */
+  z-index: 9; /* Abaixo do header, acima do conteúdo do form */
+  width: 100%; /* Ocupa toda a largura */
+  overflow: hidden; /* Evitar que a linha vaze */
 }
 
+/* Cada passo individual */
 .form-step {
-  position: relative;
+  position: relative; /* Necessário para a linha conectora */
   display: flex;
-  align-items: center;
-  flex: 1; /* Ocupa espaço igualmente */
-  max-width: 200px; /* Limitar largura para prevenir esticamento excessivo */
-  margin: 0 10px; /* Espaçamento uniforme */
+  flex-direction: column; /* Empilhar número e texto verticalmente */
+  align-items: center; /* Centralizar conteúdo horizontalmente */
+  text-align: center;
+  /* Remover flex: 1 e max-width para controlar o tamanho pelo conteúdo e padding */
+  padding: 0 15px; /* Espaçamento lateral entre os steps */
+  z-index: 2; /* Acima da linha de fundo */
 }
 
-/* Linha conectora */
-.form-step:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  height: 2px;
-  background-color: #dfe1e6;
-  width: 100%; /* Ocupa todo o espaço entre os limites do flex item */
-  left: calc(100% + 10px); /* Começa após o fim do step + margem */
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1; /* Atrás do número */
-  /* A largura da linha será efetivamente limitada pelo max-width e flex-grow */
-}
-
-.form-step.active:not(:last-child)::after {
-  background-color: var(--primary-color); /* Linha ativa */
-}
-/* Estilo da linha quando o passo anterior está ativo (opcional) */
-.form-step.active + .form-step::before {
-     content: '';
-     position: absolute;
-     height: 2px;
-     background-color: var(--primary-color); /* Cor da linha ativa */
-     width: 10px; /* Corresponde à margem */
-     right: 100%; /* Posicionado antes do elemento */
-     top: 50%;
-     transform: translateY(-50%);
-     z-index: 1;
-}
-
-
+/* Número do passo */
 .step-number {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background-color: #dfe1e6; /* Cinza padrão */
+  background-color: #dfe1e6; /* Cinza padrão (inativo) */
   color: var(--text-light);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  z-index: 2; /* Na frente da linha */
-  margin-right: 10px;
-  border: 2px solid #f5f6f7; /* Borda da cor do fundo para separação */
+  border: 2px solid #f5f6f7; /* Cor do fundo para criar efeito de separação */
   flex-shrink: 0; /* Evitar que o número encolha */
-  transition: background-color 0.3s ease, color 0.3s ease; /* Suavizar transição */
+  transition: background-color 0.3s ease, color 0.3s ease;
+  margin-bottom: 8px; /* Espaço entre número e label */
+  z-index: 3; /* Acima do label e da linha */
 }
 
-.form-step.active .step-number {
-  background-color: var(--primary-color); /* Azul ativo */
+/* Estilo do número quando o passo está ativo ou completo */
+.form-step.active .step-number,
+.form-step.completed .step-number {
+  background-color: var(--primary-color); /* Azul */
   color: white;
   border-color: var(--primary-color); /* Borda da mesma cor */
 }
 
+/* Label (texto) do passo */
 .step-label {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-sm); /* 0.875rem */
   font-weight: 500;
-  color: var(--text-light); /* Cor padrão */
-  white-space: nowrap; /* Evitar quebra de texto */
-  transition: color 0.3s ease, font-weight 0.3s ease; /* Suavizar transição */
+  color: var(--text-light); /* Cinza claro padrão */
+  white-space: nowrap; /* Evitar quebra de linha por padrão */
+  transition: color 0.3s ease, font-weight 0.3s ease;
 }
 
+/* Estilo do label quando o passo está ativo */
 .form-step.active .step-label {
-   color: var(--text-dark); /* Cor mais escura para label ativo */
-   font-weight: 600; /* Negrito para label ativo */
+   color: var(--text-dark); /* Texto escuro */
+   font-weight: 600; /* Negrito */
+}
+
+/* Estilo do label quando o passo está completo */
+.form-step.completed .step-label {
+    color: var(--text-dark); /* Texto escuro */
 }
 
 
-/* Responsividade para formulários em telas pequenas */
+/* Linha Conectora - Simplificada */
+/* Remover a linha ::before que causava problemas */
+.form-step.active + .form-step::before,
+.form-step::before { /* Garantir que nenhum ::before apareça */
+    display: none;
+    content: none;
+}
+
+/* Linha ::after entre os steps */
+.form-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  height: 2px; /* Espessura da linha */
+  background-color: #dfe1e6; /* Cor padrão (cinza) */
+  /* Posicionamento da linha */
+  width: calc(100% - 30px); /* Largura entre os centros dos números (ajustar 30px se padding mudar) */
+  left: calc(50% + 15px);  /* Começa no centro do número atual (15px = metade de 30px) */
+  top: 16px; /* Alinha verticalmente com o centro do número (metade de 30px + borda 1px) */
+  transform: translateY(-50%); /* Ajuste fino vertical */
+  z-index: 1; /* Atrás dos números e labels */
+  transition: background-color 0.3s ease; /* Suavizar mudança de cor */
+}
+
+/* Cor da linha quando o passo ATUAL está completo ou ativo */
+.form-step.completed:not(:last-child)::after,
+.form-step.active:not(:last-child)::after {
+  background-color: var(--primary-color); /* Cor ativa (azul) */
+}
+
+/* Responsividade para Steps em telas pequenas */
 @media (max-width: 768px) {
   .form-steps {
-    padding: 15px 5px; /* Menor padding em telas pequenas */
-    top: 60px; /* Ajustar se a altura do header mobile for diferente */
+    padding: 15px 10px; /* Menor padding lateral */
+    top: 60px; /* Ajustar se header mobile for menor */
+    justify-content: space-around; /* Espaçar melhor em tela pequena */
   }
 
   .form-step {
-    margin: 0 5px; /* Menor margem em telas pequenas */
-    max-width: none; /* Permitir que ocupem espaço disponível */
-     flex-direction: column; /* Empilhar número e label */
-     align-items: center; /* Centralizar */
-     text-align: center;
-  }
-
-   .form-step:not(:last-child)::after,
-   .form-step.active + .form-step::before {
-       /* Ajustar posição da linha para ficar entre os steps empilhados */
-       top: 16px; /* Alinhar com o centro do número */
-       /* A largura pode precisar de ajuste ou ser removida dependendo do visual desejado */
-   }
-
-
-  .step-number {
-      margin-right: 0; /* Remover margem */
-      margin-bottom: 5px; /* Espaço abaixo do número */
+    padding: 0 5px; /* Menor padding entre steps */
   }
 
   .step-label {
-    font-size: 11px; /* Texto ainda menor em telas muito pequenas */
-     white-space: normal; /* Permitir quebra de linha */
+    font-size: 11px; /* Texto menor */
+    white-space: normal; /* Permitir quebra de linha */
+    max-width: 60px; /* Limitar largura para evitar sobreposição */
+  }
+
+  /* Ajustar linha para mobile */
+  .form-step:not(:last-child)::after {
+     /* A lógica de posicionamento relativo ao centro deve funcionar,
+        mas pode precisar de ajustes finos se o layout quebrar */
+     width: calc(100% - 10px); /* Baseado no padding reduzido */
+     left: calc(50% + 5px);
   }
 }
 /* ====================================== */
 /* == Fim Bloco Atualizado para Steps == */
 /* ====================================== */
-
 
 .form-step-content {
   padding: var(--spacing-lg);
