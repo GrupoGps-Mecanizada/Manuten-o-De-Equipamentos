@@ -1746,7 +1746,7 @@
 
   <script>
     // Configuração da URL da API (URL do seu Google Script Web App publicado)
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzC_YQo7kbAvrE2RlBe_JiMmb_5cKQi4liWI9_a3t24sNb8yMv-Y8aCvHbn49hiWsJpEg/exec'; // SUBSTITUA PELO SEU ID
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyM4zw2zDzw_ybAyGFCHdsyjwAXsw-K3x2S1ca0NsTk0eB9s8E0XM9XNlTbiNrb5RadfQ/exec'; // SUBSTITUA PELO SEU ID
 
     // Variáveis globais
     let dashboardData = null;
@@ -4820,7 +4820,7 @@
            // modal.style.display = 'none';
        };
     }
-    
+
     // Gerar relatório por período
     function generateReport() {
       const startDate = document.getElementById('report-start-date').value;
@@ -4843,46 +4843,34 @@
          return;
       }
 
-      console.log(`Solicitando geração de relatório PDF para período: ${startDate} a ${endDate}`);
-      showLoading(true, 'Gerando relatório PDF...'); // Mensagem atualizada
+      console.log(`Gerando relatório para período: ${startDate} a ${endDate}`);
+      showLoading(true, 'Gerando relatório...');
 
-      // Chama a ação backend 'generateReport', que agora dispara generatePdfReport
-      callAPI('generateReport', { startDate, endDate })
-        .then(result => { // <<< LIDA COM A NOVA RESPOSTA DO BACKEND >>>
-          if (!result || result.error || !result.success) {
-             // Erro retornado pelo backend ou falha na comunicação
-             console.error("Erro ao gerar relatório PDF:", result);
-             const errorMsg = result ? (result.message || 'Resposta inválida do servidor.') : 'Falha na comunicação.';
-             showNotification('Erro ao gerar relatório PDF: ' + errorMsg, 'error');
-             // Limpa os gráficos da aba de relatórios, pois não foram populados
-             renderProblemTypeChart(null);
-             renderResolutionTimeChart(null);
-          } else if (result.pdfUrl) {
-             // Sucesso - Abre o link do PDF
-             console.log("Relatório PDF gerado:", result.pdfUrl);
-             showNotification('Relatório PDF pronto. Abrindo em nova aba...', 'success');
-             window.open(result.pdfUrl, '_blank'); // Abre o PDF para o usuário
-             // Limpa os gráficos da aba de relatórios
+      callAPI('generateReport', { startDate, endDate }) // Usa callAPI original JSONP
+        .then(data => {
+          if (!data || data.error) {
+             console.error("Erro ao gerar relatório:", data);
+            showNotification('Erro ao gerar relatório: ' + (data ? data.message : 'Resposta inválida'), 'error');
+            // Limpar gráficos em caso de erro
              renderProblemTypeChart(null);
              renderResolutionTimeChart(null);
           } else {
-              // Resposta de sucesso, mas sem a URL do PDF (inesperado)
-              console.error("Resposta da geração de PDF inválida (sem pdfUrl):", result);
-              showNotification('Não foi possível obter o link do relatório PDF.', 'error');
-              renderProblemTypeChart(null);
-              renderResolutionTimeChart(null);
+            console.log("Dados do relatório recebidos:", data);
+            // Atualizar gráficos da aba de relatórios com os dados recebidos
+            renderProblemTypeChart(data.problemTypes || {}); // Passa objeto vazio se não vier
+            renderResolutionTimeChart(data.resolutionTimes || {}); // Passa objeto vazio se não vier
+            showNotification('Relatório gerado com sucesso. Gráficos atualizados.', 'success');
           }
         })
         .catch(error => {
-           // Erro na própria chamada API (ex: rede)
-           console.error("Falha na requisição do relatório PDF:", error);
-           showNotification('Falha ao gerar relatório PDF: ' + error.message, 'error');
+           console.error("Falha na requisição do relatório:", error);
+          showNotification('Falha ao gerar relatório: ' + error.message, 'error');
            renderProblemTypeChart(null);
            renderResolutionTimeChart(null);
         })
-        .finally(() => showLoading(false)); // Esconde o indicador de carregamento
+        .finally(() => showLoading(false));
     }
-    
+
     // Exportar dados
     function exportData(format) {
       const startDate = document.getElementById('report-start-date').value;
