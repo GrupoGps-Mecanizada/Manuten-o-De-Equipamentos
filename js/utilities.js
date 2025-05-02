@@ -550,7 +550,17 @@ const Utilities = {
   }
 };
 
+// Expor globalmente formatDate, debounce e outras funções principais
+window.formatDate = formatDate;
+window.debounce = debounce;
+window.getStatusClass = getStatusClass;
+window.showLoading = showLoading;
+window.showNotification = showNotification;
+window.showConfirmation = showConfirmation;
+window.viewMaintenanceDetails = viewMaintenanceDetails;
+window.renderMaintenanceDetails = renderMaintenanceDetails;
+
 // Indicar que utilities.js foi carregado corretamente
 console.log("Utilities.js carregado com sucesso!");
 window.UTILITIES_LOADED = true;
-window.Utilities = Utilities;
+window.Utilities = Utilities; // ADICIONADO: Expõe Utilities globalmente
