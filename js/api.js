@@ -203,12 +203,38 @@ const API = (function() {
     // Método para deletar uma manutenção
     deleteMaintenance: function(id) {
       return callAPI('deleteMaintenance', { id });
+    },
+    
+    // NOVA FUNÇÃO: Método para criar uma nova manutenção
+    // Esta função é apenas um alias para saveMaintenance para compatibilidade
+    createMaintenance: function(data) {
+      console.log("API.createMaintenance chamada com dados:", data);
+      // Simplesmente chama saveMaintenance para manter consistência com o backend
+      return this.saveMaintenance(data);
+    },
+    
+    // NOVA FUNÇÃO: Método para enviar verificação
+    // Esta função é um alias para saveVerification para compatibilidade
+    submitVerification: function(data) {
+      console.log("API.submitVerification chamada com dados:", data);
+      return this.saveVerification(data);
+    },
+    
+    // Função auxiliar para exibir dados de depuração
+    debug: function() {
+      console.log("Métodos disponíveis na API:");
+      Object.keys(this).forEach(key => {
+        if (typeof this[key] === 'function') {
+          console.log(`- ${key}`);
+        }
+      });
+      return { success: true, message: "Ver console para detalhes de depuração" };
     }
   };
   
   console.log("API.js carregado com sucesso!");
   window.API_LOADED = true;
-  window.API = publicAPI; // ADICIONADO: Expõe API globalmente
+  window.API = publicAPI; // Expõe API globalmente
   
   return publicAPI;
 })();
