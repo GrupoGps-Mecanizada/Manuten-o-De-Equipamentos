@@ -295,29 +295,50 @@ function viewMaintenanceDetails(id) {
   window.selectedMaintenanceId = id;
 
   API.getMaintenanceDetails(id)
-    .then(details => {
-      if (!details || !details.success) {
-        console.error("Erro ao carregar detalhes:", details);
-        showNotification('Erro ao carregar detalhes: ' + (details ? details.message : 'Resposta inválida'), 'error');
+    .then(response => {
+      if (!response || !response.success) {
+        console.error("Erro ao carregar detalhes:", response);
+        showNotification('Erro ao carregar detalhes: ' + (response ? response.message : 'Resposta inválida'), 'error');
         document.getElementById('maintenance-detail-content').innerHTML = '<p style="color: var(--danger-color); text-align: center;">Não foi possível carregar os detalhes.</p>';
         document.getElementById('detail-overlay').style.display = 'block';
         document.getElementById('verify-maintenance-btn').style.display = 'none';
         return;
       }
 
-      renderMaintenanceDetails(details.maintenance); // Ajuste para acessar os dados dentro do objeto
-      document.getElementById('detail-overlay').style.display = 'block';
+      // Verificar se o objeto maintenance existe
+      if (!response.maintenance) {
+        console.error("Objeto maintenance não encontrado na resposta:", response);
+        showNotification('Dados de manutenção não encontrados na resposta', 'error');
+        document.getElementById('maintenance-detail-content').innerHTML = '<p style="color: var(--danger-color); text-align: center;">Dados incompletos na resposta do servidor.</p>';
+        document.getElementById('detail-overlay').style.display = 'block';
+        document.getElementById('verify-maintenance-btn').style.display = 'none';
+        return;
+      }
 
-      // Mostrar/ocultar botão verificar com base no status
-      const status = details.maintenance.status || 'Pendente';
-      const verifyBtn = document.getElementById('verify-maintenance-btn');
+      // Tentar renderizar os detalhes
+      try {
+        renderMaintenanceDetails(response.maintenance);
+        document.getElementById('detail-overlay').style.display = 'block';
 
-      if (status === 'Pendente') {
-        verifyBtn.style.display = 'inline-block';
-        verifyBtn.disabled = false;
-      } else {
-        verifyBtn.style.display = 'none';
-        verifyBtn.disabled = true;
+        // Mostrar/ocultar botão verificar com base no status
+        const status = response.maintenance.status || 'Pendente';
+        const verifyBtn = document.getElementById('verify-maintenance-btn');
+
+        if (verifyBtn) {
+          if (status === 'Pendente') {
+            verifyBtn.style.display = 'inline-block';
+            verifyBtn.disabled = false;
+          } else {
+            verifyBtn.style.display = 'none';
+            verifyBtn.disabled = true;
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao renderizar detalhes:", e);
+        showNotification('Erro ao processar os detalhes da manutenção: ' + e.message, 'error');
+        document.getElementById('maintenance-detail-content').innerHTML = '<p style="color: var(--danger-color); text-align: center;">Erro ao processar os detalhes. Tente novamente.</p>';
+        document.getElementById('detail-overlay').style.display = 'block';
+        document.getElementById('verify-maintenance-btn').style.display = 'none';
       }
     })
     .catch(error => {
@@ -338,27 +359,35 @@ function viewMaintenanceDetails(id) {
 function renderMaintenanceDetails(details) {
   const container = document.getElementById('maintenance-detail-content');
 
-  // Mapear campos importantes
-  const equipId = details.placaOuId || details.equipmentId || '-';
-  const equipType = details.tipoEquipamento || details.equipmentType || '-';
-  const resp = details.responsavel || details.technician || '-';
+  // Verificar se os detalhes são válidos
+  if (!details) {
+    console.error("Tentativa de renderizar detalhes undefined/null");
+    container.innerHTML = '<p style="color: var(--danger-color); text-align: center;">Detalhes inválidos ou não encontrados.</p>';
+    return;
+  }
+
+  // Mapear campos importantes - use valores padrão para evitar erros undefined
+  const equipId = (details.placaOuId || details.equipmentId || '-');
+  const equipType = (details.tipoEquipamento || details.equipmentType || '-');
+  const resp = (details.responsavel || details.technician || '-');
   const maintDate = formatDate(details.dataManutencao || details.date);
-  const area = details.area || '-';
-  const local = details.localOficina || details.location || '-';
-  const maintType = details.tipoManutencao || details.maintenanceType || '-';
+  const area = (details.area || '-');
+  const local = (details.localOficina || details.location || '-');
+  const maintType = (details.tipoManutencao || details.maintenanceType || '-');
   const isCritical = (details.eCritico || details.isCritical) ? 'Sim' : 'Não';
-  const category = details.categoriaProblema || details.problemCategory || '-';
-  const problem = details.detalhesproblema || details.problemDescription || '-';
-  const notes = details.observacoes || details.additionalNotes || '-';
-  const status = details.status || 'Pendente';
+  const category = (details.categoriaProblema || details.problemCategory || '-');
+  const problem = (details.detalhesproblema || details.problemDescription || '-');
+  const notes = (details.observacoes || details.additionalNotes || '-');
+  const status = (details.status || 'Pendente');
   const statusClass = getStatusClass(status);
   const regDate = formatDate(details.dataRegistro || details.registrationDate, true);
+  const id = (details.id || 'N/A');
 
   // Criar HTML
   let html = `
   <div class="detail-header">
     <div class="detail-header-left">
-      <div class="detail-title">Manutenção #${details.id}</div>
+      <div class="detail-title">Manutenção #${id}</div>
       <div class="detail-subtitle">Registrada em ${regDate}</div>
     </div>
     <div class="detail-header-right">
