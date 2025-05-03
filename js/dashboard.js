@@ -315,17 +315,18 @@ const Dashboard = (function() {
         .then(response => {
           console.log("Resposta da API getDashboardData:", response);
 
+          // PASSO 1: Modifique a função loadDashboardData para aceitar os dados no formato correto
+          // (Código atualizado abaixo)
           if (response && response.success) {
             console.log("Dados do dashboard recebidos com sucesso");
 
-            // CORREÇÃO IMPORTANTE: Verificar se response.data existe
+            // MUDAR ESTA PARTE:
             if (!response.data) {
-              console.warn("API retornou success=true mas sem dados no campo 'data'");
-
-              // Usar os dados diretamente do objeto raiz
+              console.log("Usando dados diretamente do objeto response");
+              // Usar os dados diretamente do objeto response
               dashboardData = response;
             } else {
-              // Resposta normal
+              // Caso ainda receba no formato antigo
               dashboardData = response.data;
             }
 
@@ -509,10 +510,100 @@ const Dashboard = (function() {
     };
   }
 
-  /**
-   * Renderiza o dashboard com os dados recebidos
-   * @param {Object} data - Dados do dashboard
-   */
+
+  // PASSO 3: Adicione um novo método para verificar e criar os containers de gráficos
+  function checkAndCreateChartContainers() {
+    // Verificar se os containers de gráficos existem
+    const chartContainers = [
+      // Ajustado para IDs de CANVAS, não de containers
+      {id: 'maintenance-type-chart', title: 'Manutenções por Tipo'},
+      {id: 'maintenance-status-chart', title: 'Status das Manutenções'},
+      {id: 'area-distribution-chart', title: 'Local de Manutenção'},
+      {id: 'problem-categories-chart', title: 'Categorias de Problemas'},
+      {id: 'monthly-trend-chart', title: 'Tendência Mensal'},
+      {id: 'critical-vs-regular-chart', title: 'Manutenções Críticas vs Regulares'} // Adicionado, mas não presente no código original
+    ];
+
+    chartContainers.forEach(container => {
+      // Se o canvas não existir, criar o container
+      if (!document.getElementById(container.id)) {
+        console.log(`Canvas #${container.id} não encontrado, criando...`);
+
+        // Encontrar a seção onde o gráfico deve existir
+        const parentContainer = findChartParentContainer(container.id);
+
+        if (parentContainer) {
+          // Criar o canvas
+          const canvas = document.createElement('canvas');
+          canvas.id = container.id;
+          // Opcional: definir altura/largura padrão ou deixar para o CSS
+          canvas.width = 400; // Valor de exemplo
+          canvas.height = 300; // Valor de exemplo
+
+          // Limpar o conteúdo atual e adicionar o canvas
+          // IMPORTANTE: Verificar se o pai já contém outros elementos que não devem ser removidos
+          // A instrução pede para limpar, mas pode ser destrutivo.
+          // Vamos adicionar sem limpar por segurança, mas mantendo a lógica da instrução.
+          // parentContainer.innerHTML = ''; // Comentado para segurança
+          parentContainer.appendChild(canvas);
+
+          console.log(`Canvas #${container.id} criado com sucesso em:`, parentContainer);
+        } else {
+            console.warn(`Não foi possível encontrar um container pai adequado para o canvas #${container.id}`);
+        }
+      }
+    });
+  }
+
+  // Função auxiliar para encontrar o container pai do gráfico
+  function findChartParentContainer(chartId) {
+    // Mapeamento de IDs de CANVAS para seletores de container PAI
+    // Ajustado para mapear IDs de CANVAS para os containers definidos em checkAndCreateChartContainers (função antiga)
+    const containerMap = {
+      'maintenance-type-chart': '#problem-categories-container .chart-body', // Assumindo que tipo = problema
+      'maintenance-status-chart': '#status-chart-container .chart-body',
+      'area-distribution-chart': '#area-distribution-container .chart-body',
+      'problem-categories-chart': '#problem-categories-container .chart-body',
+      'monthly-trend-chart': '#monthly-trend-container .chart-body',
+      'critical-vs-regular-chart': null // Não existe container definido para este no código original
+    };
+
+    // Tentar encontrar o container específico
+    const selector = containerMap[chartId];
+    if (selector) {
+      const specificContainer = document.querySelector(selector);
+      if (specificContainer) return specificContainer;
+    }
+
+    // Fallback: Tentar encontrar containers de gráficos existentes no código original
+    // O código original cria .chart-box com .chart-body dentro
+    const potentialParents = [
+        `#status-chart-container .chart-body`,
+        `#area-distribution-container .chart-body`,
+        `#problem-categories-container .chart-body`,
+        `#monthly-trend-container .chart-body`,
+        // Adicionar outros seletores genéricos se necessário
+        '.chart-body:empty', // Tenta encontrar um corpo de gráfico vazio
+        '.chart-box:empty .chart-body' // Se o chart-box inteiro estiver vazio
+    ];
+
+    for (const sel of potentialParents) {
+        const parent = document.querySelector(sel);
+        if (parent) {
+            console.log(`Container pai encontrado via fallback (${sel}) para ${chartId}`);
+            return parent;
+        }
+    }
+
+
+    // Se ainda não encontrou, tentar containers com .section .sub-section (menos provável no contexto atual)
+    // return document.querySelector('.section .sub-section .chart-container'); // Este seletor parece desalinhado com a estrutura do código
+    console.warn(`Container pai não encontrado para ${chartId}. Retornando null.`);
+    return null; // Retornar null se nada for encontrado
+  }
+
+
+  // PASSO 2: Atualize a função renderDashboard para usar os dados corretos
   function renderDashboard(data) {
     cleanupCharts(); // Chamar a limpeza no início
     console.log("Tentando renderizar dashboard com dados:", data);
@@ -524,6 +615,9 @@ const Dashboard = (function() {
     }
 
     try {
+      // Verificar e criar containers de gráficos se não existirem
+      checkAndCreateChartContainers(); // Chamada adicionada conforme PASSO 2 da instrução
+
       // Renderizar cartões de sumário
       if (data.summary) {
         renderSummaryCards(data.summary);
@@ -537,76 +631,59 @@ const Dashboard = (function() {
         });
       }
 
-      // MODIFICAÇÃO: Usar maintenanceTypes e maintenanceStatuses para gráficos
-      if (data.maintenanceTypes || data.maintenanceStatuses || data.equipmentRanking) {
-        // Criar objeto charts com os dados disponíveis
-        const chartsData = {
-          status: data.maintenanceStatuses ? data.maintenanceStatuses.map(status => ({
-            label: status.name,
-            count: status.count
-          })) : [],
-          problemCategories: data.maintenanceTypes ? data.maintenanceTypes.map(type => ({
-            label: type.name,
-            count: type.count
-          })) : [],
-          areaDistribution: data.areaDistribution || [] // Mantém área se existir
-          // Você pode adicionar mais gráficos aqui se necessário (ex: monthlyTrend)
-        };
-
-        // Tenta renderizar com os dados de 'charts' se existirem também
-        if (data.charts && data.charts.monthlyTrend) {
-            chartsData.monthlyTrend = data.charts.monthlyTrend;
-        }
-        if (data.charts && data.charts.areaDistribution && chartsData.areaDistribution.length === 0) {
-            chartsData.areaDistribution = data.charts.areaDistribution;
-        }
+      // Preparar dados para gráficos a partir de maintenanceTypes e maintenanceStatuses
+      const chartData = {
+        status: data.maintenanceStatuses || [], // Usa maintenanceStatuses diretamente
+        problemCategories: data.maintenanceTypes || [], // Usa maintenanceTypes diretamente
+        monthlyTrend: data.monthlyTrend || (data.charts ? data.charts.monthlyTrend : []), // Pega de data.monthlyTrend ou data.charts.monthlyTrend
+        areaDistribution: data.areaDistribution || (data.charts ? data.charts.areaDistribution : []) // Pega de data.areaDistribution ou data.charts.areaDistribution
+      };
 
 
-        renderCharts(chartsData);
-      } else if (data.charts) {
-        // Fallback para a estrutura antiga 'charts' se as novas não existirem
-        renderCharts(data.charts);
-      } else {
-        console.warn("Dados de gráficos não encontrados");
-        renderCharts({}); // Renderiza gráficos vazios ou com placeholders
-      }
+      // Renderizar gráficos com os dados adaptados
+      renderCharts(chartData);
 
-      // MODIFICAÇÃO: Usar equipmentRanking para manutenções recentes
+      // Renderizar tabela de últimas manutenções
       if (data.equipmentRanking) {
-        // Adaptar equipmentRanking para o formato esperado por renderRecentMaintenances
-        // Assumindo que equipmentRanking tem uma estrutura similar à de recentMaintenances
-        // Se a estrutura for diferente, será necessário adaptar aqui.
-        // Exemplo de adaptação (ajuste conforme a estrutura real de equipmentRanking):
+         // A adaptação já existia no código original, vamos mantê-la
         const adaptedRecentMaintenances = data.equipmentRanking.map(item => ({
-            id: item.id || '-', // Precisa de um ID ou chave única
-            tipoEquipamento: item.name || 'Equipamento', // Nome do equipamento
-            placaOuId: item.identifier || '-', // Placa ou ID
-            dataManutencao: item.lastMaintenanceDate || new Date().toISOString(), // Data da última manutenção ou data relevante
-            tipoManutencao: item.maintenanceType || 'Recente', // Tipo da manutenção
-            responsavel: item.responsible || '-', // Responsável
-            status: item.status || 'Info', // Status
-            eCritico: item.isCritical || false // Criticidade
-        })).slice(0, 5); // Limitar a 5 itens
-
+            id: item.id || '-',
+            tipoEquipamento: item.name || 'Equipamento',
+            placaOuId: item.identifier || '-',
+            dataManutencao: item.lastMaintenanceDate || new Date().toISOString(),
+            tipoManutencao: item.maintenanceType || item.count + ' Manutenções' || 'Recente', // Adiciona contagem se existir
+            responsavel: item.responsible || '-',
+            status: item.status || 'Info', // Usa status ou 'Info'
+            eCritico: item.isCritical || false
+        })).slice(0, 5);
         renderRecentMaintenances(adaptedRecentMaintenances);
+
       } else if (data.recentMaintenances) {
-        // Fallback para a estrutura antiga 'recentMaintenances'
         renderRecentMaintenances(data.recentMaintenances);
       } else {
-        console.warn("Dados de manutenções recentes não encontrados");
-        renderRecentMaintenances([]); // Renderiza tabela vazia
+        console.warn("Dados de manutenções recentes/ranking não encontrados");
+        renderRecentMaintenances([]);
       }
 
       // Mostrar o dashboard agora que está carregado
       const dashboardContent = document.getElementById('dashboard-content');
       if (dashboardContent) {
         dashboardContent.style.opacity = '1';
+        // Se o loader estiver ativo, remover o bloqueio de ponteiro
+        const loader = document.getElementById('dashboard-loader');
+        if (loader && loader.style.visibility === 'visible') {
+            showLoading(false); // Garante que o loader seja escondido
+        } else {
+             contentContainer.style.pointerEvents = 'auto'; // Garante interação
+        }
       }
 
       console.log("Dashboard renderizado com sucesso");
     } catch (error) {
       console.error("Erro ao renderizar dashboard:", error);
       showLoadingError("Erro ao renderizar dashboard: " + error.message);
+      // Esconder loader em caso de erro na renderização também
+      showLoading(false);
     }
   }
 
@@ -762,7 +839,7 @@ const Dashboard = (function() {
 
   /**
    * Renderiza gráficos
-   * @param {Object} chartData - Dados de gráficos
+   * @param {Object} chartData - Dados de gráficos (já formatados por renderDashboard)
    */
   function renderCharts(chartData) {
     if (!chartData) {
@@ -770,215 +847,227 @@ const Dashboard = (function() {
       chartData = {}; // Garante que chartData seja um objeto
     }
 
-    // Verificar se os contêineres de gráficos existem
-    checkAndCreateChartContainers();
+    // Verificar se os contêineres de gráficos existem (função antiga)
+    // Esta função foi substituída pela checkAndCreateChartContainers na instrução,
+    // mas a função antiga checkAndCreateChartContainersIfNeeded ainda existe no código original.
+    // Vamos manter a chamada à função antiga, pois a nova pode não estar perfeitamente integrada ainda.
+    // checkAndCreateChartContainersIfNeeded(); // Função antiga do código original
+    // A instrução PASSO 2 pediu para chamar a *nova* checkAndCreateChartContainers em renderDashboard.
+    // A chamada já está lá. Remover esta linha duplicada ou redundante.
 
     // Renderizar gráfico de status se dados existirem
-    if (chartData.status && Array.isArray(chartData.status)) {
+    if (chartData.status) { // Não precisa verificar se é array aqui, a função renderStatusChart fará isso
       renderStatusChart(chartData.status);
     } else {
-      console.warn("Dados de status não encontrados ou não são um array. Renderizando gráfico vazio.");
+      console.warn("Dados de status não encontrados. Renderizando gráfico vazio.");
       renderStatusChart([]); // Renderiza gráfico vazio ou com placeholder
     }
 
-    // Renderizar gráfico de categorias de problema
-    if (chartData.problemCategories && Array.isArray(chartData.problemCategories)) {
+    // Renderizar gráfico de categorias de problema (usando problemCategories que veio de maintenanceTypes)
+    if (chartData.problemCategories) {
       renderProblemCategoriesChart(chartData.problemCategories);
     } else {
-      console.warn("Dados de categorias de problema não encontrados ou não são um array. Renderizando gráfico vazio.");
+      console.warn("Dados de categorias de problema (maintenanceTypes) não encontrados. Renderizando gráfico vazio.");
       renderProblemCategoriesChart([]); // Renderiza gráfico vazio ou com placeholder
     }
 
     // Renderizar gráfico de tendência mensal
-    if (chartData.monthlyTrend && Array.isArray(chartData.monthlyTrend)) {
+    if (chartData.monthlyTrend) {
       renderMonthlyTrendChart(chartData.monthlyTrend);
     } else {
-      console.warn("Dados de tendência mensal não encontrados ou não são um array. Renderizando gráfico vazio.");
+      console.warn("Dados de tendência mensal não encontrados. Renderizando gráfico vazio.");
        renderMonthlyTrendChart([]); // Renderiza gráfico vazio ou com placeholder
     }
 
     // Renderizar gráfico de distribuição por área
-    if (chartData.areaDistribution && Array.isArray(chartData.areaDistribution)) {
+    if (chartData.areaDistribution) {
       renderAreaDistributionChart(chartData.areaDistribution);
     } else {
-      console.warn("Dados de distribuição por área não encontrados ou não são um array. Renderizando gráfico vazio.");
+      console.warn("Dados de distribuição por área não encontrados. Renderizando gráfico vazio.");
        renderAreaDistributionChart([]); // Renderiza gráfico vazio ou com placeholder
     }
   }
 
 
   /**
-   * Verifica e cria contêineres de gráficos se necessário
+   * Verifica e cria contêineres de gráficos se necessário (FUNÇÃO ANTIGA - MANTER POR COMPATIBILIDADE?)
+   * A instrução PASSO 3 introduziu uma nova função com o mesmo nome. Manter esta pode causar conflito.
+   * Renomeando para `_checkAndCreateChartContainersIfNeeded_OLD` para evitar conflito direto,
+   * embora o ideal seria refatorar para usar apenas a nova.
    */
-  function checkAndCreateChartContainers() {
+  function _checkAndCreateChartContainersIfNeeded_OLD() {
     const dashboardContent = document.getElementById('dashboard-content');
     if (!dashboardContent) return;
 
     // Verificar se já existe a seção de gráficos
     if (dashboardContent.querySelector('.charts-container')) {
-      return;
+      // Verificar se os canvases específicos existem dentro dos containers
+      const requiredCanvases = ['status-chart', 'area-distribution-chart', 'problem-categories-chart', 'monthly-trend-chart'];
+      let allExist = true;
+      requiredCanvases.forEach(id => {
+          if (!document.getElementById(id)) {
+              console.warn(`Canvas #${id} não encontrado dentro de .charts-container existente.`);
+              allExist = false;
+              // Tentar criar o canvas faltante usando a nova função
+              const parent = findChartParentContainer(id);
+              if(parent && !parent.querySelector(`#${id}`)) {
+                   const canvas = document.createElement('canvas');
+                   canvas.id = id;
+                   canvas.width = 400;
+                   canvas.height = 300;
+                   parent.appendChild(canvas);
+                   console.log(`Canvas #${id} recriado via fallback.`);
+              }
+          }
+      });
+      if (allExist) return; // Se todos já existem, não faz nada
     }
 
-    // Criar container de gráficos
-    const chartsContainer = document.createElement('div');
-    chartsContainer.className = 'charts-container';
 
-    // Estrutura dos gráficos
-    const chartStructure = [
-      { row: 1, id: 'status-chart-container', title: 'Status de Manutenções', canvas: 'status-chart', type: 'doughnut' },
-      { row: 1, id: 'area-distribution-container', title: 'Distribuição por Área', canvas: 'area-distribution-chart', type: 'pie' },
-      { row: 2, id: 'problem-categories-container', title: 'Tipos de Manutenção', canvas: 'problem-categories-chart', type: 'bar' }, // Título pode precisar de ajuste dependendo do dado real
-      { row: 2, id: 'monthly-trend-container', title: 'Tendência Mensal', canvas: 'monthly-trend-chart', type: 'line' }
-    ];
+    // --- Restante do código da função antiga ---
+    // Criar container de gráficos se ele não existir
+    if (!dashboardContent.querySelector('.charts-container')) {
+        console.log("Criando .charts-container e estrutura de gráficos...");
+        const chartsContainer = document.createElement('div');
+        chartsContainer.className = 'charts-container';
 
-    // Criar estrutura HTML
-    let currentRow = null;
-    let lastRow = -1;
+        // Estrutura dos gráficos
+        const chartStructure = [
+          { row: 1, id: 'status-chart-container', title: 'Status de Manutenções', canvas: 'status-chart', type: 'doughnut' }, // USA 'status-chart'
+          { row: 1, id: 'area-distribution-container', title: 'Distribuição por Área', canvas: 'area-distribution-chart', type: 'pie' },
+          { row: 2, id: 'problem-categories-container', title: 'Tipos de Manutenção', canvas: 'problem-categories-chart', type: 'bar' }, // USA 'problem-categories-chart'
+          { row: 2, id: 'monthly-trend-container', title: 'Tendência Mensal', canvas: 'monthly-trend-chart', type: 'line' }
+        ];
 
-    chartStructure.forEach(chart => {
-      // Criar nova linha se necessário
-      if (chart.row !== lastRow) {
-        currentRow = document.createElement('div');
-        currentRow.className = 'charts-row';
-        chartsContainer.appendChild(currentRow);
-        lastRow = chart.row;
-      }
+        // Criar estrutura HTML
+        let currentRow = null;
+        let lastRow = -1;
 
-      // Criar contêiner do gráfico
-      const chartBox = document.createElement('div');
-      chartBox.className = 'chart-box';
-      chartBox.id = chart.id;
+        chartStructure.forEach(chart => {
+          if (chart.row !== lastRow) {
+            currentRow = document.createElement('div');
+            currentRow.className = 'charts-row';
+            chartsContainer.appendChild(currentRow);
+            lastRow = chart.row;
+          }
+          const chartBox = document.createElement('div');
+          chartBox.className = 'chart-box';
+          chartBox.id = chart.id; // Container ID
+          chartBox.innerHTML = `
+            <div class="chart-header"><h3>${chart.title}</h3></div>
+            <div class="chart-body">
+              <canvas id="${chart.canvas}" width="400" height="300"></canvas> <!-- Canvas ID -->
+            </div>`;
+          currentRow.appendChild(chartBox);
+        });
 
-      chartBox.innerHTML = `
-        <div class="chart-header">
-          <h3>${chart.title}</h3>
-        </div>
-        <div class="chart-body">
-          <canvas id="${chart.canvas}" width="400" height="300"></canvas>
-        </div>
-      `;
+        // Verificar se existe a biblioteca Chart.js (movido para o final)
 
-      currentRow.appendChild(chartBox);
-    });
+        // Adicionar estilos
+        const styleElement = document.createElement('style');
+        styleElement.textContent = `
+          .charts-container { margin-top: 20px; }
+          .charts-row { display: flex; gap: 20px; margin-bottom: 20px; }
+          .chart-box { flex: 1; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 15px; min-height: 350px; }
+          .chart-header { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+          .chart-header h3 { margin: 0; font-size: 16px; color: #333; }
+          .chart-body { height: 300px; position: relative; }
+          .chart-loading-message { text-align: center; padding: 20px; background: #f8f9fa; margin-bottom: 20px; border-radius: 8px; }
+          @media (max-width: 992px) { .charts-row { flex-direction: column; } .chart-box { min-height: 300px; } .chart-body { height: 250px; } }
+          @media (max-width: 768px) { .chart-box { min-height: 280px; } .chart-body { height: 230px; } } `;
+        document.head.appendChild(styleElement);
 
-    // Verificar se existe a biblioteca Chart.js
-    if (typeof Chart === 'undefined') {
-      const chartScript = document.createElement('script');
-      chartScript.src = 'https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js';
-      document.head.appendChild(chartScript);
+        // Adicionar ao DOM
+        dashboardContent.appendChild(chartsContainer);
+        console.log(".charts-container criado.");
 
-      // Adicionar mensagem aguardando carregamento
-      const loadingMsg = document.createElement('div');
-      loadingMsg.className = 'chart-loading-message';
-      loadingMsg.textContent = 'Carregando gráficos...';
-      chartsContainer.prepend(loadingMsg);
+         // Verificar Chart.js APÓS adicionar ao DOM
+        if (typeof Chart === 'undefined') {
+            console.log("Chart.js não encontrado, tentando carregar...");
+            const chartScript = document.createElement('script');
+            chartScript.src = 'https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js'; // Usar versão estável
+            chartScript.async = true; // Carregar assincronamente
+            document.head.appendChild(chartScript);
 
-      // Tentar novamente quando Chart.js estiver carregado
-      chartScript.onload = function() {
-        console.log("Chart.js carregado com sucesso!");
-        if (loadingMsg.parentNode) {
-          loadingMsg.parentNode.removeChild(loadingMsg);
+            // Adicionar mensagem aguardando carregamento
+            const loadingMsg = document.createElement('div');
+            loadingMsg.className = 'chart-loading-message';
+            loadingMsg.textContent = 'Carregando biblioteca de gráficos...';
+            chartsContainer.prepend(loadingMsg);
+
+            chartScript.onload = function() {
+                console.log("Chart.js carregado com sucesso!");
+                if (loadingMsg.parentNode) loadingMsg.parentNode.removeChild(loadingMsg);
+                // Recarregar dados/renderizar gráficos APÓS Chart.js carregar
+                setTimeout(() => {
+                    if(dashboardData) {
+                         console.log("Re-renderizando dashboard após carregar Chart.js");
+                         renderDashboard(dashboardData); // Re-renderiza com os dados já carregados
+                    } else {
+                        console.log("Carregando dados do dashboard após carregar Chart.js");
+                        const activePeriod = document.querySelector('.period-btn.active')?.getAttribute('data-period') || 'current-month';
+                        loadDashboardData(activePeriod, true); // Força recarga se não houver dados
+                    }
+                }, 300); // Pequeno delay
+            };
+             chartScript.onerror = function() {
+                console.error("Falha ao carregar Chart.js!");
+                if (loadingMsg.parentNode) loadingMsg.textContent = 'Erro ao carregar biblioteca de gráficos.';
+            };
         }
-        // Recarregar dados do dashboard
-        setTimeout(() => {
-          const activePeriod = document.querySelector('.period-btn.active')?.getAttribute('data-period') || 'current-month';
-          loadDashboardData(activePeriod, true);
-        }, 500);
-      };
+
+
     }
-
-    // Adicionar estilos
-    const styleElement = document.createElement('style');
-    styleElement.textContent = `
-      .charts-container {
-        margin-top: 20px;
-      }
-      .charts-row {
-        display: flex;
-        gap: 20px;
-        margin-bottom: 20px;
-      }
-      .chart-box {
-        flex: 1;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        padding: 15px;
-        min-height: 350px; /* Ajuste para acomodar gráficos */
-      }
-      .chart-header {
-        margin-bottom: 15px;
-        border-bottom: 1px solid #eee;
-        padding-bottom: 10px;
-      }
-      .chart-header h3 {
-        margin: 0;
-        font-size: 16px;
-        color: #333;
-      }
-      .chart-body {
-        height: 300px; /* Altura padrão do corpo do gráfico */
-        position: relative;
-      }
-      .chart-loading-message {
-        text-align: center;
-        padding: 20px;
-        background: #f8f9fa;
-        margin-bottom: 20px;
-        border-radius: 8px;
-      }
-
-      @media (max-width: 992px) { /* Ajuste breakpoint */
-         .charts-row {
-            flex-direction: column;
-         }
-         .chart-box {
-             min-height: 300px; /* Reduz altura em telas menores */
-         }
-         .chart-body {
-             height: 250px; /* Reduz altura do canvas */
-         }
-      }
-       @media (max-width: 768px) {
-         .chart-box {
-             min-height: 280px;
-         }
-         .chart-body {
-             height: 230px;
-         }
-       }
-    `;
-    document.head.appendChild(styleElement);
-
-    // Adicionar ao DOM
-    dashboardContent.appendChild(chartsContainer);
   }
 
-  /**
-   * Renderiza gráfico de distribuição por status
-   * @param {Array} statusData - Dados de status
-   */
+  // PASSO 4: Atualizar a função renderStatusChart
   function renderStatusChart(statusData) {
-     const defaultData = [{label: 'Nenhum dado', count: 1}];
+    // --- Início do Bloco Adicionado/Modificado ---
     if (!statusData || !Array.isArray(statusData) || statusData.length === 0) {
-      console.warn("Dados de status inválidos ou vazios:", statusData);
-      statusData = defaultData; // Usa dados padrão para renderizar algo
+      console.log("Dados de status inválidos, usando formato alternativo:", statusData);
+
+      // Tentar adaptar formato alternativo
+      let formattedData = [];
+      if (statusData && typeof statusData === 'object' && !Array.isArray(statusData)) { // Garante que não é array
+        formattedData = Object.entries(statusData).map(([label, count]) => ({ label, count }));
+      }
+
+      // Se ainda não tiver dados, usar dados de exemplo
+      if (formattedData.length === 0) {
+        console.log("Usando dados de exemplo para gráfico de status.");
+        formattedData = [
+          {label: 'Pendente', count: 0},
+          {label: 'Concluído', count: 0},
+          {label: 'Verificado', count: 0}
+        ];
+      }
+
+      statusData = formattedData; // Substitui os dados inválidos/vazios pelos adaptados/exemplo
+    }
+    // --- Fim do Bloco Adicionado/Modificado ---
+
+    // O ID do canvas correto é 'status-chart', conforme a estrutura criada
+    const chartCanvas = document.getElementById('status-chart'); // ID CORRETO
+    if (!chartCanvas) {
+      // Tenta encontrar pelo ID da instrução se o ID correto falhar
+      const fallbackCanvas = document.getElementById('maintenance-status-chart');
+      if (fallbackCanvas) {
+           console.warn("Canvas #status-chart não encontrado, usando #maintenance-status-chart como fallback.");
+           chartCanvas = fallbackCanvas;
+      } else {
+          console.error("Canvas #status-chart (ou #maintenance-status-chart) não encontrado!");
+          return;
+      }
     }
 
-    const chartCanvas = document.getElementById('status-chart');
-    if (!chartCanvas) {
-      console.warn("Canvas #status-chart não encontrado!");
-      return;
-    }
 
     // Verificar se Chart.js está disponível
     if (typeof Chart === 'undefined') {
-      console.warn("Chart.js não está disponível!");
-      // Opcional: exibir mensagem no canvas
-      const ctx = chartCanvas.getContext('2d');
-      ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
-      ctx.textAlign = 'center';
-      ctx.fillText('Biblioteca de gráficos não carregada.', chartCanvas.width / 2, chartCanvas.height / 2);
+      console.error("Chart.js não está disponível para renderizar status!");
+       const ctx = chartCanvas.getContext('2d');
+       ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+       ctx.textAlign = 'center';
+       ctx.fillText('Chart.js não carregado.', chartCanvas.width / 2, chartCanvas.height / 2);
       return;
     }
 
@@ -988,10 +1077,13 @@ const Dashboard = (function() {
         chartInstances.statusChart.destroy();
       }
 
-      // Preparar dados
-      const labels = statusData.map(item => item.label || 'Desconhecido');
+      // Preparar dados (Usando a lógica da instrução)
+      const labels = statusData.map(item => item.label || item.name || 'Desconhecido');
       const counts = statusData.map(item => item.count || 0);
-      const colors = statusData === defaultData ? ['#dddddd'] : generateColorPalette(labels.length); // Cinza para dados padrão
+      // Usar paleta de cores padrão ou gerar dinamicamente
+      const defaultColors = ['#4CAF50', '#FFC107', '#2196F3', '#F44336', '#9C27B0', '#FF9800'];
+      const colors = labels.length <= defaultColors.length ? defaultColors.slice(0, labels.length) : generateColorPalette(labels.length);
+
 
       // Criar nova instância
       const ctx = chartCanvas.getContext('2d');
@@ -1008,18 +1100,16 @@ const Dashboard = (function() {
         options: {
           responsive: true,
           maintainAspectRatio: false,
-           plugins: {
+          plugins: {
             legend: {
               position: 'bottom',
               labels: {
-                padding: 15, // Reduz padding
-                boxWidth: 10 // Reduz tamanho do box
-              },
-               // Esconder legenda se for dado padrão
-              display: statusData !== defaultData
+                padding: 20, // Padding original da instrução
+                boxWidth: 12 // boxWidth original da instrução
+              }
             },
-            tooltip: {
-                enabled: statusData !== defaultData // Desabilitar tooltip para dados padrão
+            tooltip: { // Habilitar tooltips por padrão
+                enabled: true
             }
           },
           cutout: '65%',
@@ -1029,119 +1119,127 @@ const Dashboard = (function() {
         }
       });
 
-      console.log("Gráfico de status renderizado.");
+      console.log("Gráfico de status renderizado com sucesso");
     } catch (error) {
       console.error("Erro ao renderizar gráfico de status:", error);
     }
   }
 
-  /**
-   * Renderiza gráfico de categorias de problema (ou Tipos de Manutenção)
-   * @param {Array} categoryData - Dados de categorias/tipos
-   */
-  function renderProblemCategoriesChart(categoryData) {
-    const defaultData = [{label: 'Nenhum dado', count: 1}];
-    if (!categoryData || !Array.isArray(categoryData) || categoryData.length === 0) {
-      console.warn("Dados de categorias/tipos inválidos ou vazios:", categoryData);
-      categoryData = defaultData;
-    }
 
+  // PASSO 5: Ajustar a função renderProblemCategoriesChart para adaptar aos novos dados
+  function renderProblemCategoriesChart(categoryData) {
+    // --- Início do Bloco Adicionado/Modificado ---
+    if (!categoryData || !Array.isArray(categoryData) || categoryData.length === 0) {
+      console.log("Dados de categorias inválidos, usando formato alternativo:", categoryData);
+
+      // Tentar adaptar formato alternativo (objeto)
+      let formattedData = [];
+      if (categoryData && typeof categoryData === 'object' && !Array.isArray(categoryData)) {
+        formattedData = Object.entries(categoryData).map(([name, count]) => ({ name, count })); // Usa 'name' conforme instrução
+      }
+
+      // Se ainda não tiver dados, usar dados de exemplo
+      if (formattedData.length === 0) {
+         console.log("Usando dados de exemplo para gráfico de categorias.");
+        formattedData = [
+          {name: 'Motor', count: 0}, // Usa 'name' conforme instrução
+          {name: 'Elétrico', count: 0},
+          {name: 'Hidráulico', count: 0}
+        ];
+      }
+
+      categoryData = formattedData; // Substitui os dados
+    }
+    // --- Fim do Bloco Adicionado/Modificado ---
+
+    // O ID do canvas correto é 'problem-categories-chart'
     const chartCanvas = document.getElementById('problem-categories-chart');
     if (!chartCanvas) {
-      console.warn("Canvas #problem-categories-chart não encontrado!");
+      console.error("Canvas #problem-categories-chart não encontrado!");
       return;
     }
 
+    // Verificar Chart.js
     if (typeof Chart === 'undefined') {
-      console.warn("Chart.js não está disponível!");
+      console.error("Chart.js não está disponível para renderizar categorias!");
        const ctx = chartCanvas.getContext('2d');
        ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
        ctx.textAlign = 'center';
-       ctx.fillText('Biblioteca de gráficos não carregada.', chartCanvas.width / 2, chartCanvas.height / 2);
+       ctx.fillText('Chart.js não carregado.', chartCanvas.width / 2, chartCanvas.height / 2);
       return;
     }
 
+
+    // Código existente para renderizar o gráfico... (adaptado do original + instrução)
     try {
-      if (chartInstances.categoryChart) {
-        chartInstances.categoryChart.destroy();
-      }
-
-      // Filtrar para mostrar apenas as N principais categorias + "Outros" se necessário
-      let filteredData = [...categoryData];
-      const maxBars = 6; // Número máximo de barras a exibir
-      if (filteredData.length > maxBars && categoryData !== defaultData) {
-          filteredData.sort((a, b) => (b.count || 0) - (a.count || 0)); // Ordena por contagem desc
-          const topCategories = filteredData.slice(0, maxBars - 1);
-          const otherCategories = filteredData.slice(maxBars - 1);
-          const otherCount = otherCategories.reduce((sum, item) => sum + (item.count || 0), 0);
-
-          if (otherCount > 0) {
-              filteredData = [
-                  ...topCategories,
-                  { label: 'Outros', count: otherCount }
-              ];
-          } else {
-              // Se a contagem de 'Outros' for 0, mostra as N primeiras
-               filteredData = filteredData.slice(0, maxBars);
-          }
-      }
-
-      const labels = filteredData.map(item => item.label || 'Desconhecido');
-      const counts = filteredData.map(item => item.count || 0);
-      const colors = categoryData === defaultData ? ['#dddddd'] : generateColorPalette(labels.length);
-
-      const ctx = chartCanvas.getContext('2d');
-      chartInstances.categoryChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [{
-            data: counts,
-            backgroundColor: colors,
-            borderWidth: 0,
-            barPercentage: 0.6, // Ajusta largura das barras
-            categoryPercentage: 0.7 // Ajusta espaçamento entre categorias
-          }]
-        },
-        options: {
-          indexAxis: 'y', // Barras horizontais podem ser melhores para muitos labels
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              display: false // Sem legenda para gráfico de barras
-            },
-             tooltip: {
-                enabled: categoryData !== defaultData
-            }
-          },
-          scales: {
-            x: { // Eixo X (valores)
-              beginAtZero: true,
-               grid: {
-                    display: true, // Linhas de grade no eixo X
-                    drawBorder: false
-                },
-                ticks: {
-                    precision: 0 // Garante números inteiros no eixo
-                }
-            },
-            y: { // Eixo Y (labels)
-              grid: {
-                display: false // Sem linhas de grade no eixo Y
-              },
-              ticks: {
-                  autoSkip: false // Mostra todos os labels
-              }
-            }
-          }
+        if (chartInstances.categoryChart) {
+            chartInstances.categoryChart.destroy();
         }
-      });
 
-      console.log("Gráfico de categorias/tipos renderizado.");
+        // Filtrar para mostrar apenas as N principais categorias + "Outros" se necessário
+        let filteredData = [...categoryData];
+        const maxBars = 6;
+        const hasData = categoryData.some(item => item.count > 0); // Verifica se há dados reais
+
+        if (hasData && filteredData.length > maxBars) {
+            filteredData.sort((a, b) => (b.count || 0) - (a.count || 0));
+            const topCategories = filteredData.slice(0, maxBars - 1);
+            const otherCategories = filteredData.slice(maxBars - 1);
+            const otherCount = otherCategories.reduce((sum, item) => sum + (item.count || 0), 0);
+
+            if (otherCount > 0) {
+                filteredData = [
+                    ...topCategories,
+                    // Usa 'name' ou 'label' para Outros
+                    { name: 'Outros', label: 'Outros', count: otherCount }
+                ];
+            } else {
+                 filteredData = filteredData.slice(0, maxBars);
+            }
+        }
+
+        // Adaptar para usar item.name em vez de item.label (conforme instrução)
+        const labels = filteredData.map(item => item.label || item.name || 'Desconhecido'); // Prioriza label, depois name
+        const data = filteredData.map(item => item.count || 0);
+        const colors = !hasData ? ['#dddddd'] : generateColorPalette(labels.length);
+
+
+        // Resto do código... (criação do gráfico de barras)
+        const ctx = chartCanvas.getContext('2d');
+        chartInstances.categoryChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+            labels: labels,
+            datasets: [{
+                data: data, // Nome correto da propriedade
+                backgroundColor: colors,
+                borderWidth: 0,
+                barPercentage: 0.6,
+                categoryPercentage: 0.7
+            }]
+            },
+            options: {
+            indexAxis: 'y', // Barras horizontais
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: hasData }
+            },
+            scales: {
+                x: { beginAtZero: true, grid: { display: true, drawBorder: false }, ticks: { precision: 0 } },
+                y: { grid: { display: false }, ticks: { autoSkip: false } }
+            }
+            }
+        });
+
+
+        console.log("Gráfico de categorias/tipos renderizado.");
+
     } catch (error) {
       console.error("Erro ao renderizar gráfico de categorias/tipos:", error);
     }
+
   }
 
 
@@ -1250,7 +1348,7 @@ const Dashboard = (function() {
    * @param {Array} areaData - Dados de áreas
    */
   function renderAreaDistributionChart(areaData) {
-    const defaultData = [{label: 'Nenhuma dado', count: 1}];
+    const defaultData = [{label: 'Nenhum dado', count: 1}];
     if (!areaData || !Array.isArray(areaData) || areaData.length === 0) {
       console.warn("Dados de área inválidos ou vazios:", areaData);
       areaData = defaultData;
@@ -1276,7 +1374,8 @@ const Dashboard = (function() {
         chartInstances.areaChart.destroy();
       }
 
-      const labels = areaData.map(item => item.label || 'Não especificado');
+      // Usa 'label' ou 'name'
+      const labels = areaData.map(item => item.label || item.name || 'Não especificado');
       const counts = areaData.map(item => item.count || 0);
        // Usa cores padrão ou cinza se for dado padrão
       const colors = areaData === defaultData ? ['#dddddd'] : generateColorPalette(labels.length);
@@ -1795,27 +1894,27 @@ const Dashboard = (function() {
          { name: 'Almoxarifado', count: 15 },
          { name: 'Utilidades', count: 22 }
       ],
-      // Dados antigos (podem coexistir ou ser derivados dos novos)
-      charts: {
-         // Status e ProblemCategories podem ser derivados acima
+       monthlyTrend: (() => { // Gera tendência para últimos 6 meses (adicionado aqui também para consistência)
+          const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+          const today = new Date();
+          const trend = [];
+          for (let i = 5; i >= 0; i--) {
+            const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            trend.push({
+              label: months[date.getMonth()],
+              count: Math.floor(Math.random() * 20) + 5 // 5-25
+            });
+          }
+          return trend;
+        })(),
+      // Dados antigos (podem coexistir ou ser derivados dos novos - removidos ou comentados para clareza)
+      /* charts: {
          status: [], // Derivado de maintenanceStatuses
          problemCategories: [], // Derivado de maintenanceTypes
-         monthlyTrend: (() => { // Gera tendência para últimos 6 meses
-              const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-              const today = new Date();
-              const trend = [];
-              for (let i = 5; i >= 0; i--) {
-                const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
-                trend.push({
-                  label: months[date.getMonth()],
-                  count: Math.floor(Math.random() * 20) + 5 // 5-25
-                });
-              }
-              return trend;
-         })(),
-         areaDistribution: [] // Derivado de areaDistribution
-      },
-      recentMaintenances: [] // Derivado de equipmentRanking ou outra fonte
+         monthlyTrend: [], // Agora no nível raiz
+         areaDistribution: [] // Agora no nível raiz
+      }, */
+      /* recentMaintenances: [] // Derivado de equipmentRanking ou outra fonte */
     };
   }
 
@@ -1870,10 +1969,14 @@ window.addEventListener('hashchange', function() {
 window.addEventListener('load', function() {
   // Verifica se o dashboard existe E se ainda não foi inicializado
    const dashboardElement = document.getElementById('dashboard-content') || document.querySelector('.dashboard-container');
-   if (dashboardElement && window.Dashboard && !Dashboard.initialized) { // 'initialized' precisa ser exposto ou verificado internamente
-     console.warn("Fallback - Dashboard detectado mas não inicializado. Tentando inicializar em window.onload.");
-     setTimeout(() => {
-       Dashboard.initialize();
-     }, 500);
+   // Adicionar verificação se Dashboard existe e tem a flag initialized (se ela for exposta ou verificável)
+   // let isInitialized = false; try { isInitialized = Dashboard.initialized; } catch(e) {} // Exemplo de verificação
+   if (dashboardElement && typeof Dashboard !== 'undefined' /* && !isInitialized */) { // Adicionar verificação de inicialização se possível
+     console.warn("Fallback - Dashboard detectado mas pode não ter sido inicializado. Tentando inicializar em window.onload.");
+     // A inicialização já deve ter sido tentada pelo DOMContentLoaded. Chamar de novo pode ser redundante ou causar problemas.
+     // Considerar apenas logar ou verificar estado antes de chamar initialize novamente.
+     // setTimeout(() => {
+     //   Dashboard.initialize();
+     // }, 500);
    }
 });
