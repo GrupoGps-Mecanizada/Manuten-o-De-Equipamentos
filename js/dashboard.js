@@ -1,6 +1,6 @@
 /**
  * Sistema de Dupla Checagem de Manutenção
- * Módulo: Dashboard (Versão FINAL Frontend - 03/05/2025 v2)
+ * Módulo: Dashboard (Versão FINAL Frontend - 03/05/2025 v2 - Corrigido)
  */
 
 const Dashboard = (function() {
@@ -318,33 +318,40 @@ const Dashboard = (function() {
     }
   }
 
-
-  /** Renderiza cartões de sumário */
+  /** Renderiza cartões de sumário - VERSÃO CORRIGIDA */
   function renderSummaryCards(summary) {
-    // Mapeamento: Chave do objeto 'summary' da API -> ID do elemento HTML
-    const cardMap = {
+    // Mapeamento: Chave do objeto 'summary' da API -> ID do elemento HTML que contém o valor
+    const cardValueMap = {
       'total': 'total-maintenance',
       'pending': 'pending-verification',
-      'completed': 'completed-verifications',
+      'completed': 'completed-verifications', // Este ID existe no HTML
       'critical': 'critical-maintenance'
     };
-    createSummaryCardsIfNeeded(); // Garante que os elementos HTML existam
+    // A função createSummaryCardsIfNeeded() não é mais necessária aqui,
+    // pois o HTML já contém os cards. Se precisar criá-los dinamicamente,
+    // a lógica original em createSummaryCardsIfNeeded() deve garantir que
+    // os IDs correspondam aos usados aqui.
 
-    Object.entries(cardMap).forEach(([summaryKey, elementId]) => {
-      const cardElement = document.getElementById(elementId);
-      if (cardElement) {
-        const countElement = cardElement.querySelector('.card-count');
+    Object.entries(cardValueMap).forEach(([summaryKey, elementId]) => {
+      const valueElement = document.getElementById(elementId); // Busca pelo ID diretamente
+      if (valueElement) {
         const value = summary[summaryKey] ?? 0; // Usa ?? para tratar null/undefined como 0
-        if (countElement) {
-            countElement.textContent = value;
-        } else { console.warn(`.card-count não encontrado em #${elementId}`); }
-      } else { console.warn(`Card #${elementId} não encontrado.`); }
+        valueElement.textContent = value; // Define o texto do elemento encontrado pelo ID
+      } else {
+        // Ajuste no log de erro para refletir a busca por ID
+        console.warn(`Elemento de valor #${elementId} não encontrado para o card ${summaryKey}.`);
+      }
     });
-     // console.log("Cards de sumário renderizados com:", summary); // Opcional: Log verboso
+     // console.log("Cards de sumário renderizados com:", summary); // Log opcional
   }
 
    /** Cria cards de sumário se necessário (inclui ícones Font Awesome) */
    function createSummaryCardsIfNeeded() {
+       // Esta função é chamada no initialize() caso os cards não existam no HTML.
+       // Se os cards já estão no HTML (como no index.html fornecido),
+       // esta função não fará nada ou pode ser removida do initialize().
+       // Certifique-se que, se usada, ela crie elementos com os IDs corretos
+       // usados em renderSummaryCards (ex: #total-maintenance).
        const dashboardContent = document.getElementById('tab-dashboard');
        if (!dashboardContent || dashboardContent.querySelector('.summary-cards')) return;
 
@@ -352,24 +359,22 @@ const Dashboard = (function() {
        const cardsContainer = document.createElement('div');
        cardsContainer.className = 'summary-cards';
        const cards = [
-         { id: 'total-maintenance', icon: 'fa-clipboard-list', color: 'blue', label: 'Total Manutenções' },
-         { id: 'pending-verification', icon: 'fa-clock', color: 'yellow', label: 'Aguardando Verificação' },
-         { id: 'completed-verifications', icon: 'fa-check-circle', color: 'green', label: 'Concluídas/Verificadas' },
-         { id: 'critical-maintenance', icon: 'fa-exclamation-triangle', color: 'red', label: 'Manutenções Críticas' }
+         // Ajustar IDs e estrutura aqui se necessário para bater com o HTML
+         { valueId: 'total-maintenance', icon: 'fa-clipboard-list', color: 'blue', label: 'Total Manutenções' },
+         { valueId: 'pending-verification', icon: 'fa-clock', color: 'yellow', label: 'Aguardando Verificação' },
+         { valueId: 'completed-verifications', icon: 'fa-check-circle', color: 'green', label: 'Concluídas/Verificadas' },
+         { valueId: 'critical-maintenance', icon: 'fa-exclamation-triangle', color: 'red', label: 'Manutenções Críticas' }
        ];
        cards.forEach(card => {
            const cardElement = document.createElement('div');
-           cardElement.className = 'summary-card';
-           cardElement.id = card.id;
-           // Garante que as classes de ícone e cor existam no CSS
+           cardElement.className = 'card'; // Usa a classe 'card' do HTML
+           // A estrutura interna precisa bater com o HTML ou ser ajustada
            cardElement.innerHTML = `
-             <div class="card-icon card-icon-${card.color}">
-               <i class="fas ${card.icon}"></i>
+             <div class="card-title">
+               <i class="icon fas ${card.icon}"></i> ${card.label}
              </div>
-             <div class="card-content">
-               <div class="card-count">0</div>
-               <div class="card-label">${card.label}</div>
-             </div>`;
+             <div class="card-value" id="${card.valueId}">0</div> <div class="card-footer">
+               <span>...</span> </div>`;
            cardsContainer.appendChild(cardElement);
        });
         const header = dashboardContent.querySelector('.dashboard-header');
