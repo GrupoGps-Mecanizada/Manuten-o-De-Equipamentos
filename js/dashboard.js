@@ -1047,7 +1047,7 @@ const Dashboard = (function() {
     // --- Fim do Bloco Adicionado/Modificado ---
 
     // O ID do canvas correto é 'status-chart', conforme a estrutura criada
-    const chartCanvas = document.getElementById('status-chart'); // ID CORRETO
+    let chartCanvas = document.getElementById('status-chart');
     if (!chartCanvas) {
       // Tenta encontrar pelo ID da instrução se o ID correto falhar
       const fallbackCanvas = document.getElementById('maintenance-status-chart');
