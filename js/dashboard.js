@@ -553,7 +553,7 @@ const Dashboard = (function() {
        tableBody.innerHTML = ''; // Limpa
 
        const thead = tableBody.previousElementSibling;
-       const colspan = thead?.rows?.[0]?.cells?.length || 5;
+       const colspan = thead?.rows?.[0]?.cells?.length || 5; // Ajuste o colspan padrão se necessário
 
        if (!items || items.length === 0) {
          tableBody.innerHTML = `<tr><td colspan="${colspan}" class="text-center" style="padding: 20px; color: #6c757d;">Nenhum dado encontrado para este período.</td></tr>`;
@@ -587,12 +587,18 @@ const Dashboard = (function() {
        });
        // console.log(`Tabela #${tbodyId} renderizada.`); // Log opcional
 
+        // --- INÍCIO DA ALTERAÇÃO ---
         // Adiciona listener DELEGADO ao tbody (se ainda não tiver)
-        const listenerId = `${tbodyId}-listener`;
-        if (!tableBody.dataset[listenerId]) {
+        // Converte tbodyId para camelCase para usar como chave do dataset
+        const listenerKey = tbodyId.replace(/-([a-z])/g, g => g[1].toUpperCase()) + 'ListenerSet';
+        // Ex: 'equipment-ranking-tbody' vira 'equipmentRankingTbodyListenerSet'
+        // Verifica e define o atributo usando a chave camelCase
+        if (!tableBody.dataset[listenerKey]) {
            tableBody.addEventListener('click', handleTableActionClick);
-           tableBody.dataset[listenerId] = 'true';
+           tableBody.dataset[listenerKey] = 'true'; // Define a flag no dataset com nome válido
+           console.log(`Listener de clique configurado para #${tbodyId} com chave dataset: ${listenerKey}`);
         }
+        // --- FIM DA ALTERAÇÃO ---
    }
 
    /** Handler DELEGADO para cliques nos botões de ação das tabelas */
@@ -604,10 +610,17 @@ const Dashboard = (function() {
 
        if (button.classList.contains('view-maintenance')) {
           console.log(`Visualizar manutenção ID: ${maintenanceId}`);
+          // Tenta chamar a função global viewMaintenanceDetails (assumindo que existe)
+          // Idealmente, essa dependência deveria ser injetada ou gerenciada de outra forma
           if (typeof window.viewMaintenanceDetails === 'function') {
              window.viewMaintenanceDetails(maintenanceId); // Chama função global
-          } else { console.error("Função global 'viewMaintenanceDetails' não encontrada."); }
+          } else {
+             console.error("Função global 'viewMaintenanceDetails' não encontrada ou não definida.");
+             // Poderia ter um fallback aqui, como mostrar um alert simples.
+             alert(`Detalhes da manutenção ${maintenanceId} (Função 'viewMaintenanceDetails' não disponível)`);
+          }
        }
+       // Adicionar mais 'else if' para outros botões de ação (editar, excluir, etc.) se necessário
    }
 
   // ===========================================================
