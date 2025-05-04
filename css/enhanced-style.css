@@ -1330,3 +1330,103 @@ select.form-control {
   gap: 10px;
   margin-top: 10px;
 }
+
+/* Adicione ao final do arquivo enhanced-style.css */
+.smart-filter-container {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.filter-label {
+    font-weight: 500;
+    color: var(--text-dark);
+    font-size: 0.9rem;
+}
+
+.filter-dropdown { /* Note: Este seletor já existe acima, mas a instrução pedia para adicionar este bloco inteiro. Mantendo como solicitado. */
+    min-width: 150px;
+    padding: 6px 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.date-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-icon {
+    margin-right: 5px;
+    color: var(--primary-color);
+}
+
+.filter-applied {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--primary-color);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 50px;
+    font-size: 0.8rem;
+    margin-right: 10px;
+}
+
+.filter-applied button {
+    background: none;
+    border: none;
+    color: white;
+    margin-left: 5px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.filter-actions { /* Note: Este seletor já existe acima, mas a instrução pedia para adicionar este bloco inteiro. Mantendo como solicitado. */
+    display: flex;
+    gap: 8px;
+}
+
+.smart-filter-toggle {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.smart-filter-toggle:hover {
+    background-color: var(--primary-dark);
+}
+
+@media (max-width: 768px) {
+    .smart-filter-container {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .filter-group, .date-filter-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
