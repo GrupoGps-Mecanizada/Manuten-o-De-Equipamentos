@@ -1,5 +1,3 @@
---- START OF FILE dashboard.js ---
-
 /**
  * Sistema de Dupla Checagem de Manutenção
  * Módulo: Dashboard (Versão FINAL Frontend - 03/05/2025 v2 - Corrigido)
@@ -1114,4 +1112,3 @@ document.addEventListener('DOMContentLoaded', function() {
       }
   }
 });
---- END OF FILE dashboard.js ---
