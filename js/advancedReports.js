@@ -1,20 +1,25 @@
 /**
  * Sistema de Dupla Checagem de Manutenção
  * Módulo: Relatórios Avançados
- * 
+ *
  * Este módulo implementa recursos avançados de relatórios:
  * - Relatórios personalizáveis com múltiplos filtros
- * - Exportação em diversos formatos (PDF, Excel, CSV)
+ * - Exportação em diversos formatos (PDF, Excel, CSV, JSON)
  * - Relatórios automatizados programados
- * - Visualizações avançadas de dados
+ * - Visualizações avançadas de dados (usando Chart.js)
+ *
+ * Dependências Opcionais:
+ * - Chart.js: Necessário para renderizar gráficos.
+ * - Módulo 'Reports': O módulo de relatórios existente que pode ser estendido.
+ * - Módulo 'Utilities': Para notificações, loading indicators, e confirmações. Fallbacks são implementados.
  */
 
 const AdvancedReports = (function() {
-  // Configurações do módulo
+  // --- Configurações ---
   const config = {
     defaultDateRange: 30, // Dias para o relatório padrão
-    maxExportLimit: 5000, // Limite de registros para exportação
-    autoSaveInterval: 60000, // Intervalo para auto-salvar (ms)
+    maxExportLimit: 5000, // Limite de registros para exportação (informativo, não implementado na lógica de exportação de exemplo)
+    // autoSaveInterval: 60000, // Intervalo para auto-salvar (ms) - Funcionalidade não implementada no código fornecido
     defaultChartColors: [
       '#1a5fb4', '#2b9348', '#f0ad4e', '#cc0000', '#0066cc',
       '#6554c0', '#ff5630', '#00b8d9', '#ffc400', '#4c9aff'
@@ -24,1393 +29,1278 @@ const AdvancedReports = (function() {
       xlsx: { label: 'Excel', icon: '📊' },
       csv: { label: 'CSV', icon: '📋' },
       json: { label: 'JSON', icon: '📝' }
+    },
+    localStorageKeys: {
+        saved: 'advanced-reports-saved',
+        scheduled: 'advanced-reports-scheduled'
     }
   };
 
-  // Estado interno
+  // --- Estado Interno ---
   let currentReport = null;
   let savedReports = [];
   let scheduledReports = [];
   let isInitialized = false;
+  let chartInstances = {}; // Para manter referência das instâncias Chart.js e destruí-las
+
+  // --- Funções Utilitárias Internas ---
 
   /**
-   * Inicializa o módulo de relatórios avançados
+   * Mostra uma notificação ao usuário. Usa Utilities.showNotification se disponível.
+   * @param {string} message - A mensagem a ser exibida.
+   * @param {'info'|'success'|'warning'|'error'} type - O tipo de notificação.
+   */
+  function notify(message, type = 'info') {
+    console.log(`[${type.toUpperCase()}] ${message}`); // Log de fallback
+    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+      Utilities.showNotification(message, type);
+    } else {
+      // Fallback simples
+      alert(`[${type.toUpperCase()}] ${message}`);
+    }
+  }
+
+  /**
+   * Mostra/Esconde um indicador de carregamento global. Usa Utilities.showLoading se disponível.
+   * @param {boolean} show - Mostrar (true) ou esconder (false).
+   * @param {string} message - Mensagem a ser exibida durante o carregamento.
+   */
+  function showLoading(show, message = 'Carregando...') {
+    if (typeof Utilities !== 'undefined' && Utilities.showLoading) {
+      Utilities.showLoading(show, message);
+      return;
+    }
+
+    // Implementação fallback
+    const LOADER_ID = 'advanced-reports-global-loader';
+    let loader = document.getElementById(LOADER_ID);
+
+    if (show) {
+      if (!loader) {
+        loader = document.createElement('div');
+        loader.id = LOADER_ID;
+        loader.style.cssText = `
+          position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+          background-color: rgba(255, 255, 255, 0.85);
+          display: flex; flex-direction: column; justify-content: center; align-items: center;
+          z-index: 10001; font-family: sans-serif;
+        `;
+        loader.innerHTML = `
+          <div style="width: 50px; height: 50px; border: 5px solid rgba(26, 95, 180, 0.2); border-radius: 50%; border-top-color: #1a5fb4; animation: adv-report-spin 1s ease-in-out infinite;"></div>
+          <div style="margin-top: 15px; color: #1a5fb4; font-weight: 500;"></div>
+        `;
+        document.body.appendChild(loader);
+
+        // Adicionar animação se não existir
+        if (!document.getElementById('adv-report-loader-anim')) {
+          const style = document.createElement('style');
+          style.id = 'adv-report-loader-anim';
+          style.textContent = `@keyframes adv-report-spin { to { transform: rotate(360deg); } }`;
+          document.head.appendChild(style);
+        }
+      }
+      loader.querySelector('div:last-child').textContent = message;
+      loader.style.display = 'flex';
+    } else if (loader) {
+      loader.style.display = 'none';
+    }
+  }
+
+   /**
+   * Pede confirmação ao usuário. Usa Utilities.showConfirmation se disponível.
+   * @param {string} message - A mensagem de confirmação.
+   * @param {function} onConfirm - Callback a ser executado se o usuário confirmar.
+   */
+    function confirmAction(message, onConfirm) {
+        if (typeof Utilities !== 'undefined' && Utilities.showConfirmation) {
+            Utilities.showConfirmation(message, onConfirm);
+        } else {
+            // Fallback simples
+            if (confirm(message)) {
+                onConfirm();
+            }
+        }
+    }
+
+  // --- Funções Principais ---
+
+  /**
+   * Inicializa o módulo de relatórios avançados.
    */
   function initialize() {
     if (isInitialized) {
       console.log("Módulo de relatórios avançados já inicializado.");
       return;
     }
-
     console.log("Inicializando módulo de relatórios avançados...");
-    
-    // Carregar relatórios salvos
-    loadSavedReports();
-    
-    // Adicionar botão de relatórios avançados
-    createReportsButton();
-    
-    // Configurar handlers de eventos
-    setupEventListeners();
-    
-    // Substituir ou extender o módulo de relatórios existente se necessário
-    extendExistingReportsModule();
-    
+
+    loadPersistedData();
+    createReportsButton(); // Tenta adicionar o botão à UI existente
+    setupEventListeners(); // Configura listeners globais
+    extendExistingReportsModule(); // Tenta estender o módulo base
+
     isInitialized = true;
     console.log("Módulo de relatórios avançados inicializado com sucesso.");
   }
 
   /**
-   * Cria o botão para relatórios avançados
+   * Cria o botão "Relatórios Avançados" na interface, se possível.
    */
   function createReportsButton() {
-    const reportsTab = document.querySelector('.tab[data-tab="reports"]');
-    if (!reportsTab) return;
-    
-    // Verificar se o botão já existe
-    if (document.getElementById('advanced-reports-button')) return;
-    
-    // Obter o container de relatórios
-    const reportsContent = document.getElementById('tab-reports');
-    if (!reportsContent) return;
-    
-    // Adicionar botão para relatórios avançados
+    // Depende da estrutura HTML do sistema principal
+    const reportsContent = document.getElementById('tab-reports'); // Assumindo que a aba de relatórios tem este ID
+    if (!reportsContent) {
+        console.warn("Container de relatórios (#tab-reports) não encontrado. Botão de Relatórios Avançados não será adicionado.");
+        return;
+    }
+
+    if (document.getElementById('advanced-reports-button')) {
+        console.log("Botão de Relatórios Avançados já existe.");
+        return; // Já existe
+    }
+
     const advancedButton = document.createElement('button');
     advancedButton.id = 'advanced-reports-button';
-    advancedButton.className = 'btn btn-primary';
-    advancedButton.innerHTML = '<span style="margin-right:8px;">📈</span> Relatórios Avançados';
+    advancedButton.className = 'btn btn-primary'; // Usar classes consistentes
+    advancedButton.innerHTML = `<span style="margin-right:8px;">📈</span> Relatórios Avançados`;
     advancedButton.style.marginTop = '20px';
-    
-    // Encontrar onde colocar o botão
-    const reportSection = reportsContent.querySelector('.section');
-    if (reportSection) {
-      // Adicionar após o botão "Gerar Relatório" existente
-      const generateButton = reportSection.querySelector('#generate-report');
-      if (generateButton) {
-        // Adicionar ao lado do botão existente
+    advancedButton.addEventListener('click', openAdvancedReportsPanel);
+
+    // Tenta inserir próximo ao botão de gerar relatório existente
+    const reportSection = reportsContent.querySelector('.section'); // Tenta encontrar uma seção
+    const generateButton = reportSection ? reportSection.querySelector('#generate-report') : null; // Botão padrão
+
+    if (generateButton && generateButton.parentNode) {
         generateButton.parentNode.insertBefore(advancedButton, generateButton.nextSibling);
-        // Adicionar um pouco de espaço entre os botões
-        generateButton.style.marginRight = '10px';
-      } else {
-        // Adicionar ao final da seção
-        reportSection.appendChild(advancedButton);
-      }
+        generateButton.style.marginRight = '10px'; // Adiciona espaço
+        console.log("Botão de Relatórios Avançados adicionado ao lado do botão existente.");
+    } else if (reportSection) {
+        reportSection.appendChild(advancedButton); // Fallback: adiciona ao final da seção
+         console.log("Botão de Relatórios Avançados adicionado ao final da seção de relatórios.");
+    } else {
+         reportsContent.appendChild(advancedButton); // Fallback: adiciona diretamente ao container
+         console.log("Botão de Relatórios Avançados adicionado ao container de relatórios.");
     }
   }
 
   /**
-   * Configura listeners de eventos
+   * Configura listeners de eventos globais (delegação).
    */
   function setupEventListeners() {
-    // Listener para o botão de relatórios avançados
-    const advancedButton = document.getElementById('advanced-reports-button');
-    if (advancedButton) {
-      advancedButton.addEventListener('click', openAdvancedReportsPanel);
-    }
-    
-    // Adicionar outros listeners conforme necessário
+    // Usar delegação para elementos criados dinamicamente dentro dos modais/painéis
     document.addEventListener('click', function(event) {
-      // Delegar eventos para elementos que podem não existir ainda
       const target = event.target;
-      
-      // Manipular clique em botões de exportação
-      if (target.classList.contains('export-report-btn')) {
-        const format = target.getAttribute('data-format');
+      const targetClosest = (selector) => target.closest(selector); // Helper
+
+      // Botões de Exportação (no modal simples)
+      const exportBtn = targetClosest('.export-report-btn');
+      if (exportBtn) {
+        const format = exportBtn.dataset.format;
         if (format) {
           event.preventDefault();
           exportReport(format);
+          // Fechar modal se existir (assumindo que está dentro de um modal com overlay)
+          const modalOverlay = targetClosest('.modal-overlay');
+          if (modalOverlay) modalOverlay.style.display = 'none';
         }
       }
-      
-      // Manipular clique em botões de salvar relatório
+
+      // Botão Salvar Relatório (no painel principal)
       if (target.id === 'save-report-btn') {
         event.preventDefault();
         saveCurrentReport();
       }
-      
-      // Manipular clique em botões de carregar relatório
-      if (target.classList.contains('load-report-btn')) {
-        const reportId = target.getAttribute('data-id');
-        if (reportId) {
-          event.preventDefault();
-          loadReport(reportId);
-        }
-      }
-      
-      // Manipular clique em botões de agendar relatório
+
+      // Botão Carregar Relatório (na lista de salvos)
+      const loadBtn = targetClosest('.load-report-btn'); // Assumindo que botões de carregar terão essa classe
+       if (!loadBtn) { // Check if it's the whole item click
+           const savedItem = targetClosest('.saved-report-item');
+           if (savedItem && savedItem.dataset.id) {
+               event.preventDefault();
+               loadReport(savedItem.dataset.id);
+           }
+       } else if (loadBtn.dataset.id) {
+           event.preventDefault();
+           loadReport(loadBtn.dataset.id);
+       }
+
+
+      // Botão Agendar Relatório (no painel principal)
       if (target.id === 'schedule-report-btn') {
         event.preventDefault();
         openScheduleReportModal();
       }
+
+      // Botão Editar Agendamento (na lista de agendados)
+      const editScheduleBtn = targetClosest('.edit-schedule-btn');
+      if (editScheduleBtn && editScheduleBtn.dataset.id) {
+          event.preventDefault();
+          event.stopPropagation(); // Evita que o clique no item seja acionado
+          editScheduledReport(editScheduleBtn.dataset.id);
+      }
+
+      // Botão Excluir Agendamento (na lista de agendados)
+       const deleteScheduleBtn = targetClosest('.delete-schedule-btn');
+       if (deleteScheduleBtn && deleteScheduleBtn.dataset.id) {
+           event.preventDefault();
+           event.stopPropagation(); // Evita que o clique no item seja acionado
+           deleteScheduledReport(deleteScheduleBtn.dataset.id);
+       }
+
+       // Carregar relatório a partir de um agendamento clicado
+       const scheduledItem = targetClosest('.scheduled-report-item');
+       if (scheduledItem && !editScheduleBtn && !deleteScheduleBtn && scheduledItem.dataset.id) {
+            const scheduleId = scheduledItem.dataset.id;
+            const scheduledReport = scheduledReports.find(r => r.id === scheduleId);
+            if (scheduledReport && scheduledReport.reportId) {
+                 event.preventDefault();
+                 loadReport(scheduledReport.reportId);
+            }
+       }
+
+       // Botão Exportação Avançada (na UI principal, se adicionado)
+        const advancedExportBtn = targetClosest('.advanced-export-button');
+        if(advancedExportBtn) {
+            event.preventDefault();
+            openAdvancedExportModal();
+        }
+
     });
   }
 
   /**
-   * Estende o módulo de relatórios existente
+   * Estende ou modifica o módulo de relatórios base ('Reports'), se existir.
    */
   function extendExistingReportsModule() {
-    // Verificar se o módulo Reports existe
-    if (typeof Reports !== 'undefined') {
+    if (typeof Reports !== 'undefined' && Reports.generateReport) {
       console.log("Estendendo módulo de relatórios existente...");
-      
-      // Salvar referência ao método original de geração de relatórios
+
+      // Guarda referência ao método original
       const originalGenerateReport = Reports.generateReport;
-      
-      // Sobrescrever o método para melhorar suas capacidades
+
+      // Sobrescreve o método original
       Reports.generateReport = function(...args) {
-        // Chamar o método original
+        console.log("Chamando Reports.generateReport original e adicionando extras...");
+        // Chama o método original
         const result = originalGenerateReport.apply(this, args);
-        
-        // Adicionar botão de exportação avançada se não existir
-        addAdvancedExportButtons();
-        
+
+        // Poderia adicionar funcionalidades extras aqui após o relatório base ser gerado
+        addAdvancedExportButtons(); // Tenta adicionar botão de exportação avançada
+
         return result;
       };
-      
-      // Adicionar novos métodos ao módulo Reports
-      Reports.createAdvancedReport = createAdvancedReport;
-      Reports.exportAdvanced = exportReport;
-      
+
+      // Adiciona novos métodos ao módulo Reports
+      Reports.createAdvancedReport = createAdvancedReport; // Permite criação programática
+      Reports.exportAdvanced = exportReportAdvanced; // Expõe exportação avançada
+
       console.log("Módulo de relatórios estendido com sucesso.");
     } else {
-      console.warn("Módulo Reports não encontrado. Funcionando de forma independente.");
+      console.warn("Módulo 'Reports' ou 'Reports.generateReport' não encontrado. O módulo avançado funcionará de forma independente.");
     }
   }
 
   /**
-   * Adiciona botões avançados de exportação
+   * Adiciona botões de exportação avançada à interface principal, se possível.
    */
   function addAdvancedExportButtons() {
-    // Verificar se já existem botões de exportação avançada
+    // Verifica se já existe
     if (document.querySelector('.advanced-export-button')) return;
-    
-    // Encontrar a div com os botões de exportação existentes
-    const exportDiv = document.querySelector('.btn-action-group');
-    if (!exportDiv) return;
-    
-    // Adicionar botão de exportação avançada
+
+    // Tenta encontrar um grupo de botões de ação (seletor pode precisar de ajuste)
+    const exportDiv = document.querySelector('.report-actions .btn-action-group'); // Exemplo de seletor mais específico
+    if (!exportDiv) {
+        console.warn("Container para botões de exportação avançada não encontrado.");
+        return;
+    }
+
     const advancedExportBtn = document.createElement('button');
-    advancedExportBtn.className = 'btn advanced-export-button';
-    advancedExportBtn.innerHTML = '<span style="margin-right:5px;">🚀</span> Exportação Avançada';
-    advancedExportBtn.style.backgroundColor = '#1a5fb4';
-    
-    // Adicionar ao container
+    advancedExportBtn.className = 'btn advanced-export-button'; // Classe específica
+    advancedExportBtn.innerHTML = `<span style="margin-right:5px;">🚀</span> Exportação Avançada`;
+    advancedExportBtn.style.backgroundColor = '#1a5fb4'; // Pode ser melhor usar classes CSS
+    advancedExportBtn.style.color = 'white';
+    advancedExportBtn.style.marginLeft = '10px';
+
     exportDiv.appendChild(advancedExportBtn);
-    
-    // Configurar evento
-    advancedExportBtn.addEventListener('click', openAdvancedExportModal);
+    // O listener já é tratado pela delegação em setupEventListeners
   }
 
   /**
-   * Abre o painel de relatórios avançados
+   * Abre o painel principal de Relatórios Avançados.
    */
   function openAdvancedReportsPanel() {
     console.log("Abrindo painel de relatórios avançados...");
-    
-    // Verificar se já existe um painel aberto
     let panel = document.getElementById('advanced-reports-panel');
+
     if (panel) {
-      panel.style.display = 'block';
+      panel.style.display = 'flex'; // Reexibe se já existir
       return;
     }
-    
-    // Criar o painel
+
+    // --- Criação do Painel ---
     panel = document.createElement('div');
     panel.id = 'advanced-reports-panel';
-    panel.className = 'advanced-reports-panel';
+    panel.className = 'advanced-reports-panel'; // Para CSS externo, se houver
     panel.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(245, 247, 250, 0.98);
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background-color: rgba(245, 247, 250, 0.98); /* Fundo ligeiramente opaco */
+      z-index: 9998; /* Abaixo de modais, talvez? */
+      display: flex; flex-direction: column; overflow: hidden;
+      font-family: sans-serif; /* Estilo base */
     `;
-    
-    // Adicionar cabeçalho
+
+    // Cabeçalho
     const header = document.createElement('div');
     header.className = 'advanced-reports-header';
     header.style.cssText = `
       padding: 15px 20px;
-      background: linear-gradient(135deg, var(--primary-color, #1a5fb4) 0%, var(--primary-dark, #15487d) 100%);
-      color: white;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      z-index: 1;
+      background: linear-gradient(135deg, #1a5fb4 0%, #15487d 100%);
+      color: white; display: flex; justify-content: space-between; align-items: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); z-index: 1; flex-shrink: 0;
     `;
-    
     header.innerHTML = `
-      <div class="header-title">
+      <div>
         <h2 style="margin: 0; font-size: 1.5rem; font-weight: 600;">Relatórios Avançados</h2>
         <p style="margin: 5px 0 0 0; font-size: 0.9rem; opacity: 0.9;">Crie, salve e agende relatórios personalizados</p>
       </div>
-      <div class="header-actions">
-        <button id="close-reports-panel" class="btn-icon" style="background-color: rgba(255,255,255,0.2); color: white; width: 36px; height: 36px;">×</button>
-      </div>
+      <button id="close-reports-panel" class="btn-icon" style="background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 50%; width: 36px; height: 36px; font-size: 1.5rem; cursor: pointer; line-height: 36px; text-align: center;">&times;</button>
     `;
-    
-    // Adicionar layout principal
+
+    // Conteúdo Principal (Layout Flex)
     const content = document.createElement('div');
     content.className = 'advanced-reports-content';
-    content.style.cssText = `
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-    `;
-    
-    // Painel esquerdo (configuração)
+    content.style.cssText = `display: flex; flex: 1; overflow: hidden;`;
+
+    // Painel Esquerdo (Configuração)
     const leftPanel = document.createElement('div');
     leftPanel.className = 'reports-config-panel';
     leftPanel.style.cssText = `
-      width: 320px;
-      background-color: white;
-      border-right: 1px solid rgba(0, 0, 0, 0.05);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
+      width: 350px; background-color: #ffffff; border-right: 1px solid #e0e0e0;
+      display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
     `;
-    
-    // Conteúdo do painel esquerdo
     leftPanel.innerHTML = `
-      <div class="panel-tabs" style="display: flex; border-bottom: 1px solid rgba(0,0,0,0.05);">
-        <div class="panel-tab active" data-tab="new" style="flex: 1; padding: 15px; text-align: center; font-weight: 500; cursor: pointer; border-bottom: 2px solid var(--primary-color, #1a5fb4); color: var(--primary-color, #1a5fb4);">Novo Relatório</div>
-        <div class="panel-tab" data-tab="saved" style="flex: 1; padding: 15px; text-align: center; font-weight: 500; cursor: pointer; color: var(--text-light, #5e6c84);">Salvos</div>
-        <div class="panel-tab" data-tab="scheduled" style="flex: 1; padding: 15px; text-align: center; font-weight: 500; cursor: pointer; color: var(--text-light, #5e6c84);">Agendados</div>
+      <div class="panel-tabs" style="display: flex; border-bottom: 1px solid #e0e0e0; flex-shrink: 0;">
+        <div class="panel-tab active" data-tab="new" style="flex: 1; padding: 15px; text-align: center; font-weight: 500; cursor: pointer; border-bottom: 3px solid #1a5fb4; color: #1a5fb4;">Novo Relatório</div>
+        <div class="panel-tab" data-tab="saved" style="flex: 1; padding: 15px; text-align: center; font-weight: 500; cursor: pointer; color: #5e6c84; border-bottom: 3px solid transparent;">Salvos</div>
+        <div class="panel-tab" data-tab="scheduled" style="flex: 1; padding: 15px; text-align: center; font-weight: 500; cursor: pointer; color: #5e6c84; border-bottom: 3px solid transparent;">Agendados</div>
       </div>
-      <div class="panel-content" style="flex: 1; overflow: auto; padding: 20px;">
-        <!-- Conteúdo do painel de configuração será inserido aqui -->
+      <div class="panel-content" style="flex: 1; overflow-y: auto; padding: 20px;">
+        <!-- Conteúdo da aba será carregado aqui -->
       </div>
-      <div class="panel-footer" style="padding: 15px; border-top: 1px solid rgba(0,0,0,0.05); display: flex; justify-content: space-between;">
-        <button id="export-report-btn" class="btn btn-secondary" style="padding: 8px 15px; font-size: 0.9rem;">Exportar</button>
-        <button id="generate-advanced-report-btn" class="btn" style="padding: 8px 15px; font-size: 0.9rem; background-color: var(--primary-color, #1a5fb4);">Gerar Relatório</button>
+      <div class="panel-footer" style="padding: 15px; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items:center; flex-shrink: 0; background-color: #f8f9fa;">
+        <button id="export-report-btn" class="btn btn-secondary" style="padding: 8px 15px; font-size: 0.9rem; cursor: pointer;">Exportar</button>
+        <button id="generate-advanced-report-btn" class="btn" style="padding: 8px 15px; font-size: 0.9rem; background-color: #1a5fb4; color: white; border: none; border-radius: 4px; cursor: pointer;">Gerar Relatório</button>
       </div>
     `;
-    
-    // Painel direito (visualização)
+
+    // Painel Direito (Visualização)
     const rightPanel = document.createElement('div');
     rightPanel.className = 'reports-preview-panel';
-    rightPanel.style.cssText = `
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    `;
-    
-    // Conteúdo do painel direito
+    rightPanel.style.cssText = `flex: 1; display: flex; flex-direction: column; overflow: hidden;`;
     rightPanel.innerHTML = `
-      <div class="preview-toolbar" style="padding: 10px 20px; border-bottom: 1px solid rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;">
-        <h3 style="margin: 0; font-size: 1.2rem; font-weight: 500;">Visualização do Relatório</h3>
+      <div class="preview-toolbar" style="padding: 10px 20px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; background-color: #ffffff; flex-shrink: 0;">
+        <h3 style="margin: 0; font-size: 1.2rem; font-weight: 500; color: #333;">Visualização do Relatório</h3>
         <div class="toolbar-actions">
-          <button id="save-report-btn" class="btn" style="padding: 5px 10px; font-size: 0.85rem; margin-right: 10px; background-color: var(--status-completed, #2b9348);">Salvar Relatório</button>
-          <button id="schedule-report-btn" class="btn" style="padding: 5px 10px; font-size: 0.85rem; background-color: var(--status-verification, #0066cc);">Agendar</button>
+          <button id="save-report-btn" class="btn" style="padding: 6px 12px; font-size: 0.85rem; margin-right: 10px; background-color: #2b9348; color: white; border: none; border-radius: 4px; cursor: pointer;">Salvar Relatório</button>
+          <button id="schedule-report-btn" class="btn" style="padding: 6px 12px; font-size: 0.85rem; background-color: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer;">Agendar</button>
         </div>
       </div>
-      <div class="preview-content" style="flex: 1; overflow: auto; padding: 20px; background-color: rgba(245, 247, 250, 0.5);">
-        <div id="report-preview-container" style="background: white; border-radius: 8px; box-shadow: 0 1px 5px rgba(0,0,0,0.05); min-height: 500px; padding: 20px;">
-          <div class="empty-report-message" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 400px; color: var(--text-light, #5e6c84);">
-            <div style="font-size: 3rem; margin-bottom: 20px; opacity: 0.5;">📊</div>
-            <h3 style="margin: 0; font-size: 1.2rem; font-weight: 500;">Nenhum relatório gerado</h3>
-            <p style="margin: 10px 0 0 0; font-size: 0.9rem; opacity: 0.7; text-align: center;">Configure os parâmetros no painel à esquerda<br>e clique em "Gerar Relatório"</p>
+      <div class="preview-content" style="flex: 1; overflow-y: auto; padding: 20px; background-color: #f0f2f5;">
+        <div id="report-preview-container" style="background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); min-height: 500px; padding: 25px;">
+          <div class="empty-report-message" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 400px; color: #5e6c84; text-align: center;">
+            <div style="font-size: 3.5rem; margin-bottom: 20px; opacity: 0.5;">📊</div>
+            <h3 style="margin: 0; font-size: 1.3rem; font-weight: 500;">Nenhum relatório gerado</h3>
+            <p style="margin: 10px 0 0 0; font-size: 0.95rem; opacity: 0.8;">Configure os parâmetros no painel à esquerda<br>e clique em "Gerar Relatório".</p>
           </div>
         </div>
       </div>
     `;
-    
-    // Adicionar os painéis ao conteúdo
+
+    // Montagem
     content.appendChild(leftPanel);
     content.appendChild(rightPanel);
-    
-    // Compor o painel completo
     panel.appendChild(header);
     panel.appendChild(content);
-    
-    // Adicionar ao body
     document.body.appendChild(panel);
-    
-    // Adicionar estilos globais para o painel de relatórios
-    addReportsPanelStyles();
-    
-    // Configurar eventos para o painel
-    setupReportsPanelEvents(panel);
-    
-    // Carregar o conteúdo inicial do painel de configuração
-    loadNewReportPanel();
+
+    addReportsPanelStyles(); // Adiciona estilos CSS necessários
+    setupReportsPanelEvents(panel); // Configura eventos específicos do painel
+    loadNewReportPanel(); // Carrega o conteúdo da aba inicial
   }
 
   /**
-   * Adiciona estilos globais para o painel de relatórios
+   * Adiciona estilos CSS para o painel de relatórios.
    */
   function addReportsPanelStyles() {
-    // Verificar se os estilos já foram adicionados
-    if (document.getElementById('advanced-reports-styles')) return;
-    
+    const STYLE_ID = 'advanced-reports-styles';
+    if (document.getElementById(STYLE_ID)) return;
+
     const style = document.createElement('style');
-    style.id = 'advanced-reports-styles';
-    
+    style.id = STYLE_ID;
+    // Usando CSS real para melhor manutenibilidade
     style.textContent = `
-      /* Estilos para o seletor de data */
-      .date-range-selector {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-bottom: 20px;
+      .advanced-reports-panel .form-label {
+        display: block; margin-bottom: 6px; font-size: 0.88rem; font-weight: 500; color: #333;
       }
-      
-      .date-range-option {
-        padding: 8px 12px;
-        font-size: 0.85rem;
-        background-color: rgba(0, 0, 0, 0.03);
-        border: 1px solid rgba(0, 0, 0, 0.1);
-        border-radius: 4px;
-        cursor: pointer;
-        transition: all 0.2s ease;
+      .advanced-reports-panel .form-input,
+      .advanced-reports-panel .form-select {
+        width: 100%; padding: 9px 12px; font-size: 0.9rem; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 15px; box-sizing: border-box;
       }
-      
-      .date-range-option:hover {
-        background-color: rgba(0, 0, 0, 0.05);
+      .advanced-reports-panel .form-input:focus,
+      .advanced-reports-panel .form-select:focus {
+        outline: none; border-color: #1a5fb4; box-shadow: 0 0 0 2px rgba(26, 95, 180, 0.2);
       }
-      
-      .date-range-option.active {
-        background-color: var(--primary-color, #1a5fb4);
-        color: white;
-        border-color: var(--primary-color, #1a5fb4);
+      .advanced-reports-panel .form-select {
+        appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235e6c84' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 10px center; background-size: 16px; padding-right: 35px;
       }
-      
-      /* Estilos para a seleção de filtros */
-      .filter-section {
-        margin-bottom: 20px;
+      .advanced-reports-panel .form-checkbox {
+        display: flex; align-items: center; margin-bottom: 12px; cursor: pointer;
       }
-      
-      .filter-section h4 {
-        font-size: 0.95rem;
-        margin: 0 0 10px 0;
-        font-weight: 500;
-        color: var(--text-dark, #333333);
-        display: flex;
-        align-items: center;
+      .advanced-reports-panel .form-checkbox input { margin-right: 8px; }
+      .advanced-reports-panel .form-checkbox label { margin-bottom: 0; font-weight: normal; }
+
+      .advanced-reports-panel .date-range-selector { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+      .advanced-reports-panel .date-range-option {
+        padding: 7px 11px; font-size: 0.85rem; background-color: #f0f0f0; border: 1px solid #ddd;
+        border-radius: 4px; cursor: pointer; transition: all 0.2s ease; user-select: none;
       }
-      
-      .filter-section h4::before {
-        content: '';
-        display: inline-block;
-        width: 4px;
-        height: 14px;
-        background-color: var(--primary-color, #1a5fb4);
-        margin-right: 8px;
-        border-radius: 2px;
+      .advanced-reports-panel .date-range-option:hover { background-color: #e8e8e8; }
+      .advanced-reports-panel .date-range-option.active { background-color: #1a5fb4; color: white; border-color: #1a5fb4; }
+
+      .advanced-reports-panel .filter-section { margin-bottom: 25px; }
+      .advanced-reports-panel .filter-section h4 {
+        font-size: 1rem; margin: 0 0 12px 0; font-weight: 600; color: #333; display: flex; align-items: center;
+        border-bottom: 1px solid #eee; padding-bottom: 8px;
       }
-      
-      /* Estilos para o seletor de visualização */
-      .visualization-selector {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 10px;
+       /* .advanced-reports-panel .filter-section h4::before { // Alternativa de estilo
+         content: ''; display: inline-block; width: 4px; height: 16px; background-color: #1a5fb4; margin-right: 8px; border-radius: 2px;
+       } */
+
+      .advanced-reports-panel .visualization-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(85px, 1fr)); gap: 12px; margin-top: 10px; }
+      .advanced-reports-panel .visualization-option {
+         height: 75px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+         background-color: white; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; text-align: center; padding: 5px;
       }
-      
-      .visualization-option {
-        width: 80px;
-        height: 70px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background-color: white;
-        border: 1px solid rgba(0, 0, 0, 0.1);
-        border-radius: 4px;
-        cursor: pointer;
-        transition: all 0.2s ease;
+      .advanced-reports-panel .visualization-option:hover { border-color: #1a5fb4; background-color: #f8faff; }
+      .advanced-reports-panel .visualization-option.active {
+        border-color: #1a5fb4; background-color: #e8f0fe; box-shadow: 0 0 0 2px rgba(26, 95, 180, 0.3);
       }
-      
-      .visualization-option:hover {
-        border-color: var(--primary-color, #1a5fb4);
-        background-color: rgba(26, 95, 180, 0.03);
+      .advanced-reports-panel .visualization-icon { font-size: 1.8rem; margin-bottom: 5px; line-height: 1; }
+      .advanced-reports-panel .visualization-name { font-size: 0.75rem; color: #333; }
+
+      .advanced-reports-panel .saved-report-item {
+        background-color: #fff; border: 1px solid #e0e0e0; border-left: 4px solid #1a5fb4;
+        border-radius: 6px; padding: 15px; margin-bottom: 15px; cursor: pointer; transition: all 0.2s ease;
       }
-      
-      .visualization-option.active {
-        border-color: var(--primary-color, #1a5fb4);
-        background-color: rgba(26, 95, 180, 0.05);
-        box-shadow: 0 0 0 2px rgba(26, 95, 180, 0.2);
+      .advanced-reports-panel .saved-report-item:hover { box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08); transform: translateY(-2px); border-left-color: #15487d; }
+      .advanced-reports-panel .saved-report-title { font-weight: 600; font-size: 1rem; margin: 0 0 5px 0; color: #1a5fb4; }
+      .advanced-reports-panel .saved-report-date { font-size: 0.8rem; color: #5e6c84; margin: 0 0 10px 0; }
+      .advanced-reports-panel .saved-report-desc {
+         font-size: 0.85rem; color: #444; margin: 0; line-height: 1.4;
+         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
       }
-      
-      .visualization-icon {
-        font-size: 1.5rem;
-        margin-bottom: 5px;
-      }
-      
-      .visualization-name {
-        font-size: 0.7rem;
-        text-align: center;
-      }
-      
-      /* Estilos para relatórios salvos */
-      .saved-report-item {
-        background-color: white;
-        border: 1px solid rgba(0, 0, 0, 0.1);
-        border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 15px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-      }
-      
-      .saved-report-item:hover {
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        transform: translateY(-2px);
-      }
-      
-      .saved-report-title {
-        font-weight: 500;
-        font-size: 1rem;
-        margin: 0 0 5px 0;
-        color: var(--primary-color, #1a5fb4);
-      }
-      
-      .saved-report-date {
-        font-size: 0.8rem;
-        color: var(--text-light, #5e6c84);
-        margin: 0 0 10px 0;
-      }
-      
-      .saved-report-desc {
-        font-size: 0.85rem;
-        color: var(--text-dark, #333333);
-        margin: 0;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-      }
-      
-      /* Estilos para relatórios agendados */
-      .scheduled-report-item {
-        background-color: white;
-        border-left: 4px solid var(--status-verification, #0066cc);
-        border-radius: 4px;
-        padding: 15px;
-        margin-bottom: 15px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-      }
-      
-      .scheduled-report-title {
-        font-weight: 500;
-        font-size: 1rem;
-        margin: 0 0 5px 0;
-        color: var(--text-dark, #333333);
-      }
-      
-      .scheduled-report-schedule {
-        font-size: 0.85rem;
-        color: var(--status-verification, #0066cc);
-        margin: 0 0 10px 0;
-        display: flex;
-        align-items: center;
-        gap: 5px;
-      }
-      
-      .scheduled-report-status {
-        display: inline-block;
-        padding: 3px 8px;
-        font-size: 0.75rem;
-        border-radius: 12px;
-        background-color: rgba(0, 102, 204, 0.1);
-        color: var(--status-verification, #0066cc);
-      }
-      
-      /* Estilos para campos de formulário */
-      .form-label {
-        display: block;
-        margin-bottom: 5px;
-        font-size: 0.85rem;
-        font-weight: 500;
-        color: var(--text-dark, #333333);
-      }
-      
-      .form-input {
-        width: 100%;
-        padding: 8px 10px;
-        font-size: 0.9rem;
-        border: 1px solid rgba(0, 0, 0, 0.15);
-        border-radius: 4px;
-        margin-bottom: 15px;
-      }
-      
-      .form-input:focus {
-        outline: none;
-        border-color: var(--primary-color, #1a5fb4);
-        box-shadow: 0 0 0 2px rgba(26, 95, 180, 0.1);
-      }
-      
-      .form-select {
-        width: 100%;
-        padding: 8px 10px;
-        font-size: 0.9rem;
-        border: 1px solid rgba(0, 0, 0, 0.15);
-        border-radius: 4px;
-        margin-bottom: 15px;
-        appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235e6c84' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 8px center;
-        background-size: 16px;
-        padding-right: 30px;
-      }
-      
-      .form-checkbox {
-        display: flex;
-        align-items: center;
-        margin-bottom: 10px;
-        cursor: pointer;
-      }
-      
-      .form-checkbox input {
-        margin-right: 8px;
-      }
-      
-      /* Animações */
-      @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
-      
-      .fade-in {
-        animation: fadeIn 0.3s ease-in-out forwards;
-      }
-      
-      /* Estilos para o modal de agendamento */
+
+       .advanced-reports-panel .scheduled-report-item {
+         background-color: #fff; border: 1px solid #e0e0e0; border-left: 4px solid #0066cc;
+         border-radius: 6px; padding: 15px; margin-bottom: 15px; transition: all 0.2s ease;
+       }
+       .advanced-reports-panel .scheduled-report-item:hover { box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08); }
+       .advanced-reports-panel .scheduled-report-title { font-weight: 600; font-size: 1rem; margin: 0 0 5px 0; color: #333; }
+       .advanced-reports-panel .scheduled-report-schedule { font-size: 0.85rem; color: #0066cc; margin: 0 0 10px 0; display: flex; align-items: center; gap: 6px; }
+       .advanced-reports-panel .scheduled-report-schedule svg { width: 16px; height: 16px; } /* Placeholder for icon */
+       .advanced-reports-panel .scheduled-report-status {
+         display: inline-block; padding: 3px 10px; font-size: 0.75rem; border-radius: 12px; font-weight: 500;
+       }
+       .advanced-reports-panel .scheduled-report-status.active { background-color: rgba(43, 147, 72, 0.1); color: #2b9348; }
+       .advanced-reports-panel .scheduled-report-status.inactive { background-color: rgba(94, 108, 132, 0.1); color: #5e6c84; }
+       .advanced-reports-panel .scheduled-report-actions button {
+           background: none; border: none; cursor: pointer; padding: 5px; opacity: 0.7; transition: opacity 0.2s; font-size: 0.9rem;
+       }
+       .advanced-reports-panel .scheduled-report-actions button:hover { opacity: 1; color: #1a5fb4; }
+
       .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        animation: fadeIn 0.3s ease-in-out forwards;
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5);
+        z-index: 10000; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.3s ease-in-out forwards;
       }
-      
       .modal-container {
-        width: 450px;
-        max-width: 90%;
-        background-color: white;
-        border-radius: 8px;
-        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
-        animation: modalSlideIn 0.3s ease-out forwards;
-        overflow: hidden;
+        width: 90%; max-width: 500px; background-color: white; border-radius: 8px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2); animation: modalSlideIn 0.3s ease-out forwards; overflow: hidden;
+        display: flex; flex-direction: column; max-height: 90vh;
       }
-      
-      @keyframes modalSlideIn {
-        from {
-          opacity: 0;
-          transform: translateY(-20px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-      
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes modalSlideIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+
       .modal-header {
-        background-color: var(--primary-color, #1a5fb4);
-        color: white;
-        padding: 15px 20px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+        background-color: #1a5fb4; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
       }
-      
-      .modal-title {
-        margin: 0;
-        font-size: 1.2rem;
-        font-weight: 500;
-      }
-      
+      .modal-title { margin: 0; font-size: 1.2rem; font-weight: 500; }
       .modal-close {
-        background: none;
-        border: none;
-        color: white;
-        font-size: 1.2rem;
-        cursor: pointer;
-        width: 28px;
-        height: 28px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        background-color: rgba(255, 255, 255, 0.2);
+        background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; padding: 0 5px;
+        line-height: 1; opacity: 0.8; transition: opacity 0.2s;
       }
-      
-      .modal-body {
-        padding: 20px;
-      }
-      
+      .modal-close:hover { opacity: 1; }
+      .modal-body { padding: 25px; overflow-y: auto; }
       .modal-footer {
-        padding: 15px 20px;
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        border-top: 1px solid rgba(0, 0, 0, 0.05);
+        padding: 15px 20px; display: flex; justify-content: flex-end; gap: 10px;
+        border-top: 1px solid #e0e0e0; background-color: #f8f9fa; flex-shrink: 0;
       }
+      .modal-footer .btn { padding: 8px 16px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.9rem; }
+      .modal-footer .btn-secondary { background-color: #6c757d; color: white; }
+      .modal-footer .btn-primary { background-color: #1a5fb4; color: white; } /* Generic primary */
+      .modal-footer .btn-confirm-save { background-color: #2b9348; color: white; }
+      .modal-footer .btn-confirm-schedule { background-color: #0066cc; color: white; }
+      .modal-footer .btn-confirm-export { background-color: #1a5fb4; color: white; }
+
+      .report-preview .report-header { margin-bottom: 25px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
+      .report-preview .report-header h2 { margin: 0 0 8px 0; font-size: 1.6rem; color: #1a5fb4; }
+      .report-preview .report-header p { margin: 0; font-size: 0.95rem; color: #555; }
+      .report-preview .report-header strong { font-weight: 600; }
+      .report-preview .report-header ul { margin: 8px 0 0 0; padding-left: 20px; font-size: 0.9rem; color: #666; list-style-type: disc; }
+      .report-preview .report-header li { margin-bottom: 4px; }
+
+      .report-preview .report-summary { margin-bottom: 30px; }
+      .report-preview .report-summary h3 { margin: 0 0 15px 0; font-size: 1.2rem; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+      .report-preview .report-summary > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
+      .report-preview .summary-card { background-color: #f8f9fa; border-radius: 8px; padding: 18px; border-left: 5px solid; }
+      .report-preview .summary-card-title { font-size: 0.9rem; color: #5e6c84; margin-bottom: 8px; }
+      .report-preview .summary-card-value { font-size: 2rem; font-weight: 600; color: #333; line-height: 1.1; }
+
+      .report-preview .report-charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 25px; margin-bottom: 30px; }
+      .report-preview .chart-container { background-color: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 5px rgba(0,0,0,0.07); }
+      .report-preview .chart-container h3 { margin: 0 0 15px 0; font-size: 1.05rem; color: #444; font-weight: 600; }
+      .report-preview .chart-container canvas { max-height: 280px; } /* Limit chart height */
+
+      .report-preview .report-data-table h3 { margin: 0 0 15px 0; font-size: 1.2rem; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+      .report-preview .report-data-table table { width: 100%; border-collapse: collapse; background-color: white; font-size: 0.88rem; }
+      .report-preview .report-data-table th, .report-preview .report-data-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; }
+      .report-preview .report-data-table th { background-color: #f8f9fa; font-weight: 600; color: #333; }
+      .report-preview .report-data-table tr:last-child td { border-bottom: none; }
+      .report-preview .report-data-table tr:hover td { background-color: #f5f5f5; }
+      .report-preview .report-data-table .status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 500; }
+
+      /* Estilos para o modal de exportação simples */
+      .export-option { background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; padding: 15px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 15px; }
+      .export-option:hover { border-color: #1a5fb4; box-shadow: 0 2px 5px rgba(0,0,0,0.1); background-color: #f0f5ff; }
+      .export-option-icon { font-size: 1.8rem; width: 40px; text-align: center; }
+      .export-option-label { font-weight: 500; color: #333; font-size: 0.95rem; }
+      .export-option-desc { font-size: 0.8rem; color: #5e6c84; margin-top: 2px; }
     `;
-    
     document.head.appendChild(style);
   }
 
   /**
-   * Configura eventos para o painel de relatórios
-   * @param {HTMLElement} panel - Elemento do painel
+   * Configura eventos específicos do painel de relatórios (abas, botões internos).
+   * @param {HTMLElement} panel - O elemento do painel principal.
    */
   function setupReportsPanelEvents(panel) {
-    // Botão de fechar
     const closeButton = panel.querySelector('#close-reports-panel');
-    if (closeButton) {
-      closeButton.addEventListener('click', function() {
-        panel.style.display = 'none';
-      });
-    }
-    
-    // Alternar entre abas
-    const tabs = panel.querySelectorAll('.panel-tab');
-    tabs.forEach(tab => {
-      tab.addEventListener('click', function() {
-        // Remover classe ativa de todas as abas
-        tabs.forEach(t => {
-          t.classList.remove('active');
-          t.style.borderBottom = 'none';
-          t.style.color = 'var(--text-light, #5e6c84)';
-        });
-        
-        // Adicionar classe ativa à aba clicada
-        this.classList.add('active');
-        this.style.borderBottom = '2px solid var(--primary-color, #1a5fb4)';
-        this.style.color = 'var(--primary-color, #1a5fb4)';
-        
-        // Carregar conteúdo da aba
-        const tabName = this.getAttribute('data-tab');
-        switch (tabName) {
-          case 'new':
-            loadNewReportPanel();
-            break;
-          case 'saved':
-            loadSavedReportsPanel();
-            break;
-          case 'scheduled':
-            loadScheduledReportsPanel();
-            break;
-        }
-      });
-    });
-    
-    // Botão de gerar relatório
+    const tabsContainer = panel.querySelector('.panel-tabs');
     const generateButton = panel.querySelector('#generate-advanced-report-btn');
+    const exportButton = panel.querySelector('#export-report-btn'); // Botão de exportar simples no rodapé
+
+    // Botão de fechar
+    if (closeButton) {
+      closeButton.addEventListener('click', () => {
+        panel.style.display = 'none';
+        destroyAllCharts(); // Limpa gráficos ao fechar
+      });
+    } else {
+        console.error("Botão de fechar painel não encontrado.");
+    }
+
+    // Abas (Novo, Salvos, Agendados)
+    if (tabsContainer) {
+        tabsContainer.addEventListener('click', (event) => {
+            const tab = event.target.closest('.panel-tab');
+            if (!tab || tab.classList.contains('active')) return; // Ignora se não for tab ou já ativa
+
+            // Remove ativação de todas
+            tabsContainer.querySelectorAll('.panel-tab').forEach(t => {
+                t.classList.remove('active');
+                t.style.borderBottomColor = 'transparent';
+                t.style.color = '#5e6c84'; // Cor inativa
+            });
+
+            // Ativa a clicada
+            tab.classList.add('active');
+            tab.style.borderBottomColor = '#1a5fb4'; // Cor ativa
+            tab.style.color = '#1a5fb4'; // Cor ativa
+
+            // Carrega conteúdo da aba
+            const tabName = tab.dataset.tab;
+            switch (tabName) {
+                case 'new': loadNewReportPanel(); break;
+                case 'saved': loadSavedReportsPanel(); break;
+                case 'scheduled': loadScheduledReportsPanel(); break;
+                default: console.warn("Aba desconhecida:", tabName);
+            }
+             destroyAllCharts(); // Limpa gráficos ao trocar de aba
+        });
+    } else {
+        console.error("Container de abas não encontrado.");
+    }
+
+
+    // Botão Gerar Relatório
     if (generateButton) {
       generateButton.addEventListener('click', generateAdvancedReport);
+    } else {
+        console.error("Botão de gerar relatório não encontrado.");
     }
-    
-    // Botão de exportação
-    const exportButton = panel.querySelector('#export-report-btn');
+
+    // Botão Exportar (simples, no rodapé)
     if (exportButton) {
-      exportButton.addEventListener('click', openExportOptionsModal);
+      exportButton.addEventListener('click', openExportOptionsModal); // Abre o modal simples
+    } else {
+         console.error("Botão de exportar (rodapé) não encontrado.");
     }
   }
 
   /**
-   * Carrega o painel de novo relatório
+   * Carrega o formulário de configuração para um novo relatório.
    */
   function loadNewReportPanel() {
-    const panelContent = document.querySelector('.panel-content');
-    if (!panelContent) return;
-    
-    // Conteúdo do painel de novo relatório
+    const panelContent = document.querySelector('#advanced-reports-panel .panel-content');
+    if (!panelContent) {
+        console.error("Container de conteúdo do painel esquerdo não encontrado.");
+        return;
+    }
+
+    // Usando template literal para o HTML
     panelContent.innerHTML = `
-      <div class="new-report-config">
+      <div class="new-report-config fade-in">
         <div class="form-group">
-          <label class="form-label">Título do Relatório</label>
-          <input type="text" id="report-title" class="form-input" placeholder="Relatório de Manutenções">
+          <label for="report-title" class="form-label">Título do Relatório</label>
+          <input type="text" id="report-title" class="form-input" placeholder="Ex: Manutenções Mensais Críticas">
         </div>
-        
+
         <div class="filter-section">
           <h4>Período</h4>
           <div class="date-range-selector">
-            <div class="date-range-option active" data-range="30">30 dias</div>
-            <div class="date-range-option" data-range="90">90 dias</div>
-            <div class="date-range-option" data-range="180">6 meses</div>
-            <div class="date-range-option" data-range="365">1 ano</div>
+            <div class="date-range-option active" data-range="30">Últimos 30 dias</div>
+            <div class="date-range-option" data-range="90">Últimos 90 dias</div>
+            <div class="date-range-option" data-range="180">Últimos 6 meses</div>
+            <div class="date-range-option" data-range="365">Último ano</div>
             <div class="date-range-option" data-range="custom">Personalizado</div>
           </div>
-          
-          <div id="custom-date-range" style="display: none; margin-top: 10px;">
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-              <div style="flex: 1;">
-                <label class="form-label">Data Inicial</label>
-                <input type="date" id="report-start-date" class="form-input" style="margin-bottom: 0;">
-              </div>
-              <div style="flex: 1;">
-                <label class="form-label">Data Final</label>
-                <input type="date" id="report-end-date" class="form-input" style="margin-bottom: 0;">
-              </div>
-            </div>
-          </div>
+          <div id="custom-date-range" style="display: none; margin-top: 10px; background-color: #f8f9fa; padding: 15px; border-radius: 4px; border: 1px solid #eee;">
+             <div style="display: flex; gap: 15px; margin-bottom: 0;">
+               <div style="flex: 1;">
+                 <label for="report-start-date" class="form-label">Data Inicial</label>
+                 <input type="date" id="report-start-date" class="form-input" style="margin-bottom: 0;">
+               </div>
+               <div style="flex: 1;">
+                 <label for="report-end-date" class="form-label">Data Final</label>
+                 <input type="date" id="report-end-date" class="form-input" style="margin-bottom: 0;">
+               </div>
+             </div>
+           </div>
         </div>
-        
+
         <div class="filter-section">
-          <h4>Filtros</h4>
-          
+          <h4>Filtros de Manutenção</h4>
           <div class="form-group">
-            <label class="form-label">Tipo de Manutenção</label>
+            <label for="filter-maintenance-type" class="form-label">Tipo de Manutenção</label>
             <select id="filter-maintenance-type" class="form-select">
               <option value="">Todos os tipos</option>
               <option value="Preventiva">Preventiva</option>
               <option value="Corretiva">Corretiva</option>
               <option value="Emergencial">Emergencial</option>
+              <option value="Preditiva">Preditiva</option> <!-- Exemplo adicional -->
             </select>
           </div>
-          
           <div class="form-group">
-            <label class="form-label">Status</label>
+            <label for="filter-status" class="form-label">Status</label>
             <select id="filter-status" class="form-select">
               <option value="">Todos os status</option>
               <option value="Pendente">Pendente</option>
+              <option value="Em Andamento">Em Andamento</option>
+              <option value="Aguardando Peças">Aguardando Peças</option>
               <option value="Verificado">Verificado</option>
               <option value="Aprovado">Aprovado</option>
               <option value="Reprovado">Reprovado</option>
               <option value="Concluído">Concluído</option>
+              <option value="Cancelado">Cancelado</option>
             </select>
           </div>
-          
           <div class="form-group">
-            <label class="form-label">Tipo de Equipamento</label>
+            <label for="filter-equipment-type" class="form-label">Tipo de Equipamento</label>
             <select id="filter-equipment-type" class="form-select">
               <option value="">Todos os equipamentos</option>
               <option value="Alta Pressão">Alta Pressão</option>
               <option value="Auto Vácuo / Hiper Vácuo">Auto Vácuo / Hiper Vácuo</option>
               <option value="Aspirador">Aspirador</option>
               <option value="Poliguindaste">Poliguindaste</option>
+              <option value="Bomba">Bomba</option>
+              <option value="Motor">Motor</option>
               <option value="Outro">Outro</option>
             </select>
           </div>
-          
-          <div class="form-group">
-            <label class="form-label">Área</label>
+           <div class="form-group">
+            <label for="filter-area" class="form-label">Área</label>
             <select id="filter-area" class="form-select">
               <option value="">Todas as áreas</option>
               <option value="Área Interna Usiminas">Área Interna Usiminas</option>
               <option value="Área Externa Usiminas">Área Externa Usiminas</option>
+              <option value="Oficina">Oficina</option>
             </select>
           </div>
-          
           <div class="form-checkbox">
             <input type="checkbox" id="filter-critical" value="1">
             <label for="filter-critical">Apenas Manutenções Críticas</label>
           </div>
         </div>
-        
+
         <div class="filter-section">
-          <h4>Visualização</h4>
-          <p style="margin: 0 0 10px 0; font-size: 0.85rem; color: var(--text-light, #5e6c84);">Selecione os gráficos que deseja incluir no relatório</p>
-          
+          <h4>Visualização do Relatório</h4>
+          <p style="margin: -5px 0 15px 0; font-size: 0.85rem; color: #5e6c84;">Selecione os elementos a incluir:</p>
           <div class="visualization-selector">
             <div class="visualization-option active" data-viz="summary">
-              <div class="visualization-icon">📊</div>
-              <div class="visualization-name">Resumo</div>
+              <div class="visualization-icon">📊</div> <div class="visualization-name">Resumo</div>
             </div>
             <div class="visualization-option active" data-viz="status">
-              <div class="visualization-icon">🔄</div>
-              <div class="visualization-name">Status</div>
+              <div class="visualization-icon">🔄</div> <div class="visualization-name">Por Status</div>
             </div>
             <div class="visualization-option active" data-viz="type">
-              <div class="visualization-icon">🔧</div>
-              <div class="visualization-name">Tipos</div>
+              <div class="visualization-icon">🔧</div> <div class="visualization-name">Por Tipo</div>
             </div>
             <div class="visualization-option active" data-viz="area">
-              <div class="visualization-icon">📍</div>
-              <div class="visualization-name">Áreas</div>
+              <div class="visualization-icon">📍</div> <div class="visualization-name">Por Área</div>
+            </div>
+            <div class="visualization-option" data-viz="equipment">
+              <div class="visualization-icon">⚙️</div> <div class="visualization-name">Por Equip.</div>
             </div>
             <div class="visualization-option" data-viz="timeline">
-              <div class="visualization-icon">📅</div>
-              <div class="visualization-name">Linha do Tempo</div>
+              <div class="visualization-icon">📅</div> <div class="visualization-name">Linha Tempo</div>
             </div>
-            <div class="visualization-option" data-viz="table">
-              <div class="visualization-icon">📋</div>
-              <div class="visualization-name">Tabela</div>
+             <div class="visualization-option active" data-viz="table">
+              <div class="visualization-icon">📋</div> <div class="visualization-name">Tabela Dados</div>
             </div>
           </div>
         </div>
       </div>
     `;
-    
-    // Configurar eventos para os elementos do formulário
-    setupNewReportEvents();
+
+    setupNewReportEvents(); // Configura listeners para os controles do formulário
   }
 
   /**
-   * Configura eventos para o formulário de novo relatório
+   * Configura eventos para os controles do formulário de novo relatório.
    */
   function setupNewReportEvents() {
+    const panel = document.querySelector('#advanced-reports-panel');
+    if (!panel) return;
+
     // Seletor de período
-    const dateOptions = document.querySelectorAll('.date-range-option');
-    const customDateRange = document.getElementById('custom-date-range');
-    
-    dateOptions.forEach(option => {
-      option.addEventListener('click', function() {
-        // Remover classe ativa de todas as opções
-        dateOptions.forEach(o => o.classList.remove('active'));
-        
-        // Adicionar classe ativa à opção clicada
-        this.classList.add('active');
-        
-        // Mostrar/esconder seletor de data personalizado
-        if (this.getAttribute('data-range') === 'custom') {
-          customDateRange.style.display = 'block';
-        } else {
-          customDateRange.style.display = 'none';
-        }
-      });
-    });
-    
+    const dateOptions = panel.querySelectorAll('.date-range-option');
+    const customDateRangeDiv = panel.querySelector('#custom-date-range');
+    if (dateOptions.length > 0 && customDateRangeDiv) {
+        dateOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                dateOptions.forEach(o => o.classList.remove('active'));
+                this.classList.add('active');
+                customDateRangeDiv.style.display = (this.dataset.range === 'custom') ? 'block' : 'none';
+            });
+        });
+    } else {
+        console.warn("Elementos do seletor de data não encontrados.");
+    }
+
+
     // Definir datas padrão para o seletor personalizado
     const today = new Date();
-    const startDate = new Date();
-    startDate.setDate(today.getDate() - 30); // 30 dias atrás
-    
-    const reportStartDate = document.getElementById('report-start-date');
-    const reportEndDate = document.getElementById('report-end-date');
-    
-    if (reportStartDate) {
-      reportStartDate.valueAsDate = startDate;
-    }
-    
-    if (reportEndDate) {
-      reportEndDate.valueAsDate = today;
-    }
-    
+    const startDateDefault = new Date();
+    startDateDefault.setDate(today.getDate() - config.defaultDateRange);
+
+    const reportStartDateInput = panel.querySelector('#report-start-date');
+    const reportEndDateInput = panel.querySelector('#report-end-date');
+
+    if (reportStartDateInput) reportStartDateInput.valueAsDate = startDateDefault;
+    if (reportEndDateInput) reportEndDateInput.valueAsDate = today;
+
     // Seletor de visualização
-    const vizOptions = document.querySelectorAll('.visualization-option');
-    
-    vizOptions.forEach(option => {
-      option.addEventListener('click', function() {
-        // Alternar classe ativa
-        this.classList.toggle('active');
-      });
-    });
+    const vizOptions = panel.querySelectorAll('.visualization-option');
+    if (vizOptions.length > 0) {
+        vizOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                this.classList.toggle('active');
+            });
+        });
+    } else {
+        console.warn("Opções de visualização não encontradas.");
+    }
+
   }
 
   /**
-   * Carrega o painel de relatórios salvos
+   * Carrega a lista de relatórios salvos no painel esquerdo.
    */
   function loadSavedReportsPanel() {
-    const panelContent = document.querySelector('.panel-content');
-    if (!panelContent) return;
-    
-    // Verificar se há relatórios salvos
+    const panelContent = document.querySelector('#advanced-reports-panel .panel-content');
+     if (!panelContent) return;
+
     if (savedReports.length === 0) {
       panelContent.innerHTML = `
-        <div class="empty-state" style="text-align: center; padding: 30px 0;">
-          <div style="font-size: 3rem; margin-bottom: 20px; color: var(--text-lighter, #97a0af);">📂</div>
-          <h3 style="margin: 0; font-size: 1.1rem; font-weight: 500; color: var(--text-dark, #333333);">Nenhum relatório salvo</h3>
-          <p style="margin: 10px 0 0 0; font-size: 0.9rem; color: var(--text-light, #5e6c84);">Crie e salve relatórios para acessá-los rapidamente</p>
+        <div class="empty-state" style="text-align: center; padding: 40px 20px; color: #777;">
+          <div style="font-size: 3rem; margin-bottom: 15px;">📂</div>
+          <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; font-weight: 500;">Nenhum relatório salvo</h3>
+          <p style="margin: 0; font-size: 0.9rem;">Crie e salve relatórios na aba "Novo Relatório" para acesso rápido.</p>
         </div>
       `;
       return;
     }
-    
-    // Criar HTML para cada relatório salvo
-    let reportsHtml = '<div class="saved-reports-list">';
-    
-    savedReports.forEach(report => {
-      const date = new Date(report.createdAt || Date.now());
-      const formattedDate = date.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-      
-      reportsHtml += `
-        <div class="saved-report-item" data-id="${report.id}">
-          <h3 class="saved-report-title">${report.title || 'Relatório sem título'}</h3>
-          <p class="saved-report-date">Criado em ${formattedDate}</p>
-          <p class="saved-report-desc">${report.description || 'Sem descrição'}</p>
-        </div>
-      `;
+
+    let reportsHtml = '<div class="saved-reports-list fade-in">';
+    // Ordenar por data de criação, mais recente primeiro
+    savedReports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).forEach(report => {
+        const date = new Date(report.createdAt || Date.now());
+        const formattedDate = date.toLocaleDateString('pt-BR', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const description = report.description || 'Sem descrição.';
+
+        reportsHtml += `
+            <div class="saved-report-item" data-id="${report.id}" title="Clique para carregar este relatório">
+                <h3 class="saved-report-title">${report.title || 'Relatório Sem Título'}</h3>
+                <p class="saved-report-date">Salvo em: ${formattedDate}</p>
+                <p class="saved-report-desc">${description}</p>
+                <!-- Poderia adicionar botão de excluir aqui -->
+            </div>
+        `;
     });
-    
     reportsHtml += '</div>';
     panelContent.innerHTML = reportsHtml;
-    
-    // Configurar eventos para os itens de relatório
-    const reportItems = document.querySelectorAll('.saved-report-item');
-    
-    reportItems.forEach(item => {
-      item.addEventListener('click', function() {
-        const reportId = this.getAttribute('data-id');
-        if (reportId) {
-          loadReport(reportId);
-        }
-      });
-    });
+
+    // Event listeners para carregar são tratados por delegação em setupEventListeners
   }
 
   /**
-   * Carrega o painel de relatórios agendados
+   * Carrega a lista de relatórios agendados no painel esquerdo.
    */
   function loadScheduledReportsPanel() {
-    const panelContent = document.querySelector('.panel-content');
+    const panelContent = document.querySelector('#advanced-reports-panel .panel-content');
     if (!panelContent) return;
-    
-    // Verificar se há relatórios agendados
+
     if (scheduledReports.length === 0) {
       panelContent.innerHTML = `
-        <div class="empty-state" style="text-align: center; padding: 30px 0;">
-          <div style="font-size: 3rem; margin-bottom: 20px; color: var(--text-lighter, #97a0af);">🗓️</div>
-          <h3 style="margin: 0; font-size: 1.1rem; font-weight: 500; color: var(--text-dark, #333333);">Nenhum relatório agendado</h3>
-          <p style="margin: 10px 0 0 0; font-size: 0.9rem; color: var(--text-light, #5e6c84);">Agende relatórios para envio automático</p>
+        <div class="empty-state" style="text-align: center; padding: 40px 20px; color: #777;">
+          <div style="font-size: 3rem; margin-bottom: 15px;">🗓️</div>
+          <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; font-weight: 500;">Nenhum relatório agendado</h3>
+          <p style="margin: 0; font-size: 0.9rem;">Gere um relatório e clique em "Agendar" para configurar envios automáticos.</p>
         </div>
       `;
       return;
     }
-    
-    // Criar HTML para cada relatório agendado
-    let reportsHtml = '<div class="scheduled-reports-list">';
-    
-    scheduledReports.forEach(report => {
-      const nextRunDate = new Date(report.nextRun || Date.now());
-      const formattedNextRun = nextRunDate.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-      
-      const frequency = getScheduleFrequencyText(report.frequency);
-      
+
+    let reportsHtml = '<div class="scheduled-reports-list fade-in">';
+     // Ordenar por próxima execução
+    scheduledReports.sort((a, b) => new Date(a.nextRun) - new Date(b.nextRun)).forEach(schedule => {
+      const nextRunDate = new Date(schedule.nextRun || Date.now());
+      const formattedNextRun = nextRunDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const frequencyText = getScheduleFrequencyText(schedule.frequency);
+      const statusClass = schedule.active ? 'active' : 'inactive';
+      const statusText = schedule.active ? 'Ativo' : 'Inativo';
+
+      // Ícone de repetição SVG
+      const repeatIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`;
+
       reportsHtml += `
-        <div class="scheduled-report-item" data-id="${report.id}">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <h3 class="scheduled-report-title">${report.title || 'Relatório sem título'}</h3>
-            <span class="scheduled-report-status">${report.active ? 'Ativo' : 'Inativo'}</span>
+        <div class="scheduled-report-item" data-id="${schedule.id}" title="Clique para carregar o relatório base deste agendamento">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+            <h3 class="scheduled-report-title">${schedule.title || 'Agendamento Sem Título'}</h3>
+            <span class="scheduled-report-status ${statusClass}">${statusText}</span>
           </div>
           <p class="scheduled-report-schedule">
-            <span style="display: inline-block; width: 18px; height: 18px; text-align: center; line-height: 18px;">🔄</span>
-            ${frequency}
+             ${repeatIcon}
+            <span>${frequencyText}</span>
           </p>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-            <span style="font-size: 0.85rem; color: var(--text-light, #5e6c84);">Próximo envio: ${formattedNextRun}</span>
-            <div>
-              <button class="btn-icon edit-schedule-btn" data-id="${report.id}" title="Editar agendamento" style="margin-right: 5px; font-size: 0.85rem;">✏️</button>
-              <button class="btn-icon delete-schedule-btn" data-id="${report.id}" title="Excluir agendamento" style="font-size: 0.85rem;">🗑️</button>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; font-size: 0.85rem; color: #5e6c84;">
+            <span>Próximo envio: ${formattedNextRun}</span>
+            <div class="scheduled-report-actions">
+              <button class="btn-icon edit-schedule-btn" data-id="${schedule.id}" title="Editar agendamento">✏️</button>
+              <button class="btn-icon delete-schedule-btn" data-id="${schedule.id}" title="Excluir agendamento">🗑️</button>
             </div>
           </div>
         </div>
       `;
     });
-    
     reportsHtml += '</div>';
     panelContent.innerHTML = reportsHtml;
-    
-    // Configurar eventos para os botões de edição e exclusão
-    document.querySelectorAll('.edit-schedule-btn').forEach(btn => {
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        const reportId = this.getAttribute('data-id');
-        editScheduledReport(reportId);
-      });
-    });
-    
-    document.querySelectorAll('.delete-schedule-btn').forEach(btn => {
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        const reportId = this.getAttribute('data-id');
-        deleteScheduledReport(reportId);
-      });
-    });
-    
-    // Configurar eventos para os itens de relatório
-    document.querySelectorAll('.scheduled-report-item').forEach(item => {
-      item.addEventListener('click', function() {
-        const reportId = this.getAttribute('data-id');
-        const scheduledReport = scheduledReports.find(r => r.id === reportId);
-        
-        if (scheduledReport && scheduledReport.reportId) {
-          loadReport(scheduledReport.reportId);
-        }
-      });
-    });
+
+    // Event listeners para editar/excluir são tratados por delegação
   }
 
   /**
-   * Gera um texto amigável para a frequência de agendamento
-   * @param {string} frequency - Frequência de agendamento
-   * @returns {string} Texto descritivo
+   * Retorna um texto descritivo para a frequência de agendamento.
+   * @param {string} frequency - Código da frequência ('daily', 'weekly', etc.).
+   * @returns {string} Texto legível.
    */
   function getScheduleFrequencyText(frequency) {
     switch (frequency) {
-      case 'daily':
-        return 'Diariamente';
-      case 'weekly':
-        return 'Semanalmente';
-      case 'monthly':
-        return 'Mensalmente';
-      case 'quarterly':
-        return 'Trimestralmente';
-      default:
-        return 'Personalizado';
+      case 'daily': return 'Diariamente';
+      case 'weekly': return 'Semanalmente';
+      case 'monthly': return 'Mensalmente';
+      case 'quarterly': return 'Trimestralmente';
+      default: return frequency || 'Desconhecido';
     }
   }
 
   /**
-   * Gera um relatório avançado com base nas configurações
+   * Gera um relatório avançado com base na configuração atual do painel.
    */
   function generateAdvancedReport() {
     console.log("Gerando relatório avançado...");
-    
-    // Coletar configurações do relatório
-    const config = collectReportConfig();
-    
-    // Validar configurações
-    if (!config) {
-      console.error("Configurações de relatório inválidas");
+    destroyAllCharts(); // Limpa gráficos antigos antes de gerar novo
+
+    const reportConfig = collectReportConfig();
+    if (!reportConfig) {
+      notify("Não foi possível coletar a configuração do relatório.", "warning");
       return;
     }
-    
-    // Mostrar indicador de carregamento
+
     showLoading(true, "Gerando relatório...");
-    
-    // Simular chamada à API
+
+    // Simulação de busca de dados e processamento
+    // Em um caso real, aqui ocorreria uma chamada API:
+    // API.generateReportData(reportConfig).then(reportData => { ... }).catch(err => { ... });
     setTimeout(() => {
-      // Criar relatório de exemplo
-      currentReport = createSampleReport(config);
-      
-      // Renderizar relatório na pré-visualização
-      renderReportPreview(currentReport);
-      
-      // Esconder indicador de carregamento
-      showLoading(false);
-    }, 1500);
+      try {
+        // Cria dados de exemplo baseados na configuração
+        const reportData = createSampleReport(reportConfig);
+        currentReport = reportData; // Armazena o relatório gerado
+
+        renderReportPreview(currentReport);
+        showLoading(false);
+        notify("Relatório gerado com sucesso.", "success");
+      } catch (error) {
+          console.error("Erro ao gerar ou renderizar relatório de exemplo:", error);
+          notify("Ocorreu um erro ao gerar o relatório.", "error");
+          showLoading(false);
+          // Limpar preview em caso de erro
+          const previewContainer = document.getElementById('report-preview-container');
+           if (previewContainer) {
+               previewContainer.innerHTML = `<div style="color: red; text-align: center; padding: 20px;">Erro ao gerar relatório: ${error.message}</div>`;
+           }
+      }
+    }, 1500); // Simula 1.5s de processamento
   }
 
   /**
-   * Coleta as configurações do relatório do formulário
-   * @returns {Object|null} Configurações ou null se inválido
+   * Coleta as configurações do relatório a partir do formulário no painel esquerdo.
+   * @returns {Object|null} Objeto de configuração ou null em caso de erro.
    */
   function collectReportConfig() {
-    // Obter título do relatório
-    const title = document.getElementById('report-title').value || 'Relatório de Manutenções';
-    
-    // Obter período
-    let startDate, endDate;
-    const selectedRange = document.querySelector('.date-range-option.active');
-    
-    if (selectedRange) {
-      const range = selectedRange.getAttribute('data-range');
-      
-      if (range === 'custom') {
-        // Usar datas personalizadas
-        const startInput = document.getElementById('report-start-date');
-        const endInput = document.getElementById('report-end-date');
-        
-        if (startInput && endInput && startInput.value && endInput.value) {
-          startDate = new Date(startInput.value);
-          endDate = new Date(endInput.value);
+    const panel = document.querySelector('#advanced-reports-panel');
+    if (!panel) return null;
+
+    try {
+        const title = panel.querySelector('#report-title')?.value || 'Relatório de Manutenções';
+
+        // Período
+        let startDate, endDate, periodLabel;
+        const activeRangeOption = panel.querySelector('.date-range-option.active');
+        const rangeType = activeRangeOption ? activeRangeOption.dataset.range : String(config.defaultDateRange);
+
+        if (rangeType === 'custom') {
+            const startInput = panel.querySelector('#report-start-date');
+            const endInput = panel.querySelector('#report-end-date');
+            if (!startInput?.value || !endInput?.value) {
+                notify("Datas personalizadas inválidas. Por favor, selecione data inicial e final.", "warning");
+                return null;
+            }
+            startDate = new Date(startInput.value + 'T00:00:00'); // Garante início do dia
+            endDate = new Date(endInput.value + 'T23:59:59');   // Garante fim do dia
+             if (startDate > endDate) {
+                 notify("Data inicial não pode ser posterior à data final.", "warning");
+                 return null;
+             }
+             periodLabel = `${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}`;
         } else {
-          // Datas personalizadas inválidas
-          if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-            Utilities.showNotification("Por favor, selecione datas válidas.", "warning");
-          } else {
-            alert("Por favor, selecione datas válidas.");
-          }
-          return null;
+            const days = parseInt(rangeType, 10);
+            endDate = new Date(); // Hoje, fim do dia
+             endDate.setHours(23, 59, 59, 999);
+            startDate = new Date(endDate);
+            startDate.setDate(endDate.getDate() - days + 1); // +1 porque inclui o dia de hoje
+             startDate.setHours(0, 0, 0, 0); // Início do primeiro dia
+             periodLabel = activeRangeOption?.textContent || `Últimos ${days} dias`;
         }
-      } else {
-        // Usar período predefinido
-        const days = parseInt(range, 10);
-        endDate = new Date();
-        startDate = new Date();
-        startDate.setDate(endDate.getDate() - days);
-      }
-    } else {
-      // Nenhum período selecionado, usar padrão
-      endDate = new Date();
-      startDate = new Date();
-      startDate.setDate(endDate.getDate() - config.defaultDateRange);
+
+        // Filtros
+        const filters = {
+            maintenanceType: panel.querySelector('#filter-maintenance-type')?.value || '',
+            status: panel.querySelector('#filter-status')?.value || '',
+            equipmentType: panel.querySelector('#filter-equipment-type')?.value || '',
+            area: panel.querySelector('#filter-area')?.value || '',
+            critical: panel.querySelector('#filter-critical')?.checked || false
+        };
+
+        // Visualizações
+        const visualizations = Array.from(panel.querySelectorAll('.visualization-option.active'))
+                                   .map(el => el.dataset.viz);
+
+
+        return {
+            title,
+            period: {
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString(),
+                label: periodLabel
+            },
+            filters,
+            visualizations,
+            // Metadados gerados internamente
+            id: 'report-' + Date.now(),
+            createdAt: new Date().toISOString()
+        };
+    } catch (error) {
+        console.error("Erro ao coletar configuração do relatório:", error);
+        notify("Erro ao ler as configurações do formulário.", "error");
+        return null;
     }
-    
-    // Formatar datas para ISO string
-    const startDateString = startDate.toISOString().split('T')[0];
-    const endDateString = endDate.toISOString().split('T')[0];
-    
-    // Obter filtros
-    const filters = {
-      maintenanceType: document.getElementById('filter-maintenance-type').value,
-      status: document.getElementById('filter-status').value,
-      equipmentType: document.getElementById('filter-equipment-type').value,
-      area: document.getElementById('filter-area').value,
-      critical: document.getElementById('filter-critical').checked
-    };
-    
-    // Obter visualizações selecionadas
-    const visualizations = [];
-    document.querySelectorAll('.visualization-option.active').forEach(viz => {
-      visualizations.push(viz.getAttribute('data-viz'));
+  }
+
+  /**
+   * Cria dados de exemplo para um relatório, baseado na configuração.
+   * @param {Object} reportConfig - A configuração coletada.
+   * @returns {Object} Objeto completo do relatório com dados de exemplo.
+   */
+  function createSampleReport(reportConfig) {
+    // Simula a geração de dados que corresponderiam aos filtros e período
+    // Em um sistema real, esses dados viriam de uma API filtrada
+    const totalItems = Math.floor(Math.random() * 150) + 50; // Ex: 50 a 200 itens
+    const sampleItems = generateSampleItems(totalItems, reportConfig.period.startDate, reportConfig.period.endDate, reportConfig.filters);
+
+    // Calcula resumos e dados para gráficos a partir dos itens filtrados
+    const summary = { total: sampleItems.length, completed: 0, pending: 0, critical: 0 };
+    const statusCounts = {};
+    const typeCounts = {};
+    const areaCounts = {};
+    const equipmentCounts = {};
+    const timelineCounts = {}; // Por mês ou dia, dependendo do período
+
+    const statusLabels = ['Pendente', 'Em Andamento', 'Aguardando Peças', 'Verificado', 'Aprovado', 'Reprovado', 'Concluído', 'Cancelado'];
+    const typeLabels = ['Preventiva', 'Corretiva', 'Emergencial', 'Preditiva'];
+    const areaLabels = ['Área Interna Usiminas', 'Área Externa Usiminas', 'Oficina'];
+    const equipmentLabels = ['Alta Pressão', 'Auto Vácuo / Hiper Vácuo', 'Aspirador', 'Poliguindaste', 'Bomba', 'Motor', 'Outro'];
+
+    // Inicializa contadores
+    statusLabels.forEach(s => statusCounts[s] = 0);
+    typeLabels.forEach(t => typeCounts[t] = 0);
+    areaLabels.forEach(a => areaCounts[a] = 0);
+    equipmentLabels.forEach(e => equipmentCounts[e] = 0);
+
+    sampleItems.forEach(item => {
+      // Summary
+      if (item.status === 'Concluído') summary.completed++;
+      if (item.status === 'Pendente') summary.pending++; // Simplificado
+      if (item.critical) summary.critical++;
+
+      // Chart Counts
+      if (statusCounts.hasOwnProperty(item.status)) statusCounts[item.status]++;
+      if (typeCounts.hasOwnProperty(item.maintenanceType)) typeCounts[item.maintenanceType]++;
+      if (areaCounts.hasOwnProperty(item.area)) areaCounts[item.area]++;
+      if (equipmentCounts.hasOwnProperty(item.equipmentType)) equipmentCounts[item.equipmentType]++;
+
+      // Timeline (exemplo simples por mês)
+      const itemMonth = new Date(item.date).toLocaleDateString('pt-BR', { year: '2-digit', month: 'short' });
+      timelineCounts[itemMonth] = (timelineCounts[itemMonth] || 0) + 1;
     });
-    
-    return {
-      title,
-      period: {
-        startDate: startDateString,
-        endDate: endDateString,
-        label: selectedRange ? selectedRange.textContent : `${config.defaultDateRange} dias`
-      },
-      filters,
-      visualizations,
-      id: 'report-' + Date.now(),
-      createdAt: new Date().toISOString()
-    };
-  }
 
-  /**
-   * Cria um relatório de exemplo para demonstração
-   * @param {Object} config - Configurações do relatório
-   * @returns {Object} Dados do relatório
-   */
-  function createSampleReport(config) {
-    // Criar dados de exemplo para o relatório
+    // Formata dados para Chart.js
+    const formatChartData = (counts) => Object.entries(counts)
+                                              .filter(([label, count]) => count > 0) // Mostra apenas categorias com dados
+                                              .map(([label, count]) => ({ label, count }))
+                                              .sort((a, b) => b.count - a.count); // Ordena por contagem
+
+     // Formata dados de timeline
+     const sortedTimeline = Object.entries(timelineCounts)
+                                 .map(([label, count]) => ({ label, count, date: new Date(label.split('/')[1], label.split('/')[0]-1) })) // Converte label em data para ordenação
+                                 .sort((a, b) => a.date - b.date) // Ordena por data
+                                 .map(({ label, count }) => ({ label, count })); // Remove data auxiliar
+
+
     return {
-      ...config,
-      summary: {
-        total: 157,
-        completed: 89,
-        pending: 42,
-        critical: 26
-      },
+      ...reportConfig, // Mantém a configuração original
+      summary,
       charts: {
-        status: [
-          { label: 'Concluído', count: 89 },
-          { label: 'Pendente', count: 42 },
-          { label: 'Verificado', count: 18 },
-          { label: 'Reprovado', count: 8 }
-        ],
-        type: [
-          { label: 'Preventiva', count: 78 },
-          { label: 'Corretiva', count: 53 },
-          { label: 'Emergencial', count: 26 }
-        ],
-        area: [
-          { label: 'Área Interna Usiminas', count: 92 },
-          { label: 'Área Externa Usiminas', count: 65 }
-        ],
-        timeline: [
-          { label: 'Jan', count: 12 },
-          { label: 'Fev', count: 15 },
-          { label: 'Mar', count: 18 },
-          { label: 'Abr', count: 22 },
-          { label: 'Mai', count: 19 },
-          { label: 'Jun', count: 28 },
-          { label: 'Jul', count: 20 },
-          { label: 'Ago', count: 23 }
-        ]
+        status: formatChartData(statusCounts),
+        type: formatChartData(typeCounts),
+        area: formatChartData(areaCounts),
+        equipment: formatChartData(equipmentCounts),
+        timeline: sortedTimeline
       },
-      items: generateSampleItems(157)
+      items: sampleItems // Dados brutos (ou uma amostra deles)
     };
   }
 
   /**
-   * Gera itens de exemplo para o relatório
-   * @param {number} count - Quantidade de itens
-   * @returns {Array} Itens gerados
+   * Gera itens de manutenção de exemplo dentro de um período e respeitando filtros (simulado).
+   * @param {number} count - Número máximo de itens a gerar.
+   * @param {string} startDateISO - Data inicial ISO.
+   * @param {string} endDateISO - Data final ISO.
+   * @param {Object} filters - Filtros aplicados.
+   * @returns {Array} Array de objetos de manutenção.
    */
-  function generateSampleItems(count) {
+  function generateSampleItems(count, startDateISO, endDateISO, filters) {
     const items = [];
-    const equipmentTypes = ['Alta Pressão', 'Auto Vácuo / Hiper Vácuo', 'Aspirador', 'Poliguindaste', 'Outro'];
-    const maintenanceTypes = ['Preventiva', 'Corretiva', 'Emergencial'];
-    const statuses = ['Pendente', 'Verificado', 'Aprovado', 'Reprovado', 'Concluído'];
-    const areas = ['Área Interna Usiminas', 'Área Externa Usiminas'];
-    
-    // Gerar IDs de exemplo
-    const equipmentIds = [];
-    for (let i = 0; i < 20; i++) {
-      const prefix = ['PUB', 'LUX', 'EZS', 'EOF', 'DSY'][Math.floor(Math.random() * 5)];
-      const suffix = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-      equipmentIds.push(`${prefix}-${suffix}`);
-    }
-    
-    // Gerar nomes de responsáveis
-    const technicians = [
-      'Carlos Silva', 'Ana Oliveira', 'Roberto Santos', 'Mariana Lima',
-      'Paulo Souza', 'Fernanda Costa', 'Lucas Pereira', 'Juliana Almeida'
-    ];
-    
-    // Gerar itens
+    const equipmentTypes = ['Alta Pressão', 'Auto Vácuo / Hiper Vácuo', 'Aspirador', 'Poliguindaste', 'Bomba', 'Motor', 'Outro'];
+    const maintenanceTypes = ['Preventiva', 'Corretiva', 'Emergencial', 'Preditiva'];
+    const statuses = ['Pendente', 'Em Andamento', 'Aguardando Peças', 'Verificado', 'Aprovado', 'Reprovado', 'Concluído', 'Cancelado'];
+    const areas = ['Área Interna Usiminas', 'Área Externa Usiminas', 'Oficina'];
+    const technicians = ['Carlos Silva', 'Ana Oliveira', 'Roberto Santos', 'Mariana Lima', 'Paulo Souza', 'Fernanda Costa', 'Lucas Pereira', 'Juliana Almeida'];
+    const equipmentPrefixes = ['PUB', 'LUX', 'EZS', 'EOF', 'DSY', 'BMB', 'MTR'];
+
+    const startDate = new Date(startDateISO);
+    const endDate = new Date(endDateISO);
+    const timeDiff = endDate.getTime() - startDate.getTime();
+
     for (let i = 0; i < count; i++) {
-      const createdDate = new Date();
-      createdDate.setDate(createdDate.getDate() - Math.floor(Math.random() * 180)); // Até 180 dias atrás
-      
-      const critical = Math.random() < 0.2; // 20% críticos
-      
-      items.push({
-        id: `MAINT-${1000 + i}`,
-        equipmentType: equipmentTypes[Math.floor(Math.random() * equipmentTypes.length)],
-        equipmentId: equipmentIds[Math.floor(Math.random() * equipmentIds.length)],
-        maintenanceType: maintenanceTypes[Math.floor(Math.random() * maintenanceTypes.length)],
-        status: statuses[Math.floor(Math.random() * statuses.length)],
-        technician: technicians[Math.floor(Math.random() * technicians.length)],
-        area: areas[Math.floor(Math.random() * areas.length)],
-        date: createdDate.toISOString().split('T')[0],
-        critical
-      });
+        const randomTime = startDate.getTime() + Math.random() * timeDiff;
+        const itemDate = new Date(randomTime);
+
+        const item = {
+            id: `MAINT-${1000 + i}`,
+            equipmentType: equipmentTypes[Math.floor(Math.random() * equipmentTypes.length)],
+            equipmentId: `${equipmentPrefixes[Math.floor(Math.random() * equipmentPrefixes.length)]}-${Math.floor(Math.random() * 9000) + 1000}`,
+            maintenanceType: maintenanceTypes[Math.floor(Math.random() * maintenanceTypes.length)],
+            status: statuses[Math.floor(Math.random() * statuses.length)],
+            technician: technicians[Math.floor(Math.random() * technicians.length)],
+            area: areas[Math.floor(Math.random() * areas.length)],
+            date: itemDate.toISOString().split('T')[0],
+            critical: Math.random() < 0.15 // 15% de chance de ser crítica
+        };
+
+        // Simula aplicação de filtros (poderia ser mais complexo)
+        let passesFilter = true;
+        if (filters.maintenanceType && item.maintenanceType !== filters.maintenanceType) passesFilter = false;
+        if (filters.status && item.status !== filters.status) passesFilter = false;
+        if (filters.equipmentType && item.equipmentType !== filters.equipmentType) passesFilter = false;
+        if (filters.area && item.area !== filters.area) passesFilter = false;
+        if (filters.critical && !item.critical) passesFilter = false;
+
+        if (passesFilter) {
+            items.push(item);
+        }
     }
-    
-    return items;
+    // Limita ao máximo se a filtragem for muito restritiva (apenas para exemplo)
+    return items.slice(0, config.maxExportLimit);
   }
 
   /**
-   * Renderiza a pré-visualização do relatório
-   * @param {Object} report - Dados do relatório
+   * Renderiza a visualização do relatório no painel direito.
+   * @param {Object} report - O objeto de relatório completo.
    */
   function renderReportPreview(report) {
     const previewContainer = document.getElementById('report-preview-container');
-    if (!previewContainer) return;
-    
+    if (!previewContainer) {
+        console.error("Container de preview não encontrado.");
+        return;
+    }
+     destroyAllCharts(); // Garante limpeza antes de renderizar
+
     const startDate = new Date(report.period.startDate);
     const endDate = new Date(report.period.endDate);
-    
-    // Formatar datas para exibição
     const formatOptions = { day: '2-digit', month: '2-digit', year: 'numeric' };
     const startDateFormatted = startDate.toLocaleDateString('pt-BR', formatOptions);
     const endDateFormatted = endDate.toLocaleDateString('pt-BR', formatOptions);
-    
-    // Criar HTML do relatório
-    let html = `
-      <div class="report-preview">
-        <div class="report-header" style="margin-bottom: 20px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 15px;">
-          <h2 style="margin: 0 0 5px 0; font-size: 1.5rem; color: var(--primary-color, #1a5fb4);">${report.title}</h2>
-          <p style="margin: 0; font-size: 0.9rem; color: var(--text-light, #5e6c84);">Período: ${startDateFormatted} até ${endDateFormatted}</p>
-          
-          <div style="margin-top: 15px; font-size: 0.85rem; color: var(--text-light, #5e6c84);">
-            <strong>Filtros aplicados:</strong>
-            <ul style="margin: 5px 0 0 0; padding-left: 20px;">
-              ${report.filters.maintenanceType ? `<li>Tipo de Manutenção: ${report.filters.maintenanceType}</li>` : ''}
-              ${report.filters.status ? `<li>Status: ${report.filters.status}</li>` : ''}
-              ${report.filters.equipmentType ? `<li>Tipo de Equipamento: ${report.filters.equipmentType}</li>` : ''}
-              ${report.filters.area ? `<li>Área: ${report.filters.area}</li>` : ''}
-              ${report.filters.critical ? `<li>Apenas Manutenções Críticas</li>` : ''}
-              ${!report.filters.maintenanceType && !report.filters.status && !report.filters.equipmentType && !report.filters.area && !report.filters.critical ? '<li>Nenhum filtro aplicado</li>' : ''}
-            </ul>
-          </div>
+
+    let html = `<div class="report-preview fade-in">`;
+
+    // Cabeçalho
+    html += `
+      <div class="report-header">
+        <h2>${report.title}</h2>
+        <p>Período: ${startDateFormatted} a ${endDateFormatted} (${report.period.label})</p>
+        <div style="margin-top: 15px; font-size: 0.9rem;">
+          <strong>Filtros Aplicados:</strong>
+          <ul>`;
+    let hasFilters = false;
+    if (report.filters.maintenanceType) { html += `<li>Tipo de Manutenção: ${report.filters.maintenanceType}</li>`; hasFilters = true; }
+    if (report.filters.status) { html += `<li>Status: ${report.filters.status}</li>`; hasFilters = true; }
+    if (report.filters.equipmentType) { html += `<li>Tipo de Equipamento: ${report.filters.equipmentType}</li>`; hasFilters = true; }
+    if (report.filters.area) { html += `<li>Área: ${report.filters.area}</li>`; hasFilters = true; }
+    if (report.filters.critical) { html += `<li>Apenas Manutenções Críticas</li>`; hasFilters = true; }
+    if (!hasFilters) { html += `<li>Nenhum filtro aplicado</li>`; }
+    html += `
+          </ul>
         </div>
-    `;
-    
-    // Adicionar seções conforme visualizações selecionadas
-    if (report.visualizations.includes('summary')) {
-      html += renderSummarySection(report);
+      </div>`;
+
+    // Seção de Resumo
+    if (report.visualizations.includes('summary') && report.summary) {
+      html += renderSummarySection(report.summary);
     }
-    
-    // Adicionar gráficos em grid
-    const charts = [];
-    
-    if (report.visualizations.includes('status')) {
-      charts.push({
-        title: 'Status das Manutenções',
-        id: 'report-status-chart',
-        type: 'doughnut',
-        data: report.charts.status
-      });
+
+    // Grid de Gráficos
+    const chartsToRender = [];
+    if (report.visualizations.includes('status') && report.charts?.status?.length > 0) {
+      chartsToRender.push({ title: 'Manutenções por Status', id: 'report-status-chart', type: 'doughnut', data: report.charts.status });
     }
-    
-    if (report.visualizations.includes('type')) {
-      charts.push({
-        title: 'Tipos de Manutenção',
-        id: 'report-type-chart',
-        type: 'bar',
-        data: report.charts.type
-      });
+    if (report.visualizations.includes('type') && report.charts?.type?.length > 0) {
+      chartsToRender.push({ title: 'Manutenções por Tipo', id: 'report-type-chart', type: 'bar', data: report.charts.type });
     }
-    
-    if (report.visualizations.includes('area')) {
-      charts.push({
-        title: 'Distribuição por Área',
-        id: 'report-area-chart',
-        type: 'pie',
-        data: report.charts.area
-      });
+    if (report.visualizations.includes('area') && report.charts?.area?.length > 0) {
+      chartsToRender.push({ title: 'Manutenções por Área', id: 'report-area-chart', type: 'pie', data: report.charts.area });
     }
-    
-    if (report.visualizations.includes('timeline')) {
-      charts.push({
-        title: 'Linha do Tempo',
-        id: 'report-timeline-chart',
-        type: 'line',
-        data: report.charts.timeline
-      });
+     if (report.visualizations.includes('equipment') && report.charts?.equipment?.length > 0) {
+      chartsToRender.push({ title: 'Manutenções por Equipamento', id: 'report-equipment-chart', type: 'bar', data: report.charts.equipment });
     }
-    
-    if (charts.length > 0) {
-      html += `<div class="report-charts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px;">`;
-      
-      charts.forEach(chart => {
+    if (report.visualizations.includes('timeline') && report.charts?.timeline?.length > 0) {
+      chartsToRender.push({ title: 'Manutenções ao Longo do Tempo', id: 'report-timeline-chart', type: 'line', data: report.charts.timeline });
+    }
+
+    if (chartsToRender.length > 0) {
+      html += `<div class="report-charts-grid">`;
+      chartsToRender.forEach(chart => {
         html += `
-          <div class="chart-container" style="background-color: white; border-radius: 8px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <h3 style="margin: 0 0 15px 0; font-size: 1rem; color: var(--text-dark, #333333);">${chart.title}</h3>
-            <div style="height: 250px; position: relative;">
+          <div class="chart-container">
+            <h3>${chart.title}</h3>
+            <div style="position: relative; height: 280px;"> <!-- Altura fixa para consistência -->
               <canvas id="${chart.id}"></canvas>
             </div>
-          </div>
-        `;
+          </div>`;
       });
-      
       html += `</div>`;
     }
-    
-    // Adicionar tabela de dados se selecionada
-    if (report.visualizations.includes('table')) {
-      html += renderDataTable(report);
+
+    // Tabela de Dados
+    if (report.visualizations.includes('table') && report.items?.length > 0) {
+      html += renderDataTable(report.items, 15); // Mostra os primeiros 15 na preview
+    } else if (report.visualizations.includes('table')) {
+        html += `<div class="report-data-table"><p style="text-align:center; color: #777; margin-top: 20px;">Nenhum dado detalhado para exibir com os filtros selecionados.</p></div>`;
     }
-    
-    html += `</div>`;
-    
-    // Atualizar conteúdo
+
+    html += `</div>`; // Fim de .report-preview
     previewContainer.innerHTML = html;
-    
-    // Renderizar gráficos
-    renderReportCharts(charts, report);
+
+    // Renderiza os gráficos após o HTML estar no DOM
+    renderReportCharts(chartsToRender);
   }
 
   /**
-   * Renderiza a seção de resumo do relatório
-   * @param {Object} report - Dados do relatório
-   * @returns {string} HTML da seção
+   * Renderiza a seção de resumo com cards.
+   * @param {Object} summary - Objeto com dados de resumo.
+   * @returns {string} HTML da seção de resumo.
    */
-  function renderSummarySection(report) {
+  function renderSummarySection(summary) {
     return `
-      <div class="report-summary" style="margin-bottom: 30px;">
-        <h3 style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--text-dark, #333333);">Resumo do Período</h3>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-          <div style="background-color: rgba(26, 95, 180, 0.05); border-radius: 8px; padding: 15px; border-left: 4px solid var(--primary-color, #1a5fb4);">
-            <div style="font-size: 0.85rem; color: var(--text-light, #5e6c84); margin-bottom: 5px;">Total de Manutenções</div>
-            <div style="font-size: 1.8rem; font-weight: 600; color: var(--text-dark, #333333);">${report.summary.total}</div>
+      <div class="report-summary">
+        <h3>Resumo do Período</h3>
+        <div>
+          <div class="summary-card" style="border-color: #1a5fb4;">
+            <div class="summary-card-title">Total de Manutenções</div>
+            <div class="summary-card-value" style="color: #1a5fb4;">${summary.total}</div>
           </div>
-          <div style="background-color: rgba(43, 147, 72, 0.05); border-radius: 8px; padding: 15px; border-left: 4px solid var(--status-completed, #2b9348);">
-            <div style="font-size: 0.85rem; color: var(--text-light, #5e6c84); margin-bottom: 5px;">Concluídas</div>
-            <div style="font-size: 1.8rem; font-weight: 600; color: var(--status-completed, #2b9348);">${report.summary.completed}</div>
+          <div class="summary-card" style="border-color: #2b9348;">
+            <div class="summary-card-title">Concluídas</div>
+            <div class="summary-card-value" style="color: #2b9348;">${summary.completed}</div>
           </div>
-          <div style="background-color: rgba(240, 173, 78, 0.05); border-radius: 8px; padding: 15px; border-left: 4px solid var(--status-pending, #f0ad4e);">
-            <div style="font-size: 0.85rem; color: var(--text-light, #5e6c84); margin-bottom: 5px;">Pendentes</div>
-            <div style="font-size: 1.8rem; font-weight: 600; color: var(--status-pending, #f0ad4e);">${report.summary.pending}</div>
+          <div class="summary-card" style="border-color: #f0ad4e;">
+            <div class="summary-card-title">Pendentes (Exemplo)</div>
+            <div class="summary-card-value" style="color: #f0ad4e;">${summary.pending}</div>
           </div>
-          <div style="background-color: rgba(204, 0, 0, 0.05); border-radius: 8px; padding: 15px; border-left: 4px solid var(--status-danger, #cc0000);">
-            <div style="font-size: 0.85rem; color: var(--text-light, #5e6c84); margin-bottom: 5px;">Críticas</div>
-            <div style="font-size: 1.8rem; font-weight: 600; color: var(--status-danger, #cc0000);">${report.summary.critical}</div>
+          <div class="summary-card" style="border-color: #cc0000;">
+            <div class="summary-card-title">Críticas</div>
+            <div class="summary-card-value" style="color: #cc0000;">${summary.critical}</div>
           </div>
         </div>
       </div>
@@ -1418,517 +1308,360 @@ const AdvancedReports = (function() {
   }
 
   /**
-   * Renderiza uma tabela de dados para o relatório
-   * @param {Object} report - Dados do relatório
-   * @returns {string} HTML da tabela
+   * Renderiza uma tabela HTML com os dados detalhados.
+   * @param {Array} items - Array de itens de manutenção.
+   * @param {number} limit - Número máximo de itens a exibir na tabela.
+   * @returns {string} HTML da tabela.
    */
-  function renderDataTable(report) {
-    // Limitar a 10 itens para visualização
-    const items = report.items.slice(0, 10);
-    
+  function renderDataTable(items, limit = 10) {
+    const itemsToShow = items.slice(0, limit);
+
     let html = `
-      <div class="report-data-table" style="margin-bottom: 30px;">
+      <div class="report-data-table" style="margin-top: 30px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-          <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-dark, #333333);">Dados Detalhados</h3>
-          <span style="font-size: 0.85rem; color: var(--text-light, #5e6c84);">Mostrando 10 de ${report.items.length} registros</span>
+          <h3>Dados Detalhados</h3>
+          <span style="font-size: 0.85rem; color: #5e6c84;">Mostrando ${itemsToShow.length} de ${items.length} registros</span>
         </div>
-        
-        <div style="overflow-x: auto; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-          <table style="width: 100%; border-collapse: collapse; background-color: white;">
+        <div style="overflow-x: auto; border: 1px solid #eee; border-radius: 8px; background-color: white;">
+          <table>
             <thead>
               <tr>
-                <th style="padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 0.85rem; font-weight: 600; color: var(--text-dark, #333333);">ID</th>
-                <th style="padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 0.85rem; font-weight: 600; color: var(--text-dark, #333333);">Equipamento</th>
-                <th style="padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 0.85rem; font-weight: 600; color: var(--text-dark, #333333);">Tipo</th>
-                <th style="padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 0.85rem; font-weight: 600; color: var(--text-dark, #333333);">Data</th>
-                <th style="padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 0.85rem; font-weight: 600; color: var(--text-dark, #333333);">Responsável</th>
-                <th style="padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 0.85rem; font-weight: 600; color: var(--text-dark, #333333);">Status</th>
-                <th style="padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 0.85rem; font-weight: 600; color: var(--text-dark, #333333);">Área</th>
+                <th>ID</th>
+                <th>Equipamento</th>
+                <th>Tipo Equip.</th>
+                <th>Tipo Manut.</th>
+                <th>Data</th>
+                <th>Responsável</th>
+                <th>Status</th>
+                <th>Área</th>
+                <th>Crítica</th>
               </tr>
             </thead>
             <tbody>
     `;
-    
-    if (items.length === 0) {
-      html += `
-        <tr>
-          <td colspan="7" style="padding: 15px; text-align: center; color: var(--text-light, #5e6c84);">Nenhum dado encontrado.</td>
-        </tr>
-      `;
+
+    if (itemsToShow.length === 0) {
+      html += `<tr><td colspan="9" style="text-align: center; padding: 20px; color: #777;">Nenhum dado encontrado para esta seleção.</td></tr>`;
     } else {
-      items.forEach((item, index) => {
-        const rowStyle = index % 2 === 0 ? 'background-color: rgba(0,0,0,0.02);' : '';
-        
-        // Definir cor do status
-        let statusColor;
-        switch (item.status.toLowerCase()) {
-          case 'concluído':
-          case 'concluido':
-            statusColor = 'var(--status-completed, #2b9348)';
-            break;
-          case 'pendente':
-            statusColor = 'var(--status-pending, #f0ad4e)';
-            break;
-          case 'verificado':
-          case 'aprovado':
-            statusColor = 'var(--status-verification, #0066cc)';
-            break;
-          case 'reprovado':
-            statusColor = 'var(--status-danger, #cc0000)';
-            break;
-          default:
-            statusColor = 'var(--text-light, #5e6c84)';
-        }
-        
-        // Formatar data
-        const date = new Date(item.date);
-        const formattedDate = date.toLocaleDateString('pt-BR');
-        
+      itemsToShow.forEach(item => {
+        const statusStyle = getStatusStyle(item.status);
+        const formattedDate = new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR'); // Adiciona T00:00 para evitar problemas de timezone na formatação simples
+
         html += `
-          <tr style="${rowStyle}">
-            <td style="padding: 12px 15px; border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 0.85rem;">${item.id}</td>
-            <td style="padding: 12px 15px; border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 0.85rem;">${item.equipmentId}</td>
-            <td style="padding: 12px 15px; border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 0.85rem;">
-              ${item.maintenanceType}
-              ${item.critical ? '<span style="color: var(--status-danger, #cc0000); margin-left: 5px;">⚠️</span>' : ''}
-            </td>
-            <td style="padding: 12px 15px; border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 0.85rem;">${formattedDate}</td>
-            <td style="padding: 12px 15px; border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 0.85rem;">${item.technician}</td>
-            <td style="padding: 12px 15px; border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 0.85rem;">
-              <span style="display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; background-color: ${statusColor}20; color: ${statusColor};">
-                ${item.status}
-              </span>
-            </td>
-            <td style="padding: 12px 15px; border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 0.85rem;">${item.area}</td>
+          <tr>
+            <td>${item.id}</td>
+            <td>${item.equipmentId}</td>
+            <td>${item.equipmentType}</td>
+            <td>${item.maintenanceType}</td>
+            <td>${formattedDate}</td>
+            <td>${item.technician}</td>
+            <td><span class="status-badge" style="background-color: ${statusStyle.bgColor}; color: ${statusStyle.color};">${item.status}</span></td>
+            <td>${item.area}</td>
+            <td style="text-align: center;">${item.critical ? '<span title="Manutenção Crítica" style="color: #cc0000; font-weight: bold;">⚠️</span>' : 'Não'}</td>
           </tr>
         `;
       });
     }
-    
+
     html += `
             </tbody>
           </table>
         </div>
-      </div>
-    `;
-    
+      </div>`;
     return html;
   }
 
+   /**
+    * Retorna cores de estilo para diferentes status.
+    * @param {string} status - O status da manutenção.
+    * @returns {{color: string, bgColor: string}} - Cores de texto e fundo.
+    */
+   function getStatusStyle(status) {
+        const styles = {
+            'Concluído': { color: '#2b9348', bgColor: 'rgba(43, 147, 72, 0.1)' },
+            'Aprovado': { color: '#2b9348', bgColor: 'rgba(43, 147, 72, 0.1)' },
+            'Pendente': { color: '#f0ad4e', bgColor: 'rgba(240, 173, 78, 0.1)' },
+            'Aguardando Peças': { color: '#f0ad4e', bgColor: 'rgba(240, 173, 78, 0.1)' },
+            'Em Andamento': { color: '#0066cc', bgColor: 'rgba(0, 102, 204, 0.1)' },
+            'Verificado': { color: '#0066cc', bgColor: 'rgba(0, 102, 204, 0.1)' },
+            'Reprovado': { color: '#cc0000', bgColor: 'rgba(204, 0, 0, 0.1)' },
+            'Cancelado': { color: '#5e6c84', bgColor: 'rgba(94, 108, 132, 0.1)' }
+        };
+        return styles[status] || { color: '#5e6c84', bgColor: 'rgba(94, 108, 132, 0.1)' }; // Default
+    }
+
+
   /**
-   * Renderiza os gráficos do relatório
-   * @param {Array} charts - Configurações dos gráficos
-   * @param {Object} report - Dados do relatório
+   * Renderiza os gráficos usando Chart.js.
+   * @param {Array} chartsToRender - Array com configurações dos gráficos a serem renderizados.
    */
-  function renderReportCharts(charts, report) {
-    if (!charts || charts.length === 0) return;
-    
-    // Verificar se Chart.js está disponível
+  function renderReportCharts(chartsToRender) {
     if (typeof Chart === 'undefined') {
-      console.error("Chart.js não está disponível!");
+      console.error("Chart.js não está carregado. Não é possível renderizar gráficos.");
+      // Opcional: Mostrar mensagem na UI
+       chartsToRender.forEach(chartConfig => {
+           const canvasContainer = document.getElementById(chartConfig.id)?.parentElement;
+           if (canvasContainer) {
+               canvasContainer.innerHTML = `<p style='color: red; font-size: 0.8rem; text-align: center;'>Chart.js não carregado.</p>`;
+           }
+       });
       return;
     }
-    
-    // Renderizar cada gráfico
-    charts.forEach(chart => {
-      const canvas = document.getElementById(chart.id);
-      if (!canvas) return;
-      
+
+    chartsToRender.forEach(chartConfig => {
+      const canvas = document.getElementById(chartConfig.id);
+      if (!canvas) {
+        console.warn(`Canvas com ID '${chartConfig.id}' não encontrado para o gráfico '${chartConfig.title}'.`);
+        return;
+      }
       const ctx = canvas.getContext('2d');
-      
-      // Preparar dados
-      const labels = chart.data.map(item => item.label);
-      const data = chart.data.map(item => item.count);
-      
-      // Configurações específicas por tipo
-      let chartConfig;
-      
-      switch (chart.type) {
+       if (!ctx) {
+            console.error(`Não foi possível obter o contexto 2D para o canvas '${chartConfig.id}'.`);
+            return;
+        }
+
+      // Destruir gráfico anterior no mesmo canvas, se existir
+      if (chartInstances[chartConfig.id]) {
+          chartInstances[chartConfig.id].destroy();
+      }
+
+      const labels = chartConfig.data.map(item => item.label);
+      const data = chartConfig.data.map(item => item.count);
+      const backgroundColors = config.defaultChartColors.slice(0, labels.length); // Adapta cores ao número de labels
+
+      let chartOptions = {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+              legend: {
+                  position: 'bottom', // Padrão, pode ser sobrescrito
+                  labels: { boxWidth: 12, padding: 15, font: { size: 11 } }
+              },
+              tooltip: {
+                  callbacks: {
+                      label: function(context) {
+                          let label = context.dataset.label || context.label || '';
+                          if (label) { label += ': '; }
+                          if (context.parsed !== null) {
+                              // Formata números inteiros sem decimais
+                              const value = context.parsed.y ?? context.parsed; // Para bar/line (y) ou pie/doughnut (parsed)
+                              label += Number.isInteger(value) ? value : value.toFixed(2);
+                          }
+                          return label;
+                      }
+                  }
+              }
+          }
+      };
+
+      let chartTypeConfig;
+
+      switch (chartConfig.type) {
         case 'doughnut':
-          chartConfig = {
-            type: 'doughnut',
-            data: {
-              labels: labels,
-              datasets: [{
-                data: data,
-                backgroundColor: config.defaultChartColors,
-                borderWidth: 0
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: {
-                  position: 'right',
-                  labels: {
-                    boxWidth: 12,
-                    padding: 15,
-                    font: {
-                      size: 11
-                    }
-                  }
-                }
-              },
-              cutout: '60%'
-            }
-          };
-          break;
-          
         case 'pie':
-          chartConfig = {
-            type: 'pie',
-            data: {
-              labels: labels,
-              datasets: [{
-                data: data,
-                backgroundColor: config.defaultChartColors,
-                borderWidth: 0
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: {
-                  position: 'right',
-                  labels: {
-                    boxWidth: 12,
-                    padding: 15,
-                    font: {
-                      size: 11
-                    }
-                  }
-                }
-              }
-            }
+          chartOptions.plugins.legend.position = 'right'; // Melhor para rosca/pizza
+          chartTypeConfig = {
+            type: chartConfig.type,
+            data: { labels, datasets: [{ data, backgroundColor: backgroundColors, borderWidth: 1, borderColor: '#fff' }] },
+            options: { ...chartOptions, cutout: chartConfig.type === 'doughnut' ? '60%' : '0%' }
           };
           break;
-          
         case 'bar':
-          chartConfig = {
-            type: 'bar',
-            data: {
-              labels: labels,
-              datasets: [{
-                label: 'Quantidade',
-                data: data,
-                backgroundColor: config.defaultChartColors.slice(0, data.length),
-                borderWidth: 0
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: {
-                  display: false
-                }
-              },
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  ticks: {
-                    precision: 0
-                  }
-                }
-              }
+           chartOptions.plugins.legend.display = false; // Geralmente desnecessário para barra única
+           chartTypeConfig = {
+                type: 'bar',
+                data: { labels, datasets: [{ label: 'Quantidade', data, backgroundColor: backgroundColors }] },
+                options: { ...chartOptions, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+            };
+            // Opcional: Gráfico de barras horizontal se muitos labels
+            if (labels.length > 8) {
+                chartTypeConfig.options.indexAxis = 'y';
+                chartTypeConfig.options.scales = { x: { beginAtZero: true, ticks: { precision: 0 } } }; // Inverte eixos
+                delete chartTypeConfig.options.scales.y; // Remove escala y
             }
-          };
           break;
-          
         case 'line':
-          chartConfig = {
-            type: 'line',
-            data: {
-              labels: labels,
-              datasets: [{
-                label: 'Manutenções',
-                data: data,
-                fill: true,
-                backgroundColor: 'rgba(26, 95, 180, 0.1)',
-                borderColor: 'rgba(26, 95, 180, 0.8)',
-                tension: 0.3
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: {
-                  display: false
-                }
-              },
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  ticks: {
-                    precision: 0
-                  }
-                }
-              }
-            }
-          };
+           chartOptions.plugins.legend.display = false;
+           chartTypeConfig = {
+                type: 'line',
+                data: { labels, datasets: [{ label: 'Manutenções', data, fill: true, backgroundColor: 'rgba(26, 95, 180, 0.1)', borderColor: '#1a5fb4', tension: 0.3 }] },
+                options: { ...chartOptions, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+            };
           break;
-          
         default:
-          console.warn(`Tipo de gráfico não suportado: ${chart.type}`);
+          console.warn(`Tipo de gráfico não suportado: ${chartConfig.type}`);
           return;
       }
-      
-      // Criar gráfico
-      new Chart(ctx, chartConfig);
+
+      try {
+            chartInstances[chartConfig.id] = new Chart(ctx, chartTypeConfig);
+      } catch (error) {
+            console.error(`Erro ao criar gráfico ${chartConfig.id}:`, error);
+             if (canvas.parentElement) {
+                 canvas.parentElement.innerHTML = `<p style='color: orange; font-size: 0.8rem; text-align: center;'>Erro ao renderizar gráfico.</p>`;
+             }
+      }
+
     });
   }
 
   /**
-   * Mostra um indicador de carregamento global
-   * @param {boolean} show - Mostrar ou esconder
-   * @param {string} message - Mensagem a ser exibida
+   * Destrói todas as instâncias de Chart.js ativas para liberar memória.
    */
-  function showLoading(show, message = 'Carregando...') {
-    // Usar a função do Utilities se disponível
-    if (typeof Utilities !== 'undefined' && Utilities.showLoading) {
-      Utilities.showLoading(show, message);
-      return;
+    function destroyAllCharts() {
+        Object.keys(chartInstances).forEach(chartId => {
+            if (chartInstances[chartId]) {
+                chartInstances[chartId].destroy();
+                delete chartInstances[chartId];
+            }
+        });
+        // console.log("Gráficos anteriores destruídos.");
     }
-    
-    // Implementação fallback
-    let loader = document.getElementById('global-loader');
-    if (!loader) {
-      // Criar loader se não existir
-      loader = document.createElement('div');
-      loader.id = 'global-loader';
-      loader.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(255, 255, 255, 0.8);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        z-index: 10000;
-      `;
-      
-      const spinner = document.createElement('div');
-      spinner.className = 'loader-spinner';
-      spinner.style.cssText = `
-        width: 50px;
-        height: 50px;
-        border: 5px solid rgba(26, 95, 180, 0.2);
-        border-radius: 50%;
-        border-top-color: var(--primary-color, #1a5fb4);
-        animation: spin 1s ease-in-out infinite;
-      `;
-      
-      const messageEl = document.createElement('div');
-      messageEl.id = 'global-loader-message';
-      messageEl.style.cssText = `
-        margin-top: 15px;
-        color: var(--primary-color, #1a5fb4);
-        font-weight: 500;
-      `;
-      
-      loader.appendChild(spinner);
-      loader.appendChild(messageEl);
-      document.body.appendChild(loader);
-      
-      // Adicionar animação se não existir
-      if (!document.getElementById('loader-animation')) {
-        const style = document.createElement('style');
-        style.id = 'loader-animation';
-        style.textContent = `
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `;
-        document.head.appendChild(style);
-      }
-    }
-    
-    // Atualizar e mostrar/esconder o loader
-    const messageEl = document.getElementById('global-loader-message');
-    if (messageEl) {
-      messageEl.textContent = message;
-    }
-    
-    loader.style.display = show ? 'flex' : 'none';
-  }
+
 
   /**
-   * Abre o modal de opções de exportação
+   * Abre um modal simples para seleção do formato de exportação.
    */
   function openExportOptionsModal() {
-    // Verificar se o modal já existe
-    let modal = document.getElementById('export-options-modal');
-    if (modal) {
-      modal.parentNode.style.display = 'flex';
+    if (!currentReport) {
+      notify("Nenhum relatório ativo para exportar. Gere um relatório primeiro.", "warning");
       return;
     }
-    
-    // Criar overlay para o modal
+
+    const modalId = 'export-options-modal';
+    let modal = document.getElementById(modalId);
+     if (modal) {
+         // Se já existe, apenas remove e recria para garantir estado limpo
+         modal.parentElement.remove(); // Remove o overlay
+     }
+
+
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
-    overlay.id = 'export-options-overlay';
-    
-    // Criar o modal
+
     modal = document.createElement('div');
     modal.className = 'modal-container';
-    modal.id = 'export-options-modal';
-    
-    // Conteúdo do modal
+    modal.id = modalId;
+    modal.style.maxWidth = '450px'; // Tamanho menor para este modal
+
+    let optionsHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 10px;">';
+    Object.entries(config.exportFormats).forEach(([format, info]) => {
+      optionsHtml += `
+        <div class="export-option export-report-btn" data-format="${format}" role="button" tabindex="0">
+           <div class="export-option-icon">${info.icon}</div>
+           <div>
+             <div class="export-option-label">${info.label}</div>
+             <div class="export-option-desc">Exportar como ${info.label}</div>
+           </div>
+         </div>
+      `;
+    });
+    optionsHtml += `</div>`;
+
+
     modal.innerHTML = `
       <div class="modal-header">
         <h3 class="modal-title">Exportar Relatório</h3>
         <button class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
-        <p style="margin-top: 0; color: var(--text-light, #5e6c84); font-size: 0.9rem;">Selecione o formato para exportar o relatório atual:</p>
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px;">
-    `;
-    
-    // Adicionar opções de exportação
-    Object.entries(config.exportFormats).forEach(([format, info]) => {
-      modal.querySelector('.modal-body').innerHTML += `
-        <div class="export-option" data-format="${format}" style="background-color: white; border: 1px solid rgba(0,0,0,0.1); border-radius: 8px; padding: 15px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center;">
-          <div style="font-size: 1.5rem; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; margin-right: 10px;">${info.icon}</div>
-          <div>
-            <div style="font-weight: 500; color: var(--text-dark, #333333); font-size: 0.95rem;">${info.label}</div>
-            <div style="font-size: 0.8rem; color: var(--text-light, #5e6c84); margin-top: 2px;">Exportar como ${info.label}</div>
-          </div>
-        </div>
-      `;
-    });
-    
-    modal.querySelector('.modal-body').innerHTML += `
-        </div>
+        <p style="margin-top: 0; color: #5e6c84; font-size: 0.9rem;">Selecione o formato desejado:</p>
+        ${optionsHtml}
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary cancel-export-btn" style="background-color: var(--text-light, #5e6c84);">Cancelar</button>
+        <button class="btn btn-secondary cancel-export-btn">Cancelar</button>
       </div>
     `;
-    
-    // Adicionar o modal ao overlay
+
     overlay.appendChild(modal);
-    
-    // Adicionar ao body
     document.body.appendChild(overlay);
-    
-    // Configurar eventos
-    modal.querySelector('.modal-close').addEventListener('click', () => {
-      overlay.style.display = 'none';
-    });
-    
-    modal.querySelector('.cancel-export-btn').addEventListener('click', () => {
-      overlay.style.display = 'none';
-    });
-    
-    // Fechar ao clicar fora do modal
+
+    // Eventos do modal
+    const closeBtn = modal.querySelector('.modal-close');
+    const cancelBtn = modal.querySelector('.cancel-export-btn');
+    const closeAction = () => overlay.remove();
+
+    closeBtn?.addEventListener('click', closeAction);
+    cancelBtn?.addEventListener('click', closeAction);
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) {
-        overlay.style.display = 'none';
-      }
+      if (e.target === overlay) closeAction();
     });
-    
-    // Configurar eventos para as opções de exportação
-    modal.querySelectorAll('.export-option').forEach(option => {
-      option.addEventListener('click', () => {
-        const format = option.getAttribute('data-format');
-        exportReport(format);
-        overlay.style.display = 'none';
-      });
-      
-      // Adicionar hover effect
-      option.addEventListener('mouseover', () => {
-        option.style.borderColor = 'var(--primary-color, #1a5fb4)';
-        option.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
-        option.style.backgroundColor = 'rgba(26, 95, 180, 0.02)';
-      });
-      
-      option.addEventListener('mouseout', () => {
-        option.style.borderColor = 'rgba(0,0,0,0.1)';
-        option.style.boxShadow = 'none';
-        option.style.backgroundColor = 'white';
-      });
-    });
+    // Listeners para as opções de formato são tratados por delegação
   }
 
   /**
-   * Exporta o relatório atual para o formato especificado
-   * @param {string} format - Formato de exportação (pdf, xlsx, csv, json)
+   * Executa a exportação simples do relatório atual.
+   * @param {string} format - Formato de exportação ('pdf', 'xlsx', etc.).
    */
   function exportReport(format) {
-    // Verificar se há um relatório ativo
     if (!currentReport) {
-      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-        Utilities.showNotification("Nenhum relatório para exportar. Gere um relatório primeiro.", "warning");
-      } else {
-        alert("Nenhum relatório para exportar. Gere um relatório primeiro.");
-      }
+      notify("Nenhum relatório ativo para exportar.", "warning");
       return;
     }
-    
-    // Verificar se o formato é válido
-    if (!Object.keys(config.exportFormats).includes(format)) {
+    if (!config.exportFormats[format]) {
       console.error(`Formato de exportação inválido: ${format}`);
+      notify("Formato de exportação inválido selecionado.", "error");
       return;
     }
-    
-    // Mostrar indicador de carregamento
-    showLoading(true, `Exportando relatório como ${config.exportFormats[format].label}...`);
-    
-    // Simular processamento
+
+    const formatLabel = config.exportFormats[format].label;
+    showLoading(true, `Exportando como ${formatLabel}...`);
+    console.log(`Iniciando exportação do relatório ID ${currentReport.id} como ${format}...`);
+
+    // --- Simulação de Exportação ---
+    // Em um sistema real, aqui ocorreria uma chamada API
+    // Ex: API.exportReport(currentReport.id, format).then(fileData => { ... download file ... });
     setTimeout(() => {
-      // Esconder indicador de carregamento
       showLoading(false);
-      
-      // Mostrar mensagem de sucesso
-      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-        Utilities.showNotification(`Relatório exportado com sucesso como ${config.exportFormats[format].label}.`, "success");
-      } else {
-        alert(`Relatório exportado com sucesso como ${config.exportFormats[format].label}.`);
-      }
-      
-      // Aqui você integraria com API.exportData()
-      // No futuro, quando a API estiver pronta, você usaria:
-      // API.exportData(currentReport.period.startDate, currentReport.period.endDate, format)
-      // .then(response => { ... })
+      notify(`Relatório exportado com sucesso como ${formatLabel}. (Simulação)`, "success");
+      // Simular download
+       try {
+            const filename = `${currentReport.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'relatorio'}_${new Date().toISOString().split('T')[0]}.${format}`;
+            const content = format === 'json' ? JSON.stringify(currentReport, null, 2) : `Conteúdo de exemplo para ${filename}`;
+            const mimeType = { pdf: 'application/pdf', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', csv: 'text/csv', json: 'application/json' }[format];
+            const blob = new Blob([content], { type: mimeType });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link); // Necessário para Firefox
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+        } catch (error) {
+            console.error("Erro ao simular download:", error);
+            notify("Ocorreu um erro durante a simulação de download.", "error");
+        }
     }, 2000);
   }
 
   /**
-   * Salva o relatório atual para uso futuro
+   * Inicia o processo de salvar o relatório atual (abre modal de confirmação/nome).
    */
   function saveCurrentReport() {
     if (!currentReport) {
-      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-        Utilities.showNotification("Nenhum relatório para salvar. Gere um relatório primeiro.", "warning");
-      } else {
-        alert("Nenhum relatório para salvar. Gere um relatório primeiro.");
-      }
+      notify("Nenhum relatório ativo para salvar. Gere um relatório primeiro.", "warning");
       return;
     }
-    
-    // Abrir modal para confirmar salvamento
     openSaveReportModal();
   }
 
   /**
-   * Abre o modal para salvar um relatório
+   * Abre o modal para nomear e descrever o relatório antes de salvar.
    */
   function openSaveReportModal() {
-    // Criar overlay para o modal
+     const modalId = 'save-report-modal';
+     let modal = document.getElementById(modalId);
+      if (modal) {
+          modal.parentElement.remove(); // Remove o overlay se já existir
+      }
+
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
-    
-    // Criar o modal
-    const modal = document.createElement('div');
+
+    modal = document.createElement('div');
     modal.className = 'modal-container';
-    
-    // Conteúdo do modal
+    modal.id = modalId;
+
     modal.innerHTML = `
       <div class="modal-header">
         <h3 class="modal-title">Salvar Relatório</h3>
@@ -1936,1008 +1669,845 @@ const AdvancedReports = (function() {
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">Título do Relatório</label>
-          <input type="text" id="save-report-title" class="form-input" value="${currentReport.title || 'Relatório de Manutenções'}">
+          <label for="save-report-title" class="form-label">Título do Relatório Salvo</label>
+          <input type="text" id="save-report-title" class="form-input" value="${currentReport.title || 'Relatório Personalizado'}" required>
         </div>
         <div class="form-group">
-          <label class="form-label">Descrição</label>
-          <textarea id="save-report-description" class="form-input" rows="3" placeholder="Descrição opcional do relatório..."></textarea>
+          <label for="save-report-description" class="form-label">Descrição (Opcional)</label>
+          <textarea id="save-report-description" class="form-input" rows="3" placeholder="Adicione uma breve descrição sobre este relatório..."></textarea>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary cancel-save-btn">Cancelar</button>
-        <button class="btn confirm-save-btn" style="background-color: var(--status-completed, #2b9348);">Salvar</button>
+        <button class="btn btn-confirm-save confirm-save-btn">Salvar</button>
       </div>
     `;
-    
-    // Adicionar o modal ao overlay
+
     overlay.appendChild(modal);
-    
-    // Adicionar ao body
     document.body.appendChild(overlay);
-    
-    // Configurar eventos
-    modal.querySelector('.modal-close').addEventListener('click', () => {
-      overlay.remove();
-    });
-    
-    modal.querySelector('.cancel-save-btn').addEventListener('click', () => {
-      overlay.remove();
-    });
-    
-    // Fechar ao clicar fora do modal
+
+    // Eventos do modal
+    const titleInput = modal.querySelector('#save-report-title');
+    const descInput = modal.querySelector('#save-report-description');
+    const closeBtn = modal.querySelector('.modal-close');
+    const cancelBtn = modal.querySelector('.cancel-save-btn');
+    const confirmBtn = modal.querySelector('.confirm-save-btn');
+    const closeAction = () => overlay.remove();
+
+    closeBtn?.addEventListener('click', closeAction);
+    cancelBtn?.addEventListener('click', closeAction);
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) {
-        overlay.remove();
-      }
+      if (e.target === overlay) closeAction();
     });
-    
-    // Configurar evento para o botão de salvar
-    modal.querySelector('.confirm-save-btn').addEventListener('click', () => {
-      const title = document.getElementById('save-report-title').value;
-      const description = document.getElementById('save-report-description').value;
-      
+
+    confirmBtn?.addEventListener('click', () => {
+      const title = titleInput.value.trim();
       if (!title) {
-        if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-          Utilities.showNotification("Por favor, insira um título para o relatório.", "warning");
-        } else {
-          alert("Por favor, insira um título para o relatório.");
-        }
+        notify("O título do relatório é obrigatório.", "warning");
+        titleInput.focus();
+        titleInput.style.borderColor = 'red'; // Feedback visual
         return;
       }
-      
-      // Salvar o relatório
+       titleInput.style.borderColor = ''; // Reseta feedback
+
+      const description = descInput.value.trim();
       const savedReport = {
-        ...currentReport,
-        title,
+        ...currentReport, // Copia toda a configuração e dados do relatório atual
+        title,           // Sobrescreve com o título fornecido
         description,
-        id: 'report-' + Date.now(),
-        createdAt: new Date().toISOString()
+        // Garante um ID único e data de salvamento, diferente do relatório original gerado
+        id: 'saved-' + Date.now(),
+        savedAt: new Date().toISOString() // Diferente de createdAt (geração)
       };
-      
-      // Adicionar ao array de relatórios salvos
-      savedReports.push(savedReport);
-      
-      // Salvar no localStorage
-      saveReports();
-      
-      // Fechar o modal
-      overlay.remove();
-      
-      // Mostrar mensagem de sucesso
-      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-        Utilities.showNotification("Relatório salvo com sucesso!", "success");
-      } else {
-        alert("Relatório salvo com sucesso!");
-      }
-      
-      // Atualizar painel de relatórios salvos se estiver visível
-      const activeTab = document.querySelector('.panel-tab.active');
-      if (activeTab && activeTab.getAttribute('data-tab') === 'saved') {
+
+      // Adiciona ao início da lista (mais recentes primeiro)
+      savedReports.unshift(savedReport);
+      persistData(); // Salva no localStorage
+      closeAction(); // Fecha o modal
+      notify("Relatório salvo com sucesso!", "success");
+
+      // Atualiza o painel de salvos se estiver visível
+      const activeTab = document.querySelector('#advanced-reports-panel .panel-tab.active');
+      if (activeTab && activeTab.dataset.tab === 'saved') {
         loadSavedReportsPanel();
       }
     });
   }
 
   /**
-   * Carrega um relatório salvo
-   * @param {string} id - ID do relatório
+   * Carrega um relatório salvo na área de visualização e configuração.
+   * @param {string} reportId - O ID do relatório salvo.
    */
-  function loadReport(id) {
-    const report = savedReports.find(r => r.id === id);
-    
-    if (!report) {
-      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-        Utilities.showNotification("Relatório não encontrado.", "error");
-      } else {
-        alert("Relatório não encontrado.");
-      }
+  function loadReport(reportId) {
+    const reportToLoad = savedReports.find(r => r.id === reportId);
+
+    if (!reportToLoad) {
+      notify(`Relatório salvo com ID ${reportId} não encontrado.`, "error");
       return;
     }
-    
-    // Definir como relatório atual
-    currentReport = report;
-    
-    // Renderizar relatório
+
+    console.log(`Carregando relatório salvo: ${reportToLoad.title} (ID: ${reportId})`);
+     destroyAllCharts(); // Limpa gráficos antes de carregar
+
+    currentReport = { ...reportToLoad }; // Define como relatório atual (cria cópia para evitar mutação acidental do salvo)
+
+    // Renderiza na preview
     renderReportPreview(currentReport);
-    
-    // Atualizar painel de configuração
-    updateConfigPanelFromReport(report);
-    
-    // Mostrar mensagem de sucesso
-    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-      Utilities.showNotification("Relatório carregado com sucesso.", "success");
-    }
-    
-    // Mudar para a aba de novo relatório
-    const newReportTab = document.querySelector('.panel-tab[data-tab="new"]');
-    if (newReportTab) {
-      newReportTab.click();
+
+    // Tenta atualizar o painel de configuração (se a aba 'new' estiver ativa ou for selecionada)
+    // É mais seguro atualizar o painel apenas se a aba 'new' for explicitamente selecionada após o load.
+    // Por enquanto, apenas carregamos e renderizamos. O usuário pode gerar de novo se quiser.
+
+    notify(`Relatório "${currentReport.title}" carregado.`, "success");
+
+    // Opcional: Mudar para a aba 'Novo Relatório' para permitir re-geração/ajustes
+    const newReportTab = document.querySelector('#advanced-reports-panel .panel-tab[data-tab="new"]');
+    if (newReportTab && !newReportTab.classList.contains('active')) {
+         // Simula clique para também carregar o painel de configuração e atualizar os controles
+         newReportTab.click();
+         // Atraso pequeno para garantir que o painel foi carregado antes de atualizar
+         setTimeout(() => updateConfigPanelFromReport(currentReport), 100);
+    } else if (newReportTab) {
+        // Se a aba 'Novo' já estava ativa, apenas atualiza o painel
+        updateConfigPanelFromReport(currentReport);
     }
   }
 
   /**
-   * Atualiza o painel de configuração com base em um relatório carregado
-   * @param {Object} report - Relatório carregado
+   * Atualiza os controles do formulário no painel esquerdo com base em um relatório carregado.
+   * @param {Object} report - O objeto de relatório carregado.
    */
   function updateConfigPanelFromReport(report) {
-    // Atualizar título
-    const titleInput = document.getElementById('report-title');
-    if (titleInput) {
-      titleInput.value = report.title || '';
+     const panel = document.querySelector('#advanced-reports-panel .new-report-config');
+     if (!panel) {
+         console.warn("Painel de configuração de novo relatório não encontrado para atualização.");
+         return;
+     }
+     console.log("Atualizando painel de configuração com dados do relatório carregado.");
+
+    try {
+        // Título
+        const titleInput = panel.querySelector('#report-title');
+        if (titleInput) titleInput.value = report.title || '';
+
+        // Período
+        const startDate = new Date(report.period.startDate);
+        const endDate = new Date(report.period.endDate);
+        const reportStartDateInput = panel.querySelector('#report-start-date');
+        const reportEndDateInput = panel.querySelector('#report-end-date');
+        const dateOptions = panel.querySelectorAll('.date-range-option');
+        const customDateRangeDiv = panel.querySelector('#custom-date-range');
+
+        if (reportStartDateInput) reportStartDateInput.valueAsDate = startDate;
+        if (reportEndDateInput) reportEndDateInput.valueAsDate = endDate;
+
+        // Tenta encontrar a opção de range correspondente (lógica simplificada)
+        // A melhor abordagem seria armazenar o 'data-range' original no relatório salvo
+        let matchedRange = 'custom'; // Assume personalizado como fallback
+        if (report.period.label.includes('30 dias')) matchedRange = '30';
+        else if (report.period.label.includes('90 dias')) matchedRange = '90';
+        else if (report.period.label.includes('6 meses')) matchedRange = '180';
+        else if (report.period.label.includes('1 ano')) matchedRange = '365';
+
+        dateOptions.forEach(option => {
+            option.classList.toggle('active', option.dataset.range === matchedRange);
+        });
+         if (customDateRangeDiv) {
+             customDateRangeDiv.style.display = (matchedRange === 'custom') ? 'block' : 'none';
+         }
+
+
+        // Filtros
+        const setSelectValue = (id, value) => {
+            const select = panel.querySelector(`#${id}`);
+            if (select) select.value = value || '';
+        };
+        setSelectValue('filter-maintenance-type', report.filters.maintenanceType);
+        setSelectValue('filter-status', report.filters.status);
+        setSelectValue('filter-equipment-type', report.filters.equipmentType);
+        setSelectValue('filter-area', report.filters.area);
+
+        const criticalCheckbox = panel.querySelector('#filter-critical');
+        if (criticalCheckbox) criticalCheckbox.checked = report.filters.critical || false;
+
+        // Visualizações
+        const visualizations = report.visualizations || [];
+        panel.querySelectorAll('.visualization-option').forEach(option => {
+            option.classList.toggle('active', visualizations.includes(option.dataset.viz));
+        });
+
+        console.log("Painel de configuração atualizado.");
+
+    } catch (error) {
+        console.error("Erro ao atualizar painel de configuração:", error);
+        notify("Erro ao preencher o formulário com os dados do relatório carregado.", "error");
     }
-    
-    // Atualizar período
-    const startDate = new Date(report.period.startDate);
-    const endDate = new Date(report.period.endDate);
-    const reportStartDate = document.getElementById('report-start-date');
-    const reportEndDate = document.getElementById('report-end-date');
-    
-    // Determinar qual opção de período selecionar
-    const diffDays = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24));
-    let periodOption;
-    
-    if (diffDays <= 32) {
-      periodOption = '30';
-    } else if (diffDays <= 92) {
-      periodOption = '90';
-    } else if (diffDays <= 183) {
-      periodOption = '180';
-    } else if (diffDays <= 366) {
-      periodOption = '365';
-    } else {
-      periodOption = 'custom';
+  }
+
+  /**
+   * Abre o modal para configurar o agendamento do relatório atual.
+   */
+  function openScheduleReportModal() {
+    if (!currentReport) {
+      notify("Gere ou carregue um relatório antes de agendar.", "warning");
+      return;
     }
-    
-    // Atualizar opção de período
-    const dateOptions = document.querySelectorAll('.date-range-option');
-    dateOptions.forEach(option => {
-      option.classList.remove('active');
-      if (option.getAttribute('data-range') === periodOption) {
-        option.classList.add('active');
+     if (!currentReport.id.startsWith('saved-')) {
+        // Melhor prática: Agendar apenas relatórios que foram salvos explicitamente
+        confirmAction(
+            "É recomendado salvar este relatório antes de agendar para garantir que a configuração seja preservada. Deseja salvar agora?",
+            () => {
+                openSaveReportModal(); // Abre o modal de salvar
+                // O usuário precisará clicar em Agendar novamente após salvar.
+            }
+        );
+        // Ou permitir agendar na hora, mas salvar uma cópia interna?
+        // Decisão: Exigir salvamento primeiro para clareza.
+        // notify("Por favor, salve este relatório antes de agendar.", "warning");
+         return; // Impede o agendamento se não estiver salvo
+     }
+
+    const modalId = 'schedule-report-modal';
+     let modal = document.getElementById(modalId);
+      if (modal) {
+          modal.parentElement.remove();
       }
-    });
-    
-    // Atualizar datas personalizadas
-    if (reportStartDate) {
-      reportStartDate.valueAsDate = startDate;
-    }
-    
-    if (reportEndDate) {
-      reportEndDate.valueAsDate = endDate;
-    }
-    
-    // Mostrar/esconder seletor de data personalizado
-    const customDateRange = document.getElementById('custom-date-range');
-    if (customDateRange) {
-      customDateRange.style.display = periodOption === 'custom' ? 'block' : 'none';
-    }
-    
-    // Atualizar filtros
-    const filters = report.filters || {};
-    
-    if (filters.maintenanceType) {
-      const maintenanceTypeSelect = document.getElementById('filter-maintenance-type');
-      if (maintenanceTypeSelect) {
-        maintenanceTypeSelect.value = filters.maintenanceType;
-      }
-    }
-    
-    if (filters.status) {
-      const statusSelect = document.getElementById('filter-status');
-      if (statusSelect) {
-        statusSelect.value = filters.status;
-      }
-    }
-    
-    if (filters.equipmentType) {
-      const equipmentTypeSelect = document.getElementById('filter-equipment-type');
-      if (equipmentTypeSelect) {
-        equipmentTypeSelect.value = filters.equipmentType;
-      }
-    }
-    
-    if (filters.area) {
-      const areaSelect = document.getElementById('filter-area');
-      if (areaSelect) {
-        areaSelect.value = filters.area;
-      }
-    }
-    
-    const criticalCheckbox = document.getElementById('filter-critical');
-    if (criticalCheckbox) {
-      criticalCheckbox.checked = !!filters.critical;
-    }
-    
-    // Atualizar visualizações
-    const visualizations = report.visualizations || [];
-    document.querySelectorAll('.visualization-option').forEach(option => {
-      const vizType = option.getAttribute('data-viz');
-      option.classList.toggle('active', visualizations.includes(vizType));
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+
+    modal = document.createElement('div');
+    modal.className = 'modal-container';
+    modal.id = modalId;
+
+    modal.innerHTML = `
+      <div class="modal-header">
+        <h3 class="modal-title">Agendar Relatório: ${currentReport.title}</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="schedule-title" class="form-label">Título do Agendamento</label>
+          <input type="text" id="schedule-title" class="form-input" value="Agendamento - ${currentReport.title}" placeholder="Identificação do agendamento" required>
+        </div>
+        <div class="form-group">
+          <label for="schedule-frequency" class="form-label">Frequência de Envio</label>
+          <select id="schedule-frequency" class="form-select">
+            <option value="daily">Diariamente</option>
+            <option value="weekly" selected>Semanalmente (Segunda-feira)</option>
+            <option value="monthly">Mensalmente (Dia 1)</option>
+            <option value="quarterly">Trimestralmente (Início Trimestre)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="schedule-recipients" class="form-label">Destinatários (e-mails)</label>
+          <input type="email" id="schedule-recipients" class="form-input" multiple placeholder="email1@exemplo.com, email2@exemplo.com" required>
+          <small style="font-size: 0.8rem; color: #666;">Separe múltiplos e-mails por vírgula.</small>
+        </div>
+        <div class="form-group">
+          <label for="schedule-format" class="form-label">Formato do Anexo</label>
+          <select id="schedule-format" class="form-select">
+            <option value="pdf">PDF</option>
+            <option value="xlsx" selected>Excel (XLSX)</option>
+            <option value="csv">CSV</option>
+          </select>
+        </div>
+        <div class="form-checkbox" style="margin-top: 20px;">
+          <input type="checkbox" id="schedule-active" checked>
+          <label for="schedule-active">Ativar este agendamento</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary cancel-schedule-btn">Cancelar</button>
+        <button class="btn btn-confirm-schedule confirm-schedule-btn">Agendar</button>
+      </div>
+    `;
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // Eventos
+    const titleInput = modal.querySelector('#schedule-title');
+    const freqSelect = modal.querySelector('#schedule-frequency');
+    const recipInput = modal.querySelector('#schedule-recipients');
+    const formatSelect = modal.querySelector('#schedule-format');
+    const activeCheck = modal.querySelector('#schedule-active');
+    const closeBtn = modal.querySelector('.modal-close');
+    const cancelBtn = modal.querySelector('.cancel-schedule-btn');
+    const confirmBtn = modal.querySelector('.confirm-schedule-btn');
+    const closeAction = () => overlay.remove();
+
+
+    closeBtn?.addEventListener('click', closeAction);
+    cancelBtn?.addEventListener('click', closeAction);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeAction(); });
+
+    confirmBtn?.addEventListener('click', () => {
+        const title = titleInput.value.trim();
+        const recipients = recipInput.value.trim();
+        const frequency = freqSelect.value;
+        const format = formatSelect.value;
+        const active = activeCheck.checked;
+
+        // Validação
+        if (!title) { notify("Título do agendamento é obrigatório.", "warning"); titleInput.focus(); return; }
+        if (!recipients) { notify("Pelo menos um destinatário é obrigatório.", "warning"); recipInput.focus(); return; }
+        // Validação simples de e-mail (pode ser melhorada)
+        const emails = recipients.split(',').map(e => e.trim()).filter(e => e);
+        if (emails.some(e => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))) {
+             notify("Um ou mais e-mails parecem inválidos.", "warning"); recipInput.focus(); return;
+        }
+
+        const newSchedule = {
+            id: 'sched-' + Date.now(),
+            reportId: currentReport.id, // ID do relatório SALVO
+            title,
+            frequency,
+            recipients: emails.join(','), // Salva emails limpos
+            format,
+            active,
+            createdAt: new Date().toISOString(),
+            lastRun: null,
+            nextRun: calculateNextRun(frequency) // Calcula a próxima execução
+        };
+
+        scheduledReports.unshift(newSchedule); // Adiciona no início
+        persistData();
+        closeAction();
+        notify("Relatório agendado com sucesso!", "success");
+
+         // Atualiza o painel de agendados se estiver visível
+        const activeTab = document.querySelector('#advanced-reports-panel .panel-tab.active');
+        if (activeTab && activeTab.dataset.tab === 'scheduled') {
+            loadScheduledReportsPanel();
+        }
     });
   }
 
   /**
- * Abre o modal para agendar um relatório
- */
-function openScheduleReportModal() {
-  console.log("Abrindo modal de agendamento de relatório...");
-  
-  // Verificar se o relatório atual existe
-  if (!currentReport) {
-    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-      Utilities.showNotification("É necessário gerar um relatório antes de agendar.", "warning");
-    } else {
-      alert("É necessário gerar um relatório antes de agendar.");
+   * Calcula a próxima data/hora de execução baseada na frequência.
+   * @param {string} frequency - 'daily', 'weekly', 'monthly', 'quarterly'.
+   * @returns {string} Data ISO da próxima execução (ex: 8:00 AM do dia relevante).
+   */
+  function calculateNextRun(frequency) {
+    const now = new Date();
+    let nextRun = new Date(now);
+    nextRun.setHours(8, 0, 0, 0); // Padrão: 8:00 AM
+
+    switch (frequency) {
+      case 'daily':
+        nextRun.setDate(now.getDate() + 1);
+        break;
+      case 'weekly': // Próxima Segunda-feira
+        const daysUntilMonday = (1 - now.getDay() + 7) % 7;
+        nextRun.setDate(now.getDate() + (daysUntilMonday === 0 ? 7 : daysUntilMonday)); // Se hoje é segunda, vai para a próxima
+        break;
+      case 'monthly': // Próximo dia 1º
+        nextRun.setDate(1);
+        nextRun.setMonth(now.getMonth() + 1);
+        break;
+      case 'quarterly': // Próximo início de trimestre (Jan 1, Apr 1, Jul 1, Oct 1)
+        const currentMonth = now.getMonth(); // 0-11
+        const nextQuarterMonth = (Math.floor(currentMonth / 3) + 1) * 3; // Mês inicial do próximo trimestre (0, 3, 6, 9)
+        nextRun.setDate(1);
+        nextRun.setMonth(nextQuarterMonth);
+        // Se o próximo trimestre for no ano seguinte
+        if (nextQuarterMonth >= 12) {
+            nextRun.setFullYear(now.getFullYear() + 1);
+            nextRun.setMonth(0); // Janeiro
+        }
+        break;
+      default: // Fallback para diário
+        console.warn(`Frequência de agendamento desconhecida: ${frequency}. Usando diário.`);
+        nextRun.setDate(now.getDate() + 1);
     }
-    return;
+    // Se a data calculada já passou hoje (ex: agendou semanal às 9h, mas já são 10h), avança mais um ciclo
+     if (nextRun <= now) {
+         console.log("Data calculada já passou, avançando um ciclo.");
+         // Recalcula com base na data já avançada (lógica pode precisar refinar dependendo do caso exato)
+          const tempDateForRecalc = new Date(nextRun); // Usa a data já avançada como base
+          switch (frequency) {
+              case 'daily': nextRun.setDate(tempDateForRecalc.getDate() + 1); break;
+              case 'weekly': nextRun.setDate(tempDateForRecalc.getDate() + 7); break;
+              case 'monthly': nextRun.setMonth(tempDateForRecalc.getMonth() + 1); break;
+              case 'quarterly': nextRun.setMonth(tempDateForRecalc.getMonth() + 3); break;
+          }
+     }
+
+
+    return nextRun.toISOString();
   }
-  
-  // Criar overlay para o modal
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  
-  // Criar o modal
-  const modal = document.createElement('div');
-  modal.className = 'modal-container';
-  
-  // Conteúdo do modal
-  modal.innerHTML = `
-    <div class="modal-header">
-      <h3 class="modal-title">Agendar Relatório</h3>
-      <button class="modal-close">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-group">
-        <label class="form-label">Título do Agendamento</label>
-        <input type="text" id="schedule-title" class="form-input" value="${currentReport.title || 'Relatório Agendado'}" placeholder="Título para identificação do agendamento">
-      </div>
-      
-      <div class="form-group">
-        <label class="form-label">Frequência</label>
-        <select id="schedule-frequency" class="form-select">
-          <option value="daily">Diariamente</option>
-          <option value="weekly" selected>Semanalmente</option>
-          <option value="monthly">Mensalmente</option>
-          <option value="quarterly">Trimestralmente</option>
-        </select>
-      </div>
-      
-      <div class="form-group">
-        <label class="form-label">Destinatários</label>
-        <input type="text" id="schedule-recipients" class="form-input" placeholder="emails@exemplo.com (separados por vírgula)">
-      </div>
-      
-      <div class="form-group">
-        <label class="form-label">Formato de Exportação</label>
-        <select id="schedule-format" class="form-select">
-          <option value="pdf">PDF</option>
-          <option value="xlsx">Excel</option>
-          <option value="csv">CSV</option>
-          <option value="json">JSON</option>
-        </select>
-      </div>
-      
-      <div class="form-checkbox">
-        <input type="checkbox" id="schedule-active" checked>
-        <label for="schedule-active">Agendamento Ativo</label>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary cancel-schedule-btn">Cancelar</button>
-      <button class="btn confirm-schedule-btn" style="background-color: var(--status-verification, #0066cc);">Agendar</button>
-    </div>
-  `;
-  
-  // Adicionar o modal ao overlay
-  overlay.appendChild(modal);
-  
-  // Adicionar ao body
-  document.body.appendChild(overlay);
-  
-  // Configurar eventos
-  modal.querySelector('.modal-close').addEventListener('click', () => {
-    overlay.remove();
-  });
-  
-  modal.querySelector('.cancel-schedule-btn').addEventListener('click', () => {
-    overlay.remove();
-  });
-  
-  // Fechar ao clicar fora do modal
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      overlay.remove();
-    }
-  });
-  
-  // Configurar evento para o botão de agendar
-  modal.querySelector('.confirm-schedule-btn').addEventListener('click', () => {
-    const title = document.getElementById('schedule-title').value;
-    const frequency = document.getElementById('schedule-frequency').value;
-    const recipients = document.getElementById('schedule-recipients').value;
-    const format = document.getElementById('schedule-format').value;
-    const active = document.getElementById('schedule-active').checked;
-    
-    if (!title) {
-      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-        Utilities.showNotification("Por favor, insira um título para o agendamento.", "warning");
-      } else {
-        alert("Por favor, insira um título para o agendamento.");
-      }
+
+  /**
+   * Abre o modal para editar um agendamento existente.
+   * @param {string} scheduleId - O ID do agendamento a editar.
+   */
+  function editScheduledReport(scheduleId) {
+    const schedule = scheduledReports.find(s => s.id === scheduleId);
+    if (!schedule) {
+      notify(`Agendamento ID ${scheduleId} não encontrado.`, "error");
       return;
     }
-    
-    // Criar objeto de agendamento
-    const schedule = {
-      id: 'schedule-' + Date.now(),
-      reportId: currentReport.id,
-      title,
-      frequency,
-      recipients,
-      format,
-      active,
-      createdAt: new Date().toISOString(),
-      nextRun: calculateNextRun(frequency)
-    };
-    
-    // Adicionar ao array de agendamentos
-    scheduledReports.push(schedule);
-    
-    // Salvar no localStorage
-    saveReports();
-    
-    // Fechar o modal
-    overlay.remove();
-    
-    // Mostrar mensagem de sucesso
-    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-      Utilities.showNotification("Relatório agendado com sucesso!", "success");
-    } else {
-      alert("Relatório agendado com sucesso!");
-    }
-    
-    // Atualizar painel de agendamentos se estiver visível
-    const activeTab = document.querySelector('.panel-tab.active');
-    if (activeTab && activeTab.getAttribute('data-tab') === 'scheduled') {
-      loadScheduledReportsPanel();
-    }
-  });
-}
 
-/**
- * Calcula a próxima data de execução com base na frequência
- * @param {string} frequency - Frequência de agendamento
- * @returns {string} Data ISO da próxima execução
- */
-function calculateNextRun(frequency) {
-  const now = new Date();
-  let nextRun = new Date(now);
-  
-  switch (frequency) {
-    case 'daily':
-      nextRun.setDate(now.getDate() + 1);
-      nextRun.setHours(8, 0, 0, 0); // 8:00 AM
-      break;
-    case 'weekly':
-      nextRun.setDate(now.getDate() + (7 - now.getDay() + 1) % 7 + 1); // Próxima segunda-feira
-      nextRun.setHours(8, 0, 0, 0); // 8:00 AM
-      break;
-    case 'monthly':
-      nextRun.setMonth(now.getMonth() + 1);
-      nextRun.setDate(1); // Primeiro dia do próximo mês
-      nextRun.setHours(8, 0, 0, 0); // 8:00 AM
-      break;
-    case 'quarterly':
-      const currentQuarter = Math.floor(now.getMonth() / 3);
-      nextRun.setMonth((currentQuarter + 1) * 3);
-      nextRun.setDate(1); // Primeiro dia do próximo trimestre
-      nextRun.setHours(8, 0, 0, 0); // 8:00 AM
-      break;
-    default:
-      nextRun.setDate(now.getDate() + 1);
-      nextRun.setHours(8, 0, 0, 0); // 8:00 AM
-  }
-  
-  return nextRun.toISOString();
-}
+    const modalId = 'edit-schedule-modal-' + scheduleId;
+    let modal = document.getElementById(modalId);
+     if (modal) {
+         modal.parentElement.remove();
+     }
 
-/**
- * Edita um relatório agendado
- * @param {string} id - ID do agendamento
- */
-function editScheduledReport(id) {
-  console.log(`Editando agendamento: ${id}`);
-  
-  // Buscar o agendamento pelo ID
-  const schedule = scheduledReports.find(s => s.id === id);
-  
-  if (!schedule) {
-    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-      Utilities.showNotification("Agendamento não encontrado.", "error");
-    } else {
-      alert("Agendamento não encontrado.");
-    }
-    return;
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+
+    modal = document.createElement('div');
+    modal.className = 'modal-container';
+    modal.id = modalId;
+
+    // Pré-seleciona as opções
+    const freqOptions = ['daily', 'weekly', 'monthly', 'quarterly'];
+    const formatOptions = ['pdf', 'xlsx', 'csv'];
+
+    modal.innerHTML = `
+      <div class="modal-header">
+        <h3 class="modal-title">Editar Agendamento</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="edit-schedule-title-${scheduleId}" class="form-label">Título do Agendamento</label>
+          <input type="text" id="edit-schedule-title-${scheduleId}" class="form-input" value="${schedule.title || ''}" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-schedule-frequency-${scheduleId}" class="form-label">Frequência</label>
+          <select id="edit-schedule-frequency-${scheduleId}" class="form-select">
+            ${freqOptions.map(f => `<option value="${f}" ${schedule.frequency === f ? 'selected' : ''}>${getScheduleFrequencyText(f)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="edit-schedule-recipients-${scheduleId}" class="form-label">Destinatários</label>
+          <input type="email" id="edit-schedule-recipients-${scheduleId}" class="form-input" multiple value="${schedule.recipients || ''}" placeholder="email1, email2" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-schedule-format-${scheduleId}" class="form-label">Formato</label>
+          <select id="edit-schedule-format-${scheduleId}" class="form-select">
+             ${formatOptions.map(f => `<option value="${f}" ${schedule.format === f ? 'selected' : ''}>${f.toUpperCase()}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-checkbox" style="margin-top: 20px;">
+          <input type="checkbox" id="edit-schedule-active-${scheduleId}" ${schedule.active ? 'checked' : ''}>
+          <label for="edit-schedule-active-${scheduleId}">Agendamento Ativo</label>
+        </div>
+        <p style="font-size: 0.8rem; color: #666; margin-top: 15px;">Relatório associado: ${schedule.reportId}</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary cancel-edit-btn">Cancelar</button>
+        <button class="btn btn-confirm-schedule confirm-edit-btn">Salvar Alterações</button>
+      </div>
+    `;
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // Eventos
+    const titleInput = modal.querySelector(`#edit-schedule-title-${scheduleId}`);
+    const freqSelect = modal.querySelector(`#edit-schedule-frequency-${scheduleId}`);
+    const recipInput = modal.querySelector(`#edit-schedule-recipients-${scheduleId}`);
+    const formatSelect = modal.querySelector(`#edit-schedule-format-${scheduleId}`);
+    const activeCheck = modal.querySelector(`#edit-schedule-active-${scheduleId}`);
+    const closeBtn = modal.querySelector('.modal-close');
+    const cancelBtn = modal.querySelector('.cancel-edit-btn');
+    const confirmBtn = modal.querySelector('.confirm-edit-btn');
+    const closeAction = () => overlay.remove();
+
+    closeBtn?.addEventListener('click', closeAction);
+    cancelBtn?.addEventListener('click', closeAction);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeAction(); });
+
+    confirmBtn?.addEventListener('click', () => {
+         const title = titleInput.value.trim();
+        const recipients = recipInput.value.trim();
+        const frequency = freqSelect.value;
+        const format = formatSelect.value;
+        const active = activeCheck.checked;
+
+        if (!title) { notify("Título é obrigatório.", "warning"); titleInput.focus(); return; }
+        if (!recipients) { notify("Destinatários são obrigatórios.", "warning"); recipInput.focus(); return; }
+        const emails = recipients.split(',').map(e => e.trim()).filter(e => e);
+        if (emails.some(e => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))) {
+             notify("Um ou mais e-mails parecem inválidos.", "warning"); recipInput.focus(); return;
+        }
+
+        // Encontra o índice para atualizar
+        const index = scheduledReports.findIndex(s => s.id === scheduleId);
+        if (index !== -1) {
+            const originalFrequency = scheduledReports[index].frequency;
+            scheduledReports[index] = {
+                ...schedule, // Mantém IDs, reportId, createdAt
+                title,
+                frequency,
+                recipients: emails.join(','),
+                format,
+                active,
+                // Recalcula nextRun apenas se a frequência mudou ou se estava inativo e foi ativado
+                nextRun: (frequency !== originalFrequency || (!schedule.active && active)) ? calculateNextRun(frequency) : schedule.nextRun
+            };
+            persistData();
+            closeAction();
+            notify("Agendamento atualizado com sucesso!", "success");
+            loadScheduledReportsPanel(); // Recarrega a lista
+        } else {
+             notify("Erro: Agendamento não encontrado para atualização.", "error");
+             closeAction();
+        }
+    });
   }
-  
-  // Criar overlay para o modal
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  
-  // Criar o modal
-  const modal = document.createElement('div');
-  modal.className = 'modal-container';
-  
-  // Conteúdo do modal
-  modal.innerHTML = `
-    <div class="modal-header">
-      <h3 class="modal-title">Editar Agendamento</h3>
-      <button class="modal-close">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-group">
-        <label class="form-label">Título do Agendamento</label>
-        <input type="text" id="schedule-title" class="form-input" value="${schedule.title || ''}" placeholder="Título para identificação do agendamento">
-      </div>
-      
-      <div class="form-group">
-        <label class="form-label">Frequência</label>
-        <select id="schedule-frequency" class="form-select">
-          <option value="daily" ${schedule.frequency === 'daily' ? 'selected' : ''}>Diariamente</option>
-          <option value="weekly" ${schedule.frequency === 'weekly' ? 'selected' : ''}>Semanalmente</option>
-          <option value="monthly" ${schedule.frequency === 'monthly' ? 'selected' : ''}>Mensalmente</option>
-          <option value="quarterly" ${schedule.frequency === 'quarterly' ? 'selected' : ''}>Trimestralmente</option>
-        </select>
-      </div>
-      
-      <div class="form-group">
-        <label class="form-label">Destinatários</label>
-        <input type="text" id="schedule-recipients" class="form-input" value="${schedule.recipients || ''}" placeholder="emails@exemplo.com (separados por vírgula)">
-      </div>
-      
-      <div class="form-group">
-        <label class="form-label">Formato de Exportação</label>
-        <select id="schedule-format" class="form-select">
-          <option value="pdf" ${schedule.format === 'pdf' ? 'selected' : ''}>PDF</option>
-          <option value="xlsx" ${schedule.format === 'xlsx' ? 'selected' : ''}>Excel</option>
-          <option value="csv" ${schedule.format === 'csv' ? 'selected' : ''}>CSV</option>
-          <option value="json" ${schedule.format === 'json' ? 'selected' : ''}>JSON</option>
-        </select>
-      </div>
-      
-      <div class="form-checkbox">
-        <input type="checkbox" id="schedule-active" ${schedule.active ? 'checked' : ''}>
-        <label for="schedule-active">Agendamento Ativo</label>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary cancel-schedule-btn">Cancelar</button>
-      <button class="btn confirm-schedule-btn" style="background-color: var(--status-verification, #0066cc);">Salvar Alterações</button>
-    </div>
-  `;
-  
-  // Adicionar o modal ao overlay
-  overlay.appendChild(modal);
-  
-  // Adicionar ao body
-  document.body.appendChild(overlay);
-  
-  // Configurar eventos
-  modal.querySelector('.modal-close').addEventListener('click', () => {
-    overlay.remove();
-  });
-  
-  modal.querySelector('.cancel-schedule-btn').addEventListener('click', () => {
-    overlay.remove();
-  });
-  
-  // Fechar ao clicar fora do modal
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      overlay.remove();
-    }
-  });
-  
-  // Configurar evento para o botão de salvar
-  modal.querySelector('.confirm-schedule-btn').addEventListener('click', () => {
-    const title = document.getElementById('schedule-title').value;
-    const frequency = document.getElementById('schedule-frequency').value;
-    const recipients = document.getElementById('schedule-recipients').value;
-    const format = document.getElementById('schedule-format').value;
-    const active = document.getElementById('schedule-active').checked;
-    
-    if (!title) {
-      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-        Utilities.showNotification("Por favor, insira um título para o agendamento.", "warning");
-      } else {
-        alert("Por favor, insira um título para o agendamento.");
-      }
+
+  /**
+   * Exclui um agendamento após confirmação.
+   * @param {string} scheduleId - O ID do agendamento a excluir.
+   */
+  function deleteScheduledReport(scheduleId) {
+    const schedule = scheduledReports.find(s => s.id === scheduleId);
+    if (!schedule) {
+      notify(`Agendamento ID ${scheduleId} não encontrado para exclusão.`, "error");
       return;
     }
-    
-    // Atualizar o agendamento
-    const index = scheduledReports.findIndex(s => s.id === id);
-    if (index !== -1) {
-      scheduledReports[index] = {
-        ...scheduledReports[index],
-        title,
-        frequency,
-        recipients,
-        format,
-        active,
-        nextRun: calculateNextRun(frequency)
-      };
-      
-      // Salvar no localStorage
-      saveReports();
-      
-      // Fechar o modal
-      overlay.remove();
-      
-      // Mostrar mensagem de sucesso
-      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-        Utilities.showNotification("Agendamento atualizado com sucesso!", "success");
-      } else {
-        alert("Agendamento atualizado com sucesso!");
-      }
-      
-      // Atualizar painel de agendamentos
-      loadScheduledReportsPanel();
-    }
-  });
-}
 
-/**
- * Exclui um relatório agendado
- * @param {string} id - ID do agendamento
- */
-function deleteScheduledReport(id) {
-  console.log(`Excluindo agendamento: ${id}`);
-  
-  // Confirmar exclusão
-  const confirmDelete = function() {
-    // Encontrar índice do agendamento
-    const index = scheduledReports.findIndex(s => s.id === id);
-    
-    if (index !== -1) {
-      // Remover do array
-      scheduledReports.splice(index, 1);
-      
-      // Salvar no localStorage
-      saveReports();
-      
-      // Mostrar mensagem de sucesso
-      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-        Utilities.showNotification("Agendamento excluído com sucesso.", "success");
-      } else {
-        alert("Agendamento excluído com sucesso.");
+    confirmAction(
+      `Tem certeza que deseja excluir o agendamento "${schedule.title}"?`,
+      () => {
+        scheduledReports = scheduledReports.filter(s => s.id !== scheduleId);
+        persistData();
+        notify("Agendamento excluído com sucesso.", "success");
+        loadScheduledReportsPanel(); // Recarrega a lista
       }
-      
-      // Atualizar painel de agendamentos
-      loadScheduledReportsPanel();
-    } else {
-      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-        Utilities.showNotification("Agendamento não encontrado.", "error");
-      } else {
-        alert("Agendamento não encontrado.");
-      }
-    }
-  };
-  
-  // Usar confirmação do Utilities se disponível
-  if (typeof Utilities !== 'undefined' && Utilities.showConfirmation) {
-    Utilities.showConfirmation(
-      "Tem certeza que deseja excluir este agendamento?", 
-      confirmDelete
     );
-  } else {
-    if (confirm("Tem certeza que deseja excluir este agendamento?")) {
-      confirmDelete();
-    }
   }
-}
 
-/**
- * Carrega relatórios salvos do localStorage
- */
-function loadSavedReports() {
-  try {
-    // Carregar relatórios salvos
-    const savedReportsStr = localStorage.getItem('advanced-reports-saved');
-    if (savedReportsStr) {
-      savedReports = JSON.parse(savedReportsStr);
-      console.log(`${savedReports.length} relatórios salvos carregados do localStorage`);
-    }
-    
-    // Carregar agendamentos
-    const scheduledReportsStr = localStorage.getItem('advanced-reports-scheduled');
-    if (scheduledReportsStr) {
-      scheduledReports = JSON.parse(scheduledReportsStr);
-      console.log(`${scheduledReports.length} agendamentos carregados do localStorage`);
-    }
-  } catch (e) {
-    console.error("Erro ao carregar relatórios do localStorage:", e);
-    // Inicializar com arrays vazios em caso de erro
-    savedReports = [];
-    scheduledReports = [];
-  }
-}
+   /**
+   * Carrega dados salvos (relatórios e agendamentos) do localStorage.
+   */
+   function loadPersistedData() {
+       try {
+           const savedStr = localStorage.getItem(config.localStorageKeys.saved);
+           if (savedStr) {
+               savedReports = JSON.parse(savedStr);
+               console.log(`${savedReports.length} relatórios salvos carregados.`);
+           } else {
+               savedReports = [];
+           }
 
-/**
- * Salva relatórios no localStorage
- */
-function saveReports() {
-  try {
-    // Salvar relatórios
-    localStorage.setItem('advanced-reports-saved', JSON.stringify(savedReports));
-    
-    // Salvar agendamentos
-    localStorage.setItem('advanced-reports-scheduled', JSON.stringify(scheduledReports));
-    
-    console.log("Relatórios e agendamentos salvos com sucesso no localStorage");
-    return true;
-  } catch (e) {
-    console.error("Erro ao salvar relatórios no localStorage:", e);
-    
-    // Mostrar notificação de erro
-    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-      Utilities.showNotification("Não foi possível salvar os dados no navegador.", "error");
-    }
-    
-    return false;
-  }
-}
+           const scheduledStr = localStorage.getItem(config.localStorageKeys.scheduled);
+           if (scheduledStr) {
+               scheduledReports = JSON.parse(scheduledStr);
+                console.log(`${scheduledReports.length} agendamentos carregados.`);
+           } else {
+               scheduledReports = [];
+           }
+       } catch (e) {
+           console.error("Erro ao carregar dados do localStorage:", e);
+           notify("Não foi possível carregar dados salvos. Iniciando com dados limpos.", "warning");
+           savedReports = [];
+           scheduledReports = [];
+           // Limpar localStorage se estiver corrompido? Pode ser arriscado.
+           // localStorage.removeItem(config.localStorageKeys.saved);
+           // localStorage.removeItem(config.localStorageKeys.scheduled);
+       }
+   }
 
-/**
- * Abre o modal de opções de exportação avançada
- */
-function openAdvancedExportModal() {
-  console.log("Abrindo modal de exportação avançada...");
-  
-  // Verificar se há um relatório ativo
-  if (!currentReport) {
-    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-      Utilities.showNotification("Não há relatório para exportar. Gere um relatório primeiro.", "warning");
-    } else {
-      alert("Não há relatório para exportar. Gere um relatório primeiro.");
-    }
-    return;
-  }
-  
-  // Criar overlay para o modal
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  
-  // Criar o modal
-  const modal = document.createElement('div');
-  modal.className = 'modal-container';
-  
-  // Conteúdo do modal
-  modal.innerHTML = `
-    <div class="modal-header">
-      <h3 class="modal-title">Exportação Avançada</h3>
-      <button class="modal-close">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-group">
-        <label class="form-label">Formato de Exportação</label>
-        <select id="export-format" class="form-select">
-          <option value="pdf">PDF</option>
-          <option value="xlsx">Excel</option>
-          <option value="csv">CSV</option>
-          <option value="json">JSON</option>
-        </select>
-      </div>
-      
-      <div class="form-group">
-        <label class="form-label">Opções de Conteúdo</label>
-        <div class="form-checkbox">
-          <input type="checkbox" id="export-include-summary" checked>
-          <label for="export-include-summary">Incluir Resumo</label>
-        </div>
-        <div class="form-checkbox">
-          <input type="checkbox" id="export-include-charts" checked>
-          <label for="export-include-charts">Incluir Gráficos</label>
-        </div>
-        <div class="form-checkbox">
-          <input type="checkbox" id="export-include-table" checked>
-          <label for="export-include-table">Incluir Tabela de Dados</label>
-        </div>
-      </div>
-      
-      <div class="form-group">
-        <label class="form-label">Opções de Saída</label>
-        <div class="form-checkbox">
-          <input type="checkbox" id="export-open-after" checked>
-          <label for="export-open-after">Abrir Após Exportar</label>
-        </div>
-        <div class="form-checkbox">
-          <input type="checkbox" id="export-save-copy">
-          <label for="export-save-copy">Salvar Cópia no Servidor</label>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary cancel-export-btn">Cancelar</button>
-      <button class="btn confirm-export-btn" style="background-color: var(--primary-color, #1a5fb4);">Exportar</button>
-    </div>
-  `;
-  
-  // Adicionar o modal ao overlay
-  overlay.appendChild(modal);
-  
-  // Adicionar ao body
-  document.body.appendChild(overlay);
-  
-  // Configurar eventos
-  modal.querySelector('.modal-close').addEventListener('click', () => {
-    overlay.remove();
-  });
-  
-  modal.querySelector('.cancel-export-btn').addEventListener('click', () => {
-    overlay.remove();
-  });
-  
-  // Fechar ao clicar fora do modal
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      overlay.remove();
-    }
-  });
-  
-  // Configurar evento para o botão de exportar
-  modal.querySelector('.confirm-export-btn').addEventListener('click', () => {
-    const format = document.getElementById('export-format').value;
-    const includeSummary = document.getElementById('export-include-summary').checked;
-    const includeCharts = document.getElementById('export-include-charts').checked;
-    const includeTable = document.getElementById('export-include-table').checked;
-    const openAfter = document.getElementById('export-open-after').checked;
-    const saveCopy = document.getElementById('export-save-copy').checked;
-    
-    // Objeto de configuração de exportação
-    const exportConfig = {
-      format,
-      options: {
-        includeSummary,
-        includeCharts,
-        includeTable,
-        openAfter,
-        saveCopy
+   /**
+    * Salva os arrays `savedReports` e `scheduledReports` no localStorage.
+    */
+   function persistData() {
+       try {
+           localStorage.setItem(config.localStorageKeys.saved, JSON.stringify(savedReports));
+           localStorage.setItem(config.localStorageKeys.scheduled, JSON.stringify(scheduledReports));
+           // console.log("Dados persistidos no localStorage.");
+           return true;
+       } catch (e) {
+           console.error("Erro ao salvar dados no localStorage:", e);
+           let message = "Erro ao salvar dados.";
+           if (e.name === 'QuotaExceededError') {
+                message = "Erro: Limite de armazenamento do navegador excedido. Não foi possível salvar.";
+           }
+           notify(message, "error");
+           return false;
+       }
+   }
+
+  /**
+   * Abre o modal de opções avançadas de exportação.
+   */
+  function openAdvancedExportModal() {
+     if (!currentReport) {
+       notify("Gere ou carregue um relatório para usar a exportação avançada.", "warning");
+       return;
+     }
+
+      const modalId = 'advanced-export-modal';
+     let modal = document.getElementById(modalId);
+      if (modal) {
+          modal.parentElement.remove();
       }
-    };
-    
-    // Fechar o modal
-    overlay.remove();
-    
-    // Executar exportação
-    exportReportAdvanced(exportConfig);
-  });
-}
 
-/**
- * Exporta o relatório com configurações avançadas
- * @param {Object} config - Configurações de exportação
- */
-function exportReportAdvanced(config) {
-  console.log("Exportando relatório com configurações avançadas:", config);
-  
-  // Mostrar indicador de carregamento
-  showLoading(true, `Exportando como ${config.format.toUpperCase()}...`);
-  
-  // Simular chamada à API
-  setTimeout(() => {
-    // Esconder indicador de carregamento
-    showLoading(false);
-    
-    // Mostrar mensagem de sucesso
-    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-      Utilities.showNotification(`Relatório exportado com sucesso como ${config.format.toUpperCase()}.`, "success");
-    } else {
-      alert(`Relatório exportado com sucesso como ${config.format.toUpperCase()}.`);
-    }
-    
-    // Simular abertura do arquivo se selecionado
-    if (config.options.openAfter) {
-      const url = `data:application/${config.format};base64,EXEMPLO_BASE64_${Date.now()}`;
-      window.open(url, '_blank');
-    }
-    
-    // Aqui você integraria com a API real
-    // API.exportDataAdvanced(currentReport.id, config)
-    // .then(response => { ... })
-  }, 2000);
-}
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
 
-/**
- * Cria um relatório avançado customizado
- * @param {Object} config - Configurações do relatório
- * @returns {Promise} Promessa com o relatório gerado
- */
-function createAdvancedReport(config) {
-  console.log("Criando relatório avançado com configurações:", config);
-  
-  // Mostrar indicador de carregamento
-  showLoading(true, "Gerando relatório avançado...");
-  
-  // Criar promessa para permitir encadeamento de .then()
-  return new Promise((resolve, reject) => {
-    // Simular chamada à API
+    modal = document.createElement('div');
+    modal.className = 'modal-container';
+    modal.id = modalId;
+
+    const formatOptions = Object.entries(config.exportFormats)
+                               .map(([f, info]) => `<option value="${f}">${info.label}</option>`).join('');
+
+    modal.innerHTML = `
+      <div class="modal-header">
+        <h3 class="modal-title">Exportação Avançada: ${currentReport.title}</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="adv-export-format" class="form-label">Formato</label>
+          <select id="adv-export-format" class="form-select">${formatOptions}</select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Incluir no Arquivo</label>
+          <div class="form-checkbox">
+            <input type="checkbox" id="adv-export-summary" checked> <label for="adv-export-summary">Resumo Geral</label>
+          </div>
+          <div class="form-checkbox">
+            <input type="checkbox" id="adv-export-charts" checked> <label for="adv-export-charts">Gráficos (como imagem/dados)</label>
+          </div>
+          <div class="form-checkbox">
+            <input type="checkbox" id="adv-export-table" checked> <label for="adv-export-table">Tabela de Dados Completa</label>
+          </div>
+        </div>
+
+         <div class="form-group">
+          <label class="form-label">Opções Adicionais</label>
+          <div class="form-checkbox">
+            <input type="checkbox" id="adv-export-filename">
+            <label for="adv-export-filename">Nome de arquivo personalizado</label>
+          </div>
+          <input type="text" id="adv-export-custom-filename" class="form-input" style="display: none; margin-top: -5px; margin-bottom: 10px;" value="${currentReport.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'relatorio'}.[ext]">
+
+           <!-- Opções de servidor não implementadas na simulação -->
+           <!--
+           <div class="form-checkbox">
+             <input type="checkbox" id="export-save-copy" disabled> <label for="export-save-copy" style="color: #999;">Salvar cópia no servidor (Indisponível)</label>
+           </div>
+           -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary cancel-adv-export-btn">Cancelar</button>
+        <button class="btn btn-confirm-export confirm-adv-export-btn">Exportar</button>
+      </div>
+    `;
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // Eventos
+    const filenameCheck = modal.querySelector('#adv-export-filename');
+    const filenameInput = modal.querySelector('#adv-export-custom-filename');
+    const formatSelect = modal.querySelector('#adv-export-format');
+    const closeBtn = modal.querySelector('.modal-close');
+    const cancelBtn = modal.querySelector('.cancel-adv-export-btn');
+    const confirmBtn = modal.querySelector('.confirm-adv-export-btn');
+    const closeAction = () => overlay.remove();
+
+    closeBtn?.addEventListener('click', closeAction);
+    cancelBtn?.addEventListener('click', closeAction);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeAction(); });
+
+    // Toggle nome de arquivo personalizado
+    filenameCheck?.addEventListener('change', () => {
+        if (filenameInput) filenameInput.style.display = filenameCheck.checked ? 'block' : 'none';
+        if (filenameCheck.checked && filenameInput) {
+             filenameInput.value = filenameInput.value.replace('[ext]', formatSelect.value); // Atualiza extensão inicial
+             filenameInput.focus();
+        }
+    });
+     formatSelect?.addEventListener('change', () => {
+         if (filenameCheck.checked && filenameInput) {
+              filenameInput.value = filenameInput.value.replace(/\.[a-z0-9]+$/i, `.${formatSelect.value}`); // Atualiza extensão ao mudar formato
+         }
+     });
+
+
+    confirmBtn?.addEventListener('click', () => {
+      const format = formatSelect.value;
+      const exportConfig = {
+        format,
+        includeSummary: modal.querySelector('#adv-export-summary').checked,
+        includeCharts: modal.querySelector('#adv-export-charts').checked,
+        includeTable: modal.querySelector('#adv-export-table').checked,
+        customFilename: filenameCheck.checked ? filenameInput.value.trim() : null
+        // saveCopy: modal.querySelector('#export-save-copy').checked // Se implementado
+      };
+
+      // Validação básica do nome do arquivo
+       if (exportConfig.customFilename && !exportConfig.customFilename.includes(`.${format}`)) {
+           notify(`Nome de arquivo personalizado inválido. Deve terminar com '.${format}'`, "warning");
+           filenameInput.focus();
+           return;
+       }
+        if (exportConfig.customFilename && exportConfig.customFilename.length < 5) { // Mínimo como 'a.pdf'
+            notify(`Nome de arquivo personalizado muito curto.`, "warning");
+            filenameInput.focus();
+            return;
+        }
+
+      closeAction();
+      exportReportAdvanced(exportConfig);
+    });
+  }
+
+  /**
+   * Executa a exportação avançada com base nas opções fornecidas.
+   * @param {Object} exportConfig - Objeto com as opções de exportação.
+   */
+  function exportReportAdvanced(exportConfig) {
+    if (!currentReport) {
+      notify("Relatório atual não encontrado para exportação avançada.", "error");
+      return;
+    }
+
+    const formatLabel = config.exportFormats[exportConfig.format]?.label || exportConfig.format.toUpperCase();
+    showLoading(true, `Preparando exportação avançada como ${formatLabel}...`);
+    console.log("Exportando relatório com configurações avançadas:", exportConfig);
+
+    // --- Simulação de Exportação Avançada ---
+    // Aqui, a lógica seria mais complexa:
+    // 1. Coletar dados base (currentReport.items, summary, chart data)
+    // 2. Filtrar o que incluir baseado em exportConfig (includeSummary, etc.)
+    // 3. Gerar o arquivo no formato desejado (PDF pode precisar de lib como jsPDF, XLSX de SheetJS, etc.)
+    //    - Para PDF/XLSX com gráficos, seria preciso renderizar os gráficos (talvez offscreen) e incluir como imagem.
+    //    - Para CSV/JSON, incluiria apenas dados tabulares e talvez resumo/config.
+    // 4. Iniciar download.
     setTimeout(() => {
-      try {
-        // Gerar dados do relatório com as configurações
-        const reportData = {
-          id: 'report-' + Date.now(),
-          title: config.title || "Relatório Avançado",
-          createdAt: new Date().toISOString(),
-          period: {
-            startDate: config.startDate,
-            endDate: config.endDate,
-            label: config.periodLabel || "Personalizado"
-          },
-          filters: config.filters || {},
-          visualizations: config.visualizations || ["summary", "status", "type", "area"],
-          summary: {
-            total: Math.floor(Math.random() * 200) + 50,
-            completed: Math.floor(Math.random() * 100) + 30,
-            pending: Math.floor(Math.random() * 50) + 10,
-            critical: Math.floor(Math.random() * 30) + 5
-          },
-          charts: {
-            status: generateRandomChartData(["Concluído", "Pendente", "Verificado", "Reprovado"], 4),
-            type: generateRandomChartData(["Preventiva", "Corretiva", "Emergencial"], 3),
-            area: generateRandomChartData(["Área Interna", "Área Externa"], 2),
-            timeline: generateRandomTimelineData(6)
-          },
-          items: generateRandomItems(Math.floor(Math.random() * 50) + 30)
-        };
-        
-        // Esconder indicador de carregamento
         showLoading(false);
-        
-        // Mostrar mensagem de sucesso
-        if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-          Utilities.showNotification("Relatório avançado gerado com sucesso!", "success");
+        notify(`Exportação avançada como ${formatLabel} concluída. (Simulação)`, "success");
+
+        // Simular download com nome de arquivo
+        try {
+            let filename = exportConfig.customFilename;
+            if (!filename) {
+                filename = `${currentReport.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'relatorio'}_${new Date().toISOString().split('T')[0]}.${exportConfig.format}`;
+            }
+            // Gera conteúdo de exemplo baseado nas opções
+            let contentParts = [];
+             if (exportConfig.includeSummary) contentParts.push("--- RESUMO ---\n" + JSON.stringify(currentReport.summary, null, 2));
+             if (exportConfig.includeCharts) contentParts.push("\n\n--- DADOS DOS GRÁFICOS (Exemplo) ---\n" + JSON.stringify(currentReport.charts, null, 2));
+             if (exportConfig.includeTable && currentReport.items) {
+                 const tableData = exportConfig.format === 'csv'
+                    ? itemsToCsv(currentReport.items)
+                    : JSON.stringify(currentReport.items, null, 2);
+                 contentParts.push("\n\n--- DADOS DETALHADOS ---\n" + tableData);
+             }
+             if (contentParts.length === 0) contentParts.push("Nenhum conteúdo selecionado para exportar.");
+
+            const content = contentParts.join('\n');
+            const mimeType = { pdf: 'application/pdf', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', csv: 'text/csv', json: 'application/json' }[exportConfig.format] || 'application/octet-stream';
+            const blob = new Blob([content], { type: mimeType });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+        } catch (error) {
+            console.error("Erro ao simular download avançado:", error);
+            notify("Ocorreu um erro durante a simulação de download avançado.", "error");
         }
-        
-        // Retornar dados do relatório
-        resolve(reportData);
-      } catch (error) {
-        // Esconder indicador de carregamento
-        showLoading(false);
-        
-        // Mostrar mensagem de erro
-        if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
-          Utilities.showNotification("Erro ao gerar relatório avançado: " + error.message, "error");
+
+    }, 2500); // Simula processamento mais longo
+  }
+
+    /**
+     * Converte um array de objetos para string CSV (simplificado).
+     * @param {Array<Object>} items - Os itens a converter.
+     * @returns {string} String no formato CSV.
+     */
+    function itemsToCsv(items) {
+        if (!items || items.length === 0) return "";
+        const headers = Object.keys(items[0]);
+        const csvRows = [
+            headers.join(','), // Cabeçalho
+            ...items.map(row =>
+                headers.map(header =>
+                    JSON.stringify(row[header] ?? '', (key, value) => value ?? '') // Trata null/undefined e strings com vírgula
+                ).join(',')
+            )
+        ];
+        return csvRows.join('\n');
+    }
+
+  /**
+   * Cria um relatório avançado programaticamente (para uso externo).
+   * @param {Object} externalConfig - Configurações fornecidas externamente.
+   * @returns {Promise<Object>} Promessa que resolve com os dados do relatório gerado.
+   */
+  function createAdvancedReport(externalConfig) {
+    console.log("Criando relatório avançado programaticamente com config:", externalConfig);
+
+    // Validação básica da configuração externa
+    if (!externalConfig || !externalConfig.startDate || !externalConfig.endDate) {
+        return Promise.reject(new Error("Configuração externa inválida: startDate e endDate são obrigatórios."));
+    }
+
+    showLoading(true, "Gerando relatório programático...");
+
+    // Simula a lógica de geração de relatório, mas usando a config externa
+    const reportConfig = {
+        title: externalConfig.title || "Relatório Programático",
+        period: {
+            startDate: externalConfig.startDate,
+            endDate: externalConfig.endDate,
+            label: externalConfig.periodLabel || "Período Personalizado"
+        },
+        filters: externalConfig.filters || {},
+        visualizations: externalConfig.visualizations || ['summary', 'table'], // Padrão diferente talvez
+        // Metadados
+        id: 'prog-' + Date.now(),
+        createdAt: new Date().toISOString()
+    };
+
+    return new Promise((resolve, reject) => {
+      // Simulação de API ou processamento
+      setTimeout(() => {
+        try {
+          const reportData = createSampleReport(reportConfig); // Reusa a lógica de geração de exemplo
+          showLoading(false);
+          notify(`Relatório programático "${reportData.title}" gerado.`, "success");
+          resolve(reportData); // Resolve a promessa com os dados
+        } catch (error) {
+          console.error("Erro ao gerar relatório programático:", error);
+          showLoading(false);
+          notify("Erro ao gerar relatório programático.", "error");
+          reject(error); // Rejeita a promessa
         }
-        
-        // Rejeitar promessa
-        reject(error);
-      }
-    }, 2000);
-  });
-}
-
-/**
- * Gera dados aleatórios para gráficos
- * @param {Array<string>} labels - Lista de rótulos
- * @param {number} count - Quantidade de itens
- * @returns {Array<Object>} Dados formatados para gráficos
- */
-function generateRandomChartData(labels, count) {
-  const data = [];
-  const total = Math.floor(Math.random() * 100) + 50;
-  
-  let remaining = total;
-  
-  for (let i = 0; i < count - 1; i++) {
-    const value = i === count - 2 ? 
-                  Math.floor(remaining / 2) : 
-                  Math.floor(Math.random() * (remaining / (count - i))) + 1;
-    
-    data.push({
-      label: labels[i],
-      count: value
-    });
-    
-    remaining -= value;
-  }
-  
-  // Último item recebe o restante
-  data.push({
-    label: labels[count - 1],
-    count: remaining
-  });
-  
-  return data;
-}
-
-/**
- * Gera dados aleatórios para gráficos de linha do tempo
- * @param {number} months - Quantidade de meses
- * @returns {Array<Object>} Dados formatados para timeline
- */
-function generateRandomTimelineData(months) {
-  const data = [];
-  const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-  
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  
-  for (let i = 0; i < months; i++) {
-    const monthIndex = (currentMonth - months + i + 12) % 12;
-    data.push({
-      label: monthNames[monthIndex],
-      count: Math.floor(Math.random() * 30) + 5
+      }, 1800);
     });
   }
-  
-  return data;
-}
 
-/**
- * Gera itens aleatórios para o relatório
- * @param {number} count - Quantidade de itens
- * @returns {Array<Object>} Lista de manutenções
- */
-function generateRandomItems(count) {
-  const items = [];
-  const equipmentTypes = ['Alta Pressão', 'Auto Vácuo / Hiper Vácuo', 'Aspirador', 'Poliguindaste', 'Outro'];
-  const maintenanceTypes = ['Preventiva', 'Corretiva', 'Emergencial'];
-  const statuses = ['Pendente', 'Verificado', 'Aprovado', 'Reprovado', 'Concluído'];
-  const areas = ['Área Interna Usiminas', 'Área Externa Usiminas'];
-  
-  // Gerar IDs de exemplo
-  const equipmentIds = [];
-  for (let i = 0; i < 20; i++) {
-    const prefix = ['PUB', 'LUX', 'EZS', 'EOF', 'DSY'][Math.floor(Math.random() * 5)];
-    const suffix = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    equipmentIds.push(`${prefix}-${suffix}`);
-  }
-  
-  // Gerar nomes de responsáveis
-  const technicians = [
-    'Carlos Silva', 'Ana Oliveira', 'Roberto Santos', 'Mariana Lima',
-    'Paulo Souza', 'Fernanda Costa', 'Lucas Pereira', 'Juliana Almeida'
-  ];
-  
-  // Gerar itens
-  for (let i = 0; i < count; i++) {
-    const createdDate = new Date();
-    createdDate.setDate(createdDate.getDate() - Math.floor(Math.random() * 180)); // Até 180 dias atrás
-    
-    const critical = Math.random() < 0.2; // 20% críticos
-    
-    items.push({
-      id: `MAINT-${1000 + i}`,
-      equipmentType: equipmentTypes[Math.floor(Math.random() * equipmentTypes.length)],
-      equipmentId: equipmentIds[Math.floor(Math.random() * equipmentIds.length)],
-      maintenanceType: maintenanceTypes[Math.floor(Math.random() * maintenanceTypes.length)],
-      status: statuses[Math.floor(Math.random() * statuses.length)],
-      technician: technicians[Math.floor(Math.random() * technicians.length)],
-      area: areas[Math.floor(Math.random() * areas.length)],
-      date: createdDate.toISOString().split('T')[0],
-      critical
-    });
-  }
-  
-  return items;
-}
-
-  // Retornar API pública do módulo
+  // --- API Pública do Módulo ---
   return {
-    initialize,
-    openAdvancedReportsPanel,
+    initialize, // Para iniciar o módulo explicitamente, se necessário
+    openAdvancedReportsPanel, // Para abrir o painel manualmente
+    // Funções que podem ser chamadas por outros módulos (se o objeto AdvancedReports for exposto)
     createAdvancedReport,
-    exportReport,
-    exportReportAdvanced
+    exportReport: exportReportAdvanced // Expor a versão avançada como padrão? Ou manter ambas? Decidi expor a avançada.
+    // Poderia expor também: getCurrentReport, loadReportById, etc., se necessário
   };
 })();
 
-// Auto-inicialização quando o script é carregado
-document.addEventListener('DOMContentLoaded', function() {
-  // Inicializar o módulo se já não estiver inicializado
-  if (!isInitialized) {
+// --- Inicialização Automática ---
+// Verifica se o DOM está pronto e inicializa o módulo.
+// A verificação interna em initialize() previne múltiplas inicializações.
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("DOM carregado, tentando inicializar AdvancedReports...");
     AdvancedReports.initialize();
-  }
-});                         
+});
