@@ -1,595 +1,351 @@
 /**
- * Sistema de Dupla Checagem de Manutenção
- * Módulo: Funções Utilitárias
+ * utilities.js
+ *
+ * Conjunto de funções utilitárias reutilizáveis em toda a aplicação.
  */
 
-/**
- * Variáveis globais compartilhadas
- */
-let currentTab = 'dashboard';
-let maintenanceList = [];
-
-/**
- * Formatar data (Brasileiro)
- */
-function formatDate(dateSource, includeTime = false) {
-  if (!dateSource) return '-';
-
-  let date;
-  try {
-    if (dateSource instanceof Date) {
-      date = dateSource;
-    } else if (typeof dateSource === 'string') {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dateSource)) {
-        date = new Date(dateSource + 'T00:00:00');
-      } else {
-        date = new Date(dateSource);
-      }
-    } else if (typeof dateSource === 'number') {
-      date = new Date(dateSource);
-    } else {
-      throw new Error("Tipo de entrada de data não suportado.");
-    }
-
-    if (isNaN(date.getTime())) {
-      return typeof dateSource === 'string' ? dateSource : '-';
-    }
-
-    const options = {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    };
-
-    if (includeTime) {
-      options.hour = '2-digit';
-      options.minute = '2-digit';
-      options.hour12 = false;
-    }
-
-    return new Intl.DateTimeFormat('pt-BR', options).format(date);
-  } catch (e) {
-    console.error("Erro ao formatar data:", dateSource, e);
-    return dateSource?.toString() || '-';
-  }
+// Cria o objeto global Utilities se ele ainda não existir
+if (typeof window.Utilities === 'undefined') {
+    window.Utilities = {};
+    console.log("Objeto global Utilities criado.");
+} else {
+    console.log("Objeto global Utilities já existe.");
 }
 
 /**
- * Função debounce para inputs
+ * Formata uma string de data em diversos formatos para o formato DD/MM/YYYY.
+ * Tenta reconhecer formatos ISO (com T), YYYY-MM-DD, DD/MM/YYYY e faz fallback
+ * para a conversão direta via new Date().
+ *
+ * @param {string | Date | null | undefined} dateString - A string da data a ser formatada, ou um objeto Date.
+ * @returns {string} A data formatada como DD/MM/YYYY, '-' se a entrada for nula/vazia,
+ *                   ou a string original se a conversão falhar ou a data for inválida.
  */
-function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func.apply(this, args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
+function formatDate(dateString) {
+    // Retorna '-' para valores nulos, indefinidos ou vazios
+    if (!dateString) {
+        return '-';
+    }
+
+    try {
+        let date;
+
+        // Se já for um objeto Date, usa diretamente
+        if (dateString instanceof Date) {
+            date = dateString;
+        } else if (typeof dateString === 'string') {
+            // Remove espaços extras que podem atrapalhar o parse
+            const trimmedDateString = dateString.trim();
+
+            // 1. Verificar formato ISO 8601 (ex: '2023-10-27T10:00:00.000Z')
+            if (trimmedDateString.includes('T') && trimmedDateString.includes('-') && trimmedDateString.includes(':')) {
+                date = new Date(trimmedDateString);
+            }
+            // 2. Verificar formato YYYY-MM-DD
+            else if (trimmedDateString.includes('-') && trimmedDateString.split('-').length === 3) {
+                // Cuidado com fuso horário: new Date('YYYY-MM-DD') pode interpretar como UTC 00:00
+                // e resultar no dia anterior dependendo do fuso local.
+                // Criar com T00:00:00 força a interpretação no fuso local geralmente.
+                 const parts = trimmedDateString.split('-');
+                 // Verifica se são números (simples verificação)
+                 if (parts.every(part => /^\d+$/.test(part))) {
+                     // Usar T00:00:00 ajuda a evitar problemas de fuso horário com apenas data
+                     date = new Date(trimmedDateString + 'T00:00:00');
+                 } else {
+                     // Tenta parse direto se não parecer YYYY-MM-DD numérico
+                     date = new Date(trimmedDateString);
+                 }
+
+            }
+            // 3. Verificar formato DD/MM/YYYY
+            else if (trimmedDateString.includes('/') && trimmedDateString.split('/').length === 3) {
+                const [day, month, year] = trimmedDateString.split('/');
+                // Verifica se são números e cria a data (mês é 0-indexado)
+                 if (/^\d+$/.test(day) && /^\d+$/.test(month) && /^\d+$/.test(year)) {
+                      date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
+                 } else {
+                     // Tenta parse direto se não parecer DD/MM/YYYY numérico
+                     date = new Date(trimmedDateString);
+                 }
+            }
+            // 4. Tentar converter diretamente como último recurso
+            else {
+                // Pode funcionar para outros formatos que o JS reconhece, ou timestamp numérico como string
+                const timestamp = Number(trimmedDateString);
+                if (!isNaN(timestamp) && timestamp > 0) { // Verifica se é um timestamp numérico válido
+                     date = new Date(timestamp);
+                } else {
+                     date = new Date(trimmedDateString);
+                }
+            }
+        } else if (typeof dateString === 'number' && dateString > 0) {
+             // Se for um timestamp numérico
+             date = new Date(dateString);
+        }
+
+
+        // Verificar se a data resultante é válida
+        // `isNaN(date)` ou `isNaN(date.getTime())` são formas de verificar
+        if (!date || isNaN(date.getTime())) {
+            console.warn(`Formato de data não reconhecido ou data inválida: ${dateString}`);
+            // Retornar a string original pode ser útil para debug, ou retornar '-'
+            return typeof dateString === 'string' ? dateString : '-';
+        }
+
+        // Formatar para DD/MM/YYYY
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0'); // Mês é 0-indexado
+        const year = date.getFullYear();
+
+        // Validar se o ano é razoável (evitar anos como 0001, etc.)
+        if (year < 1000 || year > 3000) {
+             console.warn(`Ano ${year} fora do intervalo esperado para a data: ${dateString}`);
+             return typeof dateString === 'string' ? dateString : '-';
+        }
+
+
+        return `${day}/${month}/${year}`;
+
+    } catch (error) {
+        console.error(`Erro inesperado ao formatar data: ${dateString}`, error);
+        // Retornar a string original em caso de erro inesperado
+        return typeof dateString === 'string' ? dateString : '-';
+    }
 }
 
+
 /**
- * Obter classe CSS baseada no status
+ * Retorna uma classe CSS correspondente a um status de manutenção/verificação.
+ * Mapeia diferentes termos de status (case-insensitive e por inclusão) para classes padronizadas.
+ *
+ * @param {string | null | undefined} status - O texto do status.
+ * @returns {string} A classe CSS correspondente (ex: 'pending', 'verified', 'completed', 'adjustments', 'rejected', 'critical') ou 'default' se não houver correspondência.
  */
 function getStatusClass(status) {
-  if (!status) return 'pending';
+    // Retorna 'default' se o status for nulo, indefinido ou vazio
+    if (!status || typeof status !== 'string' || status.trim() === '') {
+        return 'default';
+    }
 
-  const lowerStatus = status.toLowerCase();
-  switch (lowerStatus) {
-    case 'pendente': return 'pending';
-    case 'verificado': case 'aprovado': case 'ajustes': return 'verification';
-    case 'concluído': case 'concluido': return 'completed';
-    case 'reprovado': return 'danger';
-    default: return 'pending';
-  }
+    const statusLower = status.toLowerCase().trim();
+
+    // Mapeamento de termos-chave para classes CSS (ordem pode importar se houver sobreposição)
+    // Coloque termos mais específicos primeiro se necessário.
+    const statusMap = {
+        // Pendente / Aguardando
+        'pendente': 'pending',
+        'aguardando verificação': 'pending',
+        'aguardando': 'pending', // Genérico
+
+        // Verificado / Aprovado (geralmente indicam sucesso na verificação inicial)
+        'verificado': 'verified',
+        'aprovado': 'verified',
+
+        // Concluído / Finalizado (processo completo)
+        'concluído': 'completed',
+        'concluido': 'completed', // Sem acento
+        'finalizado': 'completed',
+
+        // Requer Atenção / Ação
+        'ajustes necessários': 'adjustments',
+        'ajustes': 'adjustments',
+        'reprovado': 'rejected',
+
+        // Urgência / Problema Grave
+        'crítico': 'critical',
+        'critico': 'critical', // Sem acento
+        'emergencial': 'critical', // Pode ser mapeado como crítico também
+        'urgente': 'critical',
+
+        // Outros status possíveis
+        'em andamento': 'in-progress', // Exemplo
+        'cancelado': 'cancelled'      // Exemplo
+        // Adicionar mais mapeamentos conforme necessário
+    };
+
+    // Procurar correspondência EXATA primeiro (mais confiável)
+    if (statusMap[statusLower]) {
+        return statusMap[statusLower];
+    }
+
+    // Se não houver correspondência exata, procurar por INCLUSÃO (cuidado com falsos positivos)
+    // Iterar pelas chaves do map
+    for (const key in statusMap) {
+        // Usar includes() para verificar se o status contém a chave
+        if (statusLower.includes(key)) {
+            // console.log(`Status "${statusLower}" mapeado para "${statusMap[key]}" via inclusão de "${key}"`);
+            return statusMap[key];
+        }
+    }
+
+    // Se nenhuma correspondência for encontrada
+    console.warn(`Status não mapeado para classe CSS: "${status}". Usando 'default'.`);
+    return 'default';
 }
 
 /**
- * Mostrar/esconder indicador de carregamento
+ * Converte a primeira letra de uma string para maiúscula e o restante para minúscula.
+ * Útil para padronizar a exibição de textos como status.
+ * @param {string} str A string para capitalizar.
+ * @returns {string} A string com a primeira letra em maiúscula.
+ */
+ function capitalizeFirstLetter(str) {
+    if (!str || typeof str !== 'string') return '';
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+ }
+
+
+/**
+ * Função Debounce: Atrasar a execução de uma função até que um certo tempo tenha passado
+ * sem que ela seja chamada novamente. Útil para eventos como 'input' ou 'resize'.
+ * @param {Function} func A função a ser executada após o atraso.
+ * @param {number} wait O tempo de espera em milissegundos.
+ * @param {boolean} immediate Se true, executa a função imediatamente e depois espera para executar novamente.
+ * @returns {Function} A função "debounced".
+ */
+function debounce(func, wait, immediate = false) {
+    let timeout;
+    return function executedFunction(...args) {
+        const context = this;
+        const later = function() {
+            timeout = null;
+            if (!immediate) func.apply(context, args);
+        };
+        const callNow = immediate && !timeout;
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+        if (callNow) func.apply(context, args);
+    };
+}
+
+/**
+ * Mostra/Oculta um indicador de carregamento global.
+ * Assume que existe um elemento com id="global-loading-indicator" no HTML.
+ * @param {boolean} show True para mostrar, false para ocultar.
+ * @param {string} [message='Carregando...'] Mensagem opcional a ser exibida.
  */
 function showLoading(show, message = 'Carregando...') {
-  const loader = document.getElementById('global-loader');
-  const loaderMessage = document.getElementById('global-loader-message');
-
-  if (!loader || !loaderMessage) return;
-
-  if (show) {
-    loaderMessage.textContent = message;
-    loader.style.display = 'flex';
-  } else {
-    loader.style.display = 'none';
-  }
-}
-
-/**
- * Sistema de notificações
- */
-function showNotification(message, type = 'info', duration = 5000) {
-  const containerId = 'notification-container';
-  let container = document.getElementById(containerId);
-
-  if (!container) {
-    container = document.createElement('div');
-    container.id = containerId;
-    container.style.cssText = `
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 2000;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      max-width: 90%;
-      width: 350px;
-    `;
-    document.body.appendChild(container);
-  }
-
-  const notification = document.createElement('div');
-  notification.className = `notification-popup`; // Classe 'type' será adicionada depois
-  notification.style.opacity = '0';
-  notification.style.transform = 'translateY(-20px)';
-  notification.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
-
-  let icon = '';
-  let title = '';
-
-  switch (type) {
-    case 'success':
-      icon = '✓';
-      title = 'Sucesso';
-      duration = Math.max(duration, 3000);
-      break;
-    case 'error':
-      icon = '✗';
-      title = 'Erro';
-      duration = Math.max(duration, 8000);
-      break;
-    case 'warning':
-      icon = '⚠️';
-      title = 'Aviso';
-      duration = Math.max(duration, 6000);
-      break;
-    default:
-      icon = 'ℹ';
-      title = 'Informação';
-      type = 'info'; // Garante que 'info' seja a classe padrão
-      break;
-  }
-
-  notification.classList.add(type); // Adiciona a classe de tipo correta
-
-  notification.innerHTML = `
-    <div class="notification-icon">${icon}</div>
-    <div class="notification-content">
-      <div class="notification-title">${title}</div>
-      <div>${message}</div>
-    </div>
-    <span class="close-btn" style="cursor:pointer; font-size: 20px; line-height: 1;">×</span>`;
-
-  container.prepend(notification); // Adiciona no início para novas aparecerem acima
-
-  // Delay para permitir a transição inicial
-  setTimeout(() => {
-    notification.style.opacity = '1';
-    notification.style.transform = 'translateY(0)';
-  }, 10);
-
-  const close = () => {
-    notification.style.opacity = '0';
-    notification.style.transform = 'translateY(-20px)';
-
-    // Remove o elemento após a transição de saída
-    setTimeout(() => {
-      // Verifica se o elemento ainda está no DOM antes de remover
-      if (notification.parentNode === container) {
-        container.removeChild(notification);
-      }
-    }, 300);
-  };
-
-  notification.querySelector('.close-btn').onclick = close;
-
-  // Fecha automaticamente após a duração
-  setTimeout(close, duration);
-}
-
-/**
- * Função para mostrar uma caixa de confirmação customizada
- */
-function showConfirmation(message, onConfirm, onCancel = null) {
-  // Se uma confirmação já estiver aberta, não mostrar outra
-  if (document.getElementById('custom-confirmation-modal')) {
-    return;
-  }
-
-  // Criar o elemento de confirmação
-  const modalHTML = `
-    <div id="custom-confirmation-backdrop" style="
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.5);
-      z-index: 9999;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    ">
-      <div id="custom-confirmation-modal" style="
-        background-color: white;
-        border-radius: 8px;
-        padding: 20px;
-        max-width: 400px;
-        width: 90%;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      ">
-        <div style="margin-bottom: 20px;">${message}</div>
-        <div style="display: flex; justify-content: flex-end; gap: 10px;">
-          <button id="custom-confirmation-cancel" style="
-            padding: 8px 16px;
-            border: 1px solid #ddd;
-            background-color: #f1f1f1;
-            border-radius: 4px;
-            cursor: pointer;
-          ">Cancelar</button>
-          <button id="custom-confirmation-confirm" style="
-            padding: 8px 16px;
-            border: none;
-            background-color: var(--primary-color, #0052cc);
-            color: white;
-            border-radius: 4px;
-            cursor: pointer;
-          ">Confirmar</button>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Adicionar à página
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = modalHTML;
-  document.body.appendChild(tempDiv.firstElementChild);
-
-  // Configurar eventos
-  const closeModal = () => {
-    const backdrop = document.getElementById('custom-confirmation-backdrop');
-    if (backdrop) {
-      document.body.removeChild(backdrop);
-    }
-  };
-
-  document.getElementById('custom-confirmation-confirm').addEventListener('click', () => {
-    closeModal();
-    if (typeof onConfirm === 'function') {
-      onConfirm();
-    }
-  });
-
-  document.getElementById('custom-confirmation-cancel').addEventListener('click', () => {
-    closeModal();
-    if (typeof onCancel === 'function') {
-      onCancel();
-    }
-  });
-
-  // Fechar ao clicar fora (opcional)
-  document.getElementById('custom-confirmation-backdrop').addEventListener('click', (e) => {
-    if (e.target.id === 'custom-confirmation-backdrop') {
-      closeModal();
-      if (typeof onCancel === 'function') {
-        onCancel();
-      }
-    }
-  });
-}
-
-/**
- * Ver detalhes de uma manutenção (Função global compartilhada)
- */
-function viewMaintenanceDetails(id) {
-  showLoading(true, `Carregando detalhes da manutenção ${id}...`);
-  window.selectedMaintenanceId = id;
-
-  API.getMaintenanceDetails(id)
-    .then(response => {
-      if (!response || !response.success) {
-        console.error("Erro ao carregar detalhes:", response);
-        showNotification('Erro ao carregar detalhes: ' + (response ? response.message : 'Resposta inválida'), 'error');
-        document.getElementById('maintenance-detail-content').innerHTML = '<p style="color: var(--danger-color); text-align: center;">Não foi possível carregar os detalhes.</p>';
-        document.getElementById('detail-overlay').style.display = 'block';
-        document.getElementById('verify-maintenance-btn').style.display = 'none';
+    const loader = document.getElementById('global-loading-indicator');
+    if (!loader) {
+        console.warn("Elemento #global-loading-indicator não encontrado.");
+        // Fallback simples no console se o loader não existir
+        if(show) console.log(`Loading: ${message}`);
+        else console.log("Loading finished.");
         return;
-      }
+    }
 
-      // Verificar se o objeto maintenance existe
-      if (!response.maintenance) {
-        console.error("Objeto maintenance não encontrado na resposta:", response);
-        showNotification('Dados de manutenção não encontrados na resposta', 'error');
-        document.getElementById('maintenance-detail-content').innerHTML = '<p style="color: var(--danger-color); text-align: center;">Dados incompletos na resposta do servidor.</p>';
-        document.getElementById('detail-overlay').style.display = 'block';
-        document.getElementById('verify-maintenance-btn').style.display = 'none';
-        return;
-      }
+    const messageElement = loader.querySelector('.loading-message'); // Assume que há um elemento para a mensagem
 
-      // Tentar renderizar os detalhes
-      try {
-        renderMaintenanceDetails(response.maintenance);
-        document.getElementById('detail-overlay').style.display = 'block';
-
-        // Mostrar/ocultar botão verificar com base no status
-        const status = response.maintenance.status || 'Pendente';
-        const verifyBtn = document.getElementById('verify-maintenance-btn');
-
-        if (verifyBtn) {
-          if (status === 'Pendente') {
-            verifyBtn.style.display = 'inline-block';
-            verifyBtn.disabled = false;
-          } else {
-            verifyBtn.style.display = 'none';
-            verifyBtn.disabled = true;
-          }
+    if (show) {
+        if (messageElement) {
+            messageElement.textContent = message;
         }
-      } catch (e) {
-        console.error("Erro ao renderizar detalhes:", e);
-        showNotification('Erro ao processar os detalhes da manutenção: ' + e.message, 'error');
-        document.getElementById('maintenance-detail-content').innerHTML = '<p style="color: var(--danger-color); text-align: center;">Erro ao processar os detalhes. Tente novamente.</p>';
-        document.getElementById('detail-overlay').style.display = 'block';
-        document.getElementById('verify-maintenance-btn').style.display = 'none';
-      }
-    })
-    .catch(error => {
-      console.error("Falha na requisição de detalhes:", error);
-      showNotification('Falha ao buscar detalhes: ' + error.message, 'error');
-      document.getElementById('maintenance-detail-content').innerHTML = '<p style="color: var(--danger-color); text-align: center;">Falha ao buscar detalhes. Tente novamente.</p>';
-      document.getElementById('detail-overlay').style.display = 'block';
-      document.getElementById('verify-maintenance-btn').style.display = 'none';
-    })
-    .finally(() => {
-      showLoading(false);
-    });
+        loader.style.display = 'flex'; // Ou 'block', dependendo do estilo do loader
+    } else {
+        loader.style.display = 'none';
+    }
 }
 
 /**
- * Renderizar detalhes da manutenção (Função global compartilhada)
+ * Exibe uma notificação flutuante para o usuário.
+ * Assume uma biblioteca de notificação (como Toastify.js, Notyf, etc.) ou implementa uma simples.
+ * @param {string} message A mensagem a ser exibida.
+ * @param {'success' | 'error' | 'warning' | 'info'} type O tipo de notificação (usado para estilização).
+ * @param {number} [duration=3000] Duração em milissegundos.
  */
-function renderMaintenanceDetails(details) {
-  const container = document.getElementById('maintenance-detail-content');
+function showNotification(message, type = 'info', duration = 3000) {
+    console.log(`[${type.toUpperCase()}] Notification: ${message} (Duração: ${duration}ms)`);
 
-  // Verificar se os detalhes são válidos
-  if (!details) {
-    console.error("Tentativa de renderizar detalhes undefined/null");
-    container.innerHTML = '<p style="color: var(--danger-color); text-align: center;">Detalhes inválidos ou não encontrados.</p>';
-    return;
-  }
+    // --- Exemplo usando uma implementação simples (div flutuante) ---
+    const notificationContainer = document.getElementById('notification-container') || createNotificationContainer();
+    if (!notificationContainer) return;
 
-  // Mapear campos importantes - use valores padrão para evitar erros undefined
-  const equipId = (details.placaOuId || details.equipmentId || '-');
-  const equipType = (details.tipoEquipamento || details.equipmentType || '-');
-  const resp = (details.responsavel || details.technician || '-');
-  const maintDate = formatDate(details.dataManutencao || details.date);
-  const area = (details.area || '-');
-  const local = (details.localOficina || details.location || '-');
-  const maintType = (details.tipoManutencao || details.maintenanceType || '-');
-  const isCritical = (details.eCritico || details.isCritical) ? 'Sim' : 'Não';
-  const category = (details.categoriaProblema || details.problemCategory || '-');
-  const problem = (details.detalhesproblema || details.problemDescription || '-');
-  const notes = (details.observacoes || details.additionalNotes || '-');
-  const status = (details.status || 'Pendente');
-  const statusClass = getStatusClass(status);
-  const regDate = formatDate(details.dataRegistro || details.registrationDate, true);
-  const id = (details.id || 'N/A');
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`; // Classes para estilização
+    notification.textContent = message;
 
-  // Criar HTML
-  let html = `
-  <div class="detail-header">
-    <div class="detail-header-left">
-      <div class="detail-title">Manutenção #${id}</div>
-      <div class="detail-subtitle">Registrada em ${regDate}</div>
-    </div>
-    <div class="detail-header-right">
-      <span class="status-badge status-${statusClass}">${status}</span>
-    </div>
-  </div>
+    notificationContainer.appendChild(notification);
 
-  <div class="detail-section">
-    <div class="detail-section-title">Informações Básicas</div>
-    <div class="detail-grid">
-      <div class="detail-field">
-        <div class="detail-label">Equipamento</div>
-        <div class="detail-value">${equipId}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">Tipo Equip.</div>
-        <div class="detail-value">${equipType}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">Responsável</div>
-        <div class="detail-value">${resp}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">Data Manut.</div>
-        <div class="detail-value">${maintDate}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">Área</div>
-        <div class="detail-value">${area}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">Local/Oficina</div>
-        <div class="detail-value">${local}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">Tipo Manut.</div>
-        <div class="detail-value">${maintType}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">Crítica?</div>
-        <div class="detail-value">${isCritical}</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="detail-section">
-    <div class="detail-section-title">Problema</div>
-    <div class="detail-field">
-      <div class="detail-label">Categoria</div>
-      <div class="detail-value">${category}</div>
-    </div>
-    <div class="detail-field">
-      <div class="detail-label">Detalhes do Problema</div>
-      <div class="detail-value" style="white-space: pre-wrap;">${problem}</div>
-    </div>
-    <div class="detail-field">
-      <div class="detail-label">Observações Adicionais</div>
-      <div class="detail-value" style="white-space: pre-wrap;">${notes}</div>
-    </div>
-  </div>`;
-
-  // Adicionar seção de verificação se existir
-  if (details.verification) {
-    const v = details.verification;
-    const verifier = v.verifier || v.verificador || '-';
-    const verifyDate = formatDate(v.dataVerificacao || v.date, true);
-    const result = v.result || v.resultado || '-';
-    const comments = v.comments || v.comentarios || '-';
-
-    html += `
-    <div class="detail-section">
-      <div class="detail-section-title">Verificação</div>
-      <div class="detail-grid">
-        <div class="detail-field">
-          <div class="detail-label">Verificador</div>
-          <div class="detail-value">${verifier}</div>
-        </div>
-        <div class="detail-field">
-          <div class="detail-label">Data</div>
-          <div class="detail-value">${verifyDate}</div>
-        </div>
-        <div class="detail-field">
-          <div class="detail-label">Resultado</div>
-          <div class="detail-value">${result}</div>
-        </div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">Comentários</div>
-        <div class="detail-value" style="white-space: pre-wrap;">${comments}</div>
-      </div>
-    </div>`;
-  }
-
-  // Adicionar histórico
-  html += `
-  <div class="detail-section">
-    <div class="detail-section-title">Histórico</div>
-    <div class="timeline">
-      <div class="timeline-item">
-        <div class="timeline-dot"></div>
-        <div class="timeline-content">
-          <div class="timeline-title">
-            <span>Manutenção Registrada</span>
-            <span class="timeline-date">${regDate}</span>
-          </div>
-          <div class="timeline-description">Por: ${resp}</div>
-        </div>
-      </div>`;
-
-  if (details.verification) {
-    const v = details.verification;
-    const verifier = v.verifier || v.verificador || '-';
-    const verifyDate = formatDate(v.dataVerificacao || v.date, true);
-    const result = v.result || v.resultado || '-';
-
-    const dotClass = (status === 'Concluído' || status === 'Verificado' ||
-                      status === 'Aprovado' || status === 'Ajustes' ||
-                      status === 'Reprovado') ? 'completed' : '';
-
-    html += `
-      <div class="timeline-item">
-        <div class="timeline-dot ${dotClass}"></div>
-        <div class="timeline-content">
-          <div class="timeline-title">
-            <span>Verificação Realizada</span>
-            <span class="timeline-date">${verifyDate}</span>
-          </div>
-          <div class="timeline-description">Por: ${verifier} | Resultado: ${result}</div>
-        </div>
-      </div>`;
-
-    if (status === 'Concluído') {
-      html += `
-        <div class="timeline-item">
-          <div class="timeline-dot completed"></div>
-          <div class="timeline-content">
-            <div class="timeline-title">
-              <span>Manutenção Concluída</span>
-              <span class="timeline-date">${verifyDate}</span>
-            </div>
-            <div class="timeline-description">Processo finalizado.</div>
-          </div>
-        </div>`;
-    }
-  }
-
-  html += `
-    </div>
-  </div>`;
-
-  container.innerHTML = html;
+    // Remover a notificação após a duração
+    setTimeout(() => {
+        notification.style.opacity = '0'; // Efeito de fade out
+        setTimeout(() => {
+            if (notification.parentNode === notificationContainer) {
+                 notificationContainer.removeChild(notification);
+            }
+            // Opcional: remover o container se estiver vazio
+             if (notificationContainer.children.length === 0) {
+                 // document.body.removeChild(notificationContainer); // Ou apenas ocultar
+             }
+        }, 500); // Tempo para o fade out completar
+    }, duration);
 }
 
-// Utility namespace - Agrupar funções utilitárias em um namespace
-const Utilities = {
-  formatDate,
-  debounce,
-  getStatusClass,
-  showLoading,
-  showNotification,
-  showConfirmation,
-  showToast: showNotification, // Alias para compatibilidade
-  
-  // Função para formatação de valores monetários
-  formatCurrency: function(value) {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  },
-  
-  // Função para formatação de números
-  formatNumber: function(value, decimals = 0) {
-    return new Intl.NumberFormat('pt-BR', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals
-    }).format(value);
-  },
-  
-  // Função para remover acentos
-  removeAccents: function(text) {
-    return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  },
-  
-  // Função para truncar texto
-  truncateText: function(text, length = 100) {
-    if (!text || text.length <= length) return text;
-    return text.substring(0, length) + '...';
-  }
-};
+// Função auxiliar para criar o container de notificações se não existir
+function createNotificationContainer() {
+    let container = document.getElementById('notification-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notification-container';
+        // Estilos básicos (ajustar via CSS)
+        container.style.position = 'fixed';
+        container.style.top = '20px';
+        container.style.right = '20px';
+        container.style.zIndex = '10000';
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '10px';
+        document.body.appendChild(container);
+    }
+    return container;
+}
 
-// Expor globalmente formatDate, debounce e outras funções principais
-window.formatDate = formatDate;
-window.debounce = debounce;
-window.getStatusClass = getStatusClass;
-window.showLoading = showLoading;
-window.showNotification = showNotification;
-window.showConfirmation = showConfirmation;
-window.viewMaintenanceDetails = viewMaintenanceDetails;
-window.renderMaintenanceDetails = renderMaintenanceDetails;
 
-// Indicar que utilities.js foi carregado corretamente
-console.log("Utilities.js carregado com sucesso!");
-window.UTILITIES_LOADED = true;
-window.Utilities = Utilities; // ADICIONADO: Expõe Utilities globalmente
+// --- Exposição das funções no objeto global Utilities ---
+
+// Verifica se as funções já não foram definidas para evitar sobrescrever acidentalmente
+if (!window.Utilities.formatDate) {
+    window.Utilities.formatDate = formatDate;
+} else {
+    console.warn("Utilities.formatDate já estava definida. Não foi sobrescrita.");
+}
+
+if (!window.Utilities.getStatusClass) {
+    window.Utilities.getStatusClass = getStatusClass;
+} else {
+    console.warn("Utilities.getStatusClass já estava definida. Não foi sobrescrita.");
+}
+
+if (!window.Utilities.capitalizeFirstLetter) {
+    window.Utilities.capitalizeFirstLetter = capitalizeFirstLetter;
+} else {
+    console.warn("Utilities.capitalizeFirstLetter já estava definida. Não foi sobrescrita.");
+}
+
+
+if (!window.Utilities.debounce) {
+    window.Utilities.debounce = debounce;
+} else {
+    console.warn("Utilities.debounce já estava definida. Não foi sobrescrita.");
+}
+
+if (!window.Utilities.showLoading) {
+    window.Utilities.showLoading = showLoading;
+} else {
+    console.warn("Utilities.showLoading já estava definida. Não foi sobrescrita.");
+}
+
+if (!window.Utilities.showNotification) {
+    window.Utilities.showNotification = showNotification;
+} else {
+    console.warn("Utilities.showNotification já estava definida. Não foi sobrescrita.");
+}
+
+// Adicione outras funções utilitárias aqui e as exponha da mesma forma.
+// Exemplo:
+// function outraUtilidade() { /* ... */ }
+// if (!window.Utilities.outraUtilidade) {
+//     window.Utilities.outraUtilidade = outraUtilidade;
+// }
+
+console.log("Utilities.js carregado e funções adicionadas ao objeto global Utilities.");
