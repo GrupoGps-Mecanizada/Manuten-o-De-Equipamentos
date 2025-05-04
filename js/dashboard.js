@@ -1,3 +1,5 @@
+--- START OF FILE dashboard.js ---
+
 /**
  * Sistema de Dupla Checagem de Manutenção
  * Módulo: Dashboard (Versão FINAL Frontend - 03/05/2025 v2 - Corrigido)
@@ -24,6 +26,147 @@ const Dashboard = (function() {
     // console.log("Instâncias de gráficos limpas."); // Opcional: remover log verboso
   }
 
+  // Adicionar esta função no arquivo dashboard.js, antes de initialize()
+  function createFilterDropdown() {
+    const filterContainer = document.querySelector('#tab-dashboard .dashboard-header'); // Target specific header
+    if (!filterContainer) {
+        console.warn("Container .dashboard-header não encontrado para adicionar filtros.");
+        return;
+    }
+
+    // Evitar duplicar o dropdown
+    if (filterContainer.querySelector('.filter-dropdown')) {
+        // console.log("Dropdown de filtros já existe."); // Opcional
+        return;
+    }
+
+    console.log("Criando dropdown de filtros...");
+
+    // Criar o elemento para o dropdown
+    const filterDropdown = document.createElement('div');
+    filterDropdown.className = 'filter-dropdown';
+
+    filterDropdown.innerHTML = `
+      <button class="filter-btn">
+        Filtros <i class="fas fa-filter"></i>
+      </button>
+      <div class="filter-content">
+        <div class="date-filter">
+          <label>Período:</label>
+          <input type="date" id="filterStartDate" class="form-control">
+          <span>até</span>
+          <input type="date" id="filterEndDate" class="form-control">
+        </div>
+        <div class="filter-actions">
+          <button id="applyFilter" class="btn btn-success">Aplicar</button>
+          <button id="resetFilter" class="btn">Limpar</button>
+        </div>
+      </div>
+    `;
+
+    // Adiciona o dropdown dentro do header, mas antes dos controles de período/refresh se existirem
+    const controls = filterContainer.querySelector('.dashboard-controls');
+    if(controls) {
+        filterContainer.insertBefore(filterDropdown, controls);
+    } else {
+        filterContainer.appendChild(filterDropdown); // Fallback
+    }
+
+
+    // Adicionar funcionalidade ao botão de filtro
+    const filterBtn = filterDropdown.querySelector('.filter-btn');
+    const filterContent = filterDropdown.querySelector('.filter-content');
+
+    filterBtn.addEventListener('click', function(event) {
+      event.stopPropagation(); // Evita que o document listener feche imediatamente
+      filterContent.classList.toggle('show');
+    });
+
+    // Fechar dropdown ao clicar fora
+    document.addEventListener('click', function(event) {
+      if (!filterDropdown.contains(event.target) && filterContent.classList.contains('show')) {
+        filterContent.classList.remove('show');
+      }
+    });
+
+    // Implementar aplicação dos filtros
+    const applyBtn = filterDropdown.querySelector('#applyFilter');
+    const resetBtn = filterDropdown.querySelector('#resetFilter');
+    const startDateInput = document.getElementById('filterStartDate');
+    const endDateInput = document.getElementById('filterEndDate');
+
+    applyBtn.addEventListener('click', function() {
+      const startDate = startDateInput.value;
+      const endDate = endDateInput.value;
+
+      if (startDate && endDate) {
+         // Validação básica de datas
+         if (new Date(startDate) > new Date(endDate)) {
+             Utilities.showNotification('A data de início não pode ser posterior à data de fim.', 'warning');
+             return;
+         }
+         // Remove a classe 'active' dos botões de período pré-definidos
+         document.querySelectorAll('#tab-dashboard .period-btn').forEach(btn => btn.classList.remove('active'));
+         // Carrega dados com período customizado
+         loadDashboardData(`custom:${startDate}:${endDate}`, true); // Força recarga
+         filterContent.classList.remove('show');
+      } else if (!startDate && !endDate) {
+         // Se ambos estão vazios, talvez resetar para default? Ou avisar?
+         Utilities.showNotification('Selecione as datas de início e fim ou limpe o filtro.', 'info');
+      } else {
+         Utilities.showNotification('Por favor, selecione as datas de início e fim.', 'warning');
+      }
+    });
+
+    resetBtn.addEventListener('click', function() {
+      startDateInput.value = '';
+      endDateInput.value = '';
+      // Ao limpar, volta para o período padrão (Mês Atual)
+      // Ativa visualmente o botão 'Mês Atual'
+      document.querySelectorAll('#tab-dashboard .period-btn').forEach(btn => {
+          btn.classList.remove('active');
+          if(btn.getAttribute('data-period') === 'current-month') {
+              btn.classList.add('active');
+          }
+      });
+      loadDashboardData('current-month', true); // Recarrega com Mês Atual
+      filterContent.classList.remove('show');
+    });
+
+    // Adiciona estilos CSS para o dropdown (se não existirem)
+    if (!document.getElementById('dashboard-filter-style')) {
+         const styleElement = document.createElement('style');
+         styleElement.id = 'dashboard-filter-style';
+         styleElement.textContent = `
+           .filter-dropdown { position: relative; display: inline-block; margin-bottom: 10px; /* Espaço abaixo */ }
+           .filter-btn { background-color: var(--primary-color, #0052cc); color: white; padding: 6px 12px; font-size: 0.85rem; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+           .filter-btn:hover { background-color: var(--primary-dark, #0041a3); }
+           .filter-btn i { font-size: 0.8rem; }
+           .filter-content { display: none; position: absolute; background-color: #fff; min-width: 280px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); padding: 15px; z-index: 10; border-radius: 5px; border: 1px solid #ddd; margin-top: 5px; }
+           .filter-content.show { display: block; }
+           .date-filter { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+           .date-filter label { font-weight: 500; font-size: 0.9rem; }
+           .date-filter input[type="date"] { padding: 5px; font-size: 0.85rem; border: 1px solid #ccc; border-radius: 4px; max-width: 120px; }
+           .filter-actions { display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; }
+           .filter-actions .btn { padding: 5px 10px; font-size: 0.8rem; }
+           .filter-actions .btn-success { background-color: #28a745; color: white; border: none; }
+           .filter-actions .btn-success:hover { background-color: #218838; }
+           .filter-actions .btn { background-color: #f0f0f0; border: 1px solid #ccc; }
+           .filter-actions .btn:hover { background-color: #e0e0e0; }
+
+           /* Ajuste no header para acomodar o filtro */
+           .dashboard-header { display: flex; flex-direction: column; align-items: flex-start; gap: 15px; /* Adiciona espaço entre elementos */ }
+           .dashboard-controls { margin-top: 0; /* Remove margem superior se o filtro estiver acima */ }
+           @media (min-width: 768px) { /* Em telas maiores, tentar alinhar filtro e controles */
+             .dashboard-header { flex-direction: row; justify-content: space-between; align-items: center; }
+             .filter-dropdown { margin-bottom: 0; }
+           }
+         `;
+         document.head.appendChild(styleElement);
+     }
+     console.log("Dropdown de filtros criado e configurado.");
+  }
+
   /** Inicializa o dashboard */
   function initialize() {
     if (dashboardInitialized) {
@@ -39,6 +182,9 @@ const Dashboard = (function() {
     }
 
     createPeriodButtonsIfNeeded(); // Cria botões se não existirem
+    // Chamar esta função dentro do método initialize() do Dashboard
+    // Adicione esta linha em Dashboard.initialize() depois de createDashboardControls() [ajustado para createPeriodButtonsIfNeeded]
+    createFilterDropdown();
     setupPeriodButtons(); // Configura listeners (via delegação)
     setupRefreshButton(); // Configura listener refresh (via delegação)
     setupTabNavigation(); // Monitora hashchange
@@ -103,16 +249,20 @@ const Dashboard = (function() {
          const styleElement = document.createElement('style');
          styleElement.id = 'dashboard-controls-style';
          styleElement.textContent = `
-           .dashboard-header { display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #eee; }
-           .dashboard-header h2 { width: 100%; margin-bottom: 10px; }
-           .dashboard-controls { display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 10px;}
+           /* .dashboard-header já estilizado pelo filtro */
+           .dashboard-controls { display: flex; justify-content: space-between; align-items: center; width: auto; /* Ajuste para caber com filtro */ flex-wrap: wrap; gap: 10px;}
            .period-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
            .period-btn { padding: 5px 10px; background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 0.8rem; transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
            .period-btn:hover { background-color: #e0e0e0; }
            .period-btn.active { background-color: var(--primary-color, #0052cc); color: white; border-color: var(--primary-color, #0052cc); font-weight: 500; }
-           .btn-refresh { margin-left: auto; /* Tenta alinhar à direita */ }
+           .btn-refresh { margin-left: 10px; /* Espaço entre botões e refresh */ }
            .btn-refresh.rotating { animation: rotate 1s linear infinite; } /* Infinite rotation */
            @keyframes rotate { to { transform: rotate(360deg); } }
+           /* Ajuste responsivo para controles */
+           @media (max-width: 767px) {
+             .dashboard-controls { width: 100%; justify-content: flex-start; }
+             .btn-refresh { margin-left: auto; /* Tenta alinhar refresh à direita em telas pequenas */ }
+           }
          `;
          document.head.appendChild(styleElement);
      }
@@ -147,6 +297,12 @@ const Dashboard = (function() {
      document.querySelectorAll('#tab-dashboard .period-btn').forEach(btn => btn.classList.remove('active'));
      targetButton.classList.add('active');
 
+      // Limpa os campos do filtro de data customizado ao selecionar um período pré-definido
+      const startDateInput = document.getElementById('filterStartDate');
+      const endDateInput = document.getElementById('filterEndDate');
+      if (startDateInput) startDateInput.value = '';
+      if (endDateInput) endDateInput.value = '';
+
      // Carrega os dados para o novo período
      loadDashboardData(period, true); // Força recarregamento
   }
@@ -172,9 +328,23 @@ const Dashboard = (function() {
      if (!targetButton) return;
 
      console.log("Atualização manual do dashboard solicitada");
-     const activeButton = document.querySelector('#tab-dashboard .period-btn.active');
-     const period = activeButton ? activeButton.getAttribute('data-period') : 'current-month';
-     loadDashboardData(period, true); // Força recarregamento
+
+     // Verifica se um filtro de data customizado está ativo
+     const startDate = document.getElementById('filterStartDate')?.value;
+     const endDate = document.getElementById('filterEndDate')?.value;
+     let periodToLoad;
+
+     if (startDate && endDate) {
+         periodToLoad = `custom:${startDate}:${endDate}`;
+         console.log("Atualizando com período customizado:", periodToLoad);
+     } else {
+         // Pega o período do botão ativo
+         const activeButton = document.querySelector('#tab-dashboard .period-btn.active');
+         periodToLoad = activeButton ? activeButton.getAttribute('data-period') : 'current-month'; // Default se nenhum ativo
+         console.log("Atualizando com período pré-definido:", periodToLoad);
+     }
+
+     loadDashboardData(periodToLoad, true); // Força recarregamento com o período correto
 
      // Feedback visual (reinicia animação se já estiver rodando)
      targetButton.classList.remove('rotating');
@@ -218,8 +388,18 @@ const Dashboard = (function() {
            const needsLoad = isInitialLoad || !dashboardData || (currentTime - lastLoadTime > REFRESH_INTERVAL);
            if (needsLoad) {
              console.log(`Carregando dados (${isInitialLoad ? 'inicial' : (!dashboardData ? 'sem dados' : 'atualização')})`);
-             const activeButton = document.querySelector('#tab-dashboard .period-btn.active');
-             const period = activeButton ? activeButton.getAttribute('data-period') : 'current-month';
+
+             // Verifica se um filtro de data customizado está ativo para o carregamento inicial
+             const startDate = document.getElementById('filterStartDate')?.value;
+             const endDate = document.getElementById('filterEndDate')?.value;
+             let period;
+             if(startDate && endDate && !isInitialLoad) { // Não usar custom no load inicial forçado, usar o default
+                period = `custom:${startDate}:${endDate}`;
+             } else {
+                const activeButton = document.querySelector('#tab-dashboard .period-btn.active');
+                period = activeButton ? activeButton.getAttribute('data-period') : 'current-month';
+             }
+
              const delay = isInitialLoad ? 200 : 0;
              setTimeout(() => { loadDashboardData(period, true); }, delay);
            } else { /* console.log("Dashboard ativo, usando dados existentes."); */ }
@@ -392,7 +572,8 @@ const Dashboard = (function() {
       renderAreaDistributionChart(chartData.areaDistribution || [], 'area-distribution-chart'); // <<< Usa dados de Local/Oficina
       renderCriticalVsRegularChart(chartData.criticalVsRegular || [], 'critical-vs-regular-chart');
       renderVerificationResultsChart(chartData.verificationResults || [], 'verification-results-chart');
-      renderMaintenanceFrequencyChart(chartData.maintenanceFrequency || [], 'maintenance-frequency-chart');
+      // --- FUNÇÃO SUBSTITUÍDA A SER CHAMADA ---
+      renderMaintenanceFrequencyChart('maintenance-frequency-chart', chartData.maintenanceFrequency || []); // *** Parâmetros trocados na chamada ***
 
       // Gráfico Opcional: Manutenções por TIPO (se o canvas 'maintenance-type-chart' existir)
       if(document.getElementById('maintenance-type-chart')) {
@@ -411,10 +592,51 @@ const Dashboard = (function() {
       if (!canvas) { console.error(`Canvas #${chartId} não encontrado!`); return; }
       if (typeof Chart === 'undefined') { console.error(`Chart.js não carregado para ${chartId}!`); return; }
 
+      // Limpa qualquer mensagem de 'sem dados' que possa existir no PAI do canvas
+      const parent = canvas.parentElement;
+      const noDataMessage = parent?.querySelector('.no-data-message');
+      if (noDataMessage) {
+        // Se a mensagem existe, remove ela e re-cria o canvas antes de desenhar
+        parent.innerHTML = ''; // Limpa o container
+        const newCanvas = document.createElement('canvas');
+        newCanvas.id = chartId;
+        // Preservar altura/largura se definidos ou usar defaults
+        newCanvas.style.height = canvas.style.height || '200px'; // Altura default
+        newCanvas.style.width = canvas.style.width || '100%';
+        parent.appendChild(newCanvas);
+        canvas = newCanvas; // Usa o novo canvas a partir de agora
+        console.log(`Canvas #${chartId} recriado após remover mensagem 'sem dados'.`);
+      }
+
       const isValidData = chartData && Array.isArray(chartData) && chartData.length > 0 && chartData.some(item => (item.count || 0) > 0);
-      const dataToRender = isValidData ? chartData : [{ label: 'Sem Dados', count: 1 }];
-      const isPlaceholder = !isValidData;
-      if (isPlaceholder) console.warn(`Dados inválidos/vazios para ${chartId}. Usando placeholder.`);
+      // Para o placeholder, só criamos se a função específica não tratar disso (como a de frequência faz agora)
+      // A função de frequência agora tem seu próprio tratamento de 'sem dados', então não precisamos do placeholder aqui
+      // const dataToRender = isValidData ? chartData : [{ label: 'Sem Dados', count: 1 }];
+      // const isPlaceholder = !isValidData;
+      // if (isPlaceholder) console.warn(`Dados inválidos/vazios para ${chartId}. Usando placeholder.`);
+
+      // Se a função específica não for a de frequência e não houver dados, podemos AINDA mostrar um placeholder
+      if (!isValidData && chartId !== 'maintenance-frequency-chart') {
+        console.warn(`Dados inválidos/vazios para ${chartId}. Usando placeholder.`);
+        // Desenha um placeholder simples
+        const ctx = canvas.getContext('2d');
+        canvas.height = 150; // Altura padrão para placeholder
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.font = '14px Arial';
+        ctx.fillText('Sem dados para exibir', canvas.width / 2, canvas.height / 2);
+         // Destruir instância antiga se existir, mesmo para placeholder
+         const instanceKey = chartKey || chartId;
+         if (chartInstances[instanceKey]) {
+             try { chartInstances[instanceKey].destroy(); } catch(e){}
+             delete chartInstances[instanceKey];
+         }
+        return; // Não renderiza Chart.js
+      }
+       // Se dados são válidos, prossegue
+      const dataToRender = chartData; // Usa os dados reais
+
 
       try {
           // Usa uma chave única para a instância do gráfico
@@ -423,22 +645,41 @@ const Dashboard = (function() {
 
           const labels = dataToRender.map(item => item.label || 'N/A');
           const counts = dataToRender.map(item => item.count || 0);
-          let colors = isPlaceholder ? ['#E0E0E0'] : generateColorPalette(labels.length);
+          let colors = generateColorPalette(labels.length); // Não mais placeholder
 
           // Personaliza cores para tipos específicos
           if (chartId === 'maintenance-status-chart') {
-              colors = isPlaceholder ? ['#E0E0E0'] : labels.map(l => getStatusColor(l));
+              colors = labels.map(l => getStatusColor(l));
           } else if (chartId === 'critical-vs-regular-chart') {
-              colors = isPlaceholder ? ['#E0E0E0', '#D3D3D3'] : labels.map(l => l === 'Críticas' ? '#FF5630' : '#36B37E'); // Danger e Success
+              colors = labels.map(l => l === 'Críticas' ? '#FF5630' : '#36B37E'); // Danger e Success
           } else if (chartId === 'verification-results-chart') {
-              colors = isPlaceholder ? ['#E0E0E0'] : labels.map(l => getStatusColor(l)); // Reutiliza cores de status
+              colors = labels.map(l => getStatusColor(l)); // Reutiliza cores de status
           }
 
           // Configurações padrão e específicas do tipo
           const defaultOptions = {
               responsive: true, maintainAspectRatio: false,
-              plugins: { legend: { display: !isPlaceholder }, tooltip: { enabled: !isPlaceholder } }
+              plugins: { legend: { display: true }, tooltip: { enabled: true } } // Habilita por padrão
           };
+          // Ajustes de opções específicos baseados no tipo/ID
+          if (chartType === 'doughnut' || chartType === 'pie') {
+             defaultOptions.plugins.legend.position = 'right';
+             if(labels.length > 10) defaultOptions.plugins.legend.display = false; // Esconde legenda se muitos itens
+          }
+          if (chartType === 'bar') {
+             defaultOptions.plugins.legend.display = false; // Geralmente não precisa de legenda para barras simples
+             defaultOptions.scales = { y: { beginAtZero: true, ticks: { precision: 0 } } };
+             if (options?.indexAxis === 'y') { // Se for barra horizontal
+                 defaultOptions.scales = { x: { beginAtZero: true, ticks: { precision: 0 } } }; // Eixo X é a contagem
+                 delete defaultOptions.scales.y; // Remove config do eixo Y
+             }
+          }
+          if (chartType === 'line') {
+              defaultOptions.plugins.legend.display = false;
+              defaultOptions.scales = { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } };
+              defaultOptions.elements = { line: { tension: 0.1, fill: true }, point: { radius: 3 } };
+          }
+
           const mergedOptions = deepMerge(defaultOptions, options); // Combina opções padrão com específicas
 
           // Cria o gráfico
@@ -489,6 +730,19 @@ const Dashboard = (function() {
        // Sobrescreve a criação do dataset para linha
        const canvas = document.getElementById(chartId);
        if (!canvas || typeof Chart === 'undefined') return;
+
+       // Limpa mensagem 'sem dados' se existir e recria canvas
+       const parent = canvas.parentElement;
+       const noDataMessage = parent?.querySelector('.no-data-message');
+       if (noDataMessage) {
+           parent.innerHTML = ''; // Limpa
+           const newCanvas = document.createElement('canvas');
+           newCanvas.id = chartId; newCanvas.style.height = canvas.style.height || '200px';
+           parent.appendChild(newCanvas);
+           canvas = newCanvas;
+       }
+
+
        const isValidData = data && Array.isArray(data) && data.length > 0 && data.some(item => (item.count || 0) > 0);
        const isPlaceholder = !isValidData;
        if (isPlaceholder) console.warn(`Dados de Tendência inválidos/vazios para ${chartId}.`);
@@ -501,7 +755,7 @@ const Dashboard = (function() {
            chartInstances[instanceKey] = new Chart(canvas.getContext('2d'), {
                type: 'line',
                data: { labels, datasets: [{ label: 'Manutenções', data: counts, borderColor: isPlaceholder ? '#cccccc' : '#3f51b5', backgroundColor: isPlaceholder ? 'transparent' : 'rgba(63, 81, 181, 0.1)', borderWidth: 2, pointRadius: isPlaceholder ? 0 : 3, fill: !isPlaceholder, tension: 0.1 }] },
-               options: options
+               options: options // Usa as opções definidas acima
            });
            console.log(`${chartId} (line) renderizado.`);
        } catch (error) { console.error(`Erro ao renderizar ${chartId}:`, error); }
@@ -529,17 +783,70 @@ const Dashboard = (function() {
        }, 'verificationChart');
   }
 
-  /** Renderiza gráfico de Frequência Média de Manutenções */
-  function renderMaintenanceFrequencyChart(data, chartId) {
-      renderGenericChart(chartId, 'bar', data, {
-          indexAxis: 'y', // Barras horizontais
-          plugins: {
-              legend: { display: false },
-              tooltip: { callbacks: { label: ctx => `Intervalo Médio: ${ctx.parsed.x} dias` } }
-          },
-          scales: { x: { beginAtZero: true, title: { display: true, text: 'Intervalo Médio (dias)'}, ticks: { precision: 0 } }, y: { ticks: { autoSkip: false } } }
-      }, 'frequencyChart');
+  // --- FUNÇÃO SUBSTITUÍDA ---
+  /** Renderiza gráfico de Frequência Média de Manutenções com tratamento de 'sem dados' */
+  function renderMaintenanceFrequencyChart(containerId, data) {
+    const canvas = document.getElementById(containerId); // Agora usa containerId como ID do canvas
+    if (!canvas) {
+        console.error(`Canvas #${containerId} não encontrado!`);
+        return;
+    }
+    const parent = canvas.parentElement;
+    if (!parent) {
+        console.error(`Elemento pai do canvas #${containerId} não encontrado!`);
+        return;
+    }
+
+    // Destruir instância antiga do gráfico, se existir
+    const instanceKey = 'frequencyChart'; // Usa a chave definida na chamada
+    if (chartInstances[instanceKey]) {
+        try { chartInstances[instanceKey].destroy(); } catch (e) { console.warn("Erro menor ao destruir gráfico de frequência:", e); }
+        delete chartInstances[instanceKey];
+    }
+
+    // Limpar conteúdo anterior do container (canvas ou mensagem antiga)
+    parent.innerHTML = ''; // Remove canvas ou mensagem antiga
+
+    // Verificar se temos dados válidos
+    if (!data || !Array.isArray(data) || data.length === 0 || data.every(item => (item.count || 0) <= 0) ) {
+      console.warn(`Não há dados válidos para o gráfico ${containerId}. Exibindo mensagem.`);
+      // Exibir mensagem de "sem dados" diretamente no container pai
+      const noDataElement = document.createElement('div');
+      noDataElement.className = 'no-data-message'; // Classe para estilização opcional
+      noDataElement.style.cssText = `
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        height:150px; background-color:#f8f9fa; border-radius:6px; padding:20px; text-align:center;
+      `;
+      noDataElement.innerHTML = `
+        <i class="fas fa-info-circle" style="font-size:24px; color:var(--primary-color, #0052cc); margin-bottom:15px;"></i>
+        <p style="margin:0; color:var(--text-light, #6c757d); font-size:14px;">Não há dados suficientes para calcular o intervalo entre manutenções.</p>
+        <p style="margin:5px 0 0; color:var(--text-light, #6c757d); font-size:13px;">Registre mais manutenções para o mesmo equipamento para ver esta análise.</p>
+      `;
+      parent.appendChild(noDataElement); // Adiciona a mensagem ao invés do canvas
+      return; // Interrompe a execução aqui
+    }
+
+    // Se houver dados, recria o canvas e continua com o código para renderizar o gráfico
+    console.log(`Renderizando gráfico ${containerId} com dados:`, data);
+    const newCanvas = document.createElement('canvas');
+    newCanvas.id = containerId;
+    newCanvas.style.height = '200px'; // Altura padrão ou ajustar conforme necessidade
+    parent.appendChild(newCanvas); // Adiciona o novo canvas ao container
+
+    // Chama a função genérica para renderizar (já que agora temos dados válidos)
+    renderGenericChart(containerId, 'bar', data, {
+        indexAxis: 'y', // Barras horizontais
+        plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => `Intervalo Médio: ${ctx.parsed.x} dias` } }
+        },
+        scales: {
+            x: { beginAtZero: true, title: { display: true, text: 'Intervalo Médio (dias)'}, ticks: { precision: 0 } },
+            y: { ticks: { autoSkip: false } } // Mostra todos os labels de equipamento
+        }
+    }, instanceKey); // Passa a chave da instância
   }
+  // --- FIM DA FUNÇÃO SUBSTITUÍDA ---
 
 
   // ===========================================================
@@ -667,13 +974,47 @@ const Dashboard = (function() {
   /** Formata uma data (DD/MM/YYYY) */
   function formatDate(dateInput) {
     if (!dateInput) return '-';
-    if (typeof Utilities !== 'undefined' && Utilities.formatDate) { try { return Utilities.formatDate(dateInput); } catch (e) {} }
+    // Tenta usar Utilities.formatDate primeiro
+    if (typeof Utilities !== 'undefined' && Utilities.formatDate) {
+        try {
+            // Verifica se Utilities.formatDate aceita o formato de entrada
+            // Pode ser necessário ajustar a entrada se Utilities.formatDate for exigente
+            return Utilities.formatDate(dateInput);
+        } catch (e) {
+            console.warn("Erro ao usar Utilities.formatDate, usando fallback:", e);
+        }
+    }
+    // Fallback: Formatação manual simples
     try {
-      const date = new Date(dateInput); if (isNaN(date.getTime())) return String(dateInput).split('T')[0];
-      const day = String(date.getDate()).padStart(2, '0'); const month = String(date.getMonth() + 1).padStart(2, '0'); const year = date.getFullYear();
-      if (year < 1900 || year > 3000) return '-'; return `${day}/${month}/${year}`;
-    } catch(e) { return String(dateInput); }
+      let date;
+      // Tenta criar data, lidando com strings que podem ter 'T' ou ser só data
+      if (typeof dateInput === 'string' && dateInput.includes('T')) {
+          date = new Date(dateInput.split('T')[0] + 'T00:00:00'); // Considera apenas a data, no fuso local
+      } else {
+          date = new Date(dateInput);
+      }
+
+      if (isNaN(date.getTime())) {
+          // Se ainda inválida, tenta retornar a parte da data da string original
+          if (typeof dateInput === 'string') return dateInput.split('T')[0];
+          return String(dateInput); // Retorna como string se não reconhecer
+      }
+      // getTimezoneOffset retorna a diferença em minutos entre UTC e local.
+      // Adiciona esse offset para compensar e exibir a data local correta.
+      date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
+
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0'); // Mês é 0-indexed
+      const year = date.getFullYear();
+      // Validação básica do ano
+      if (year < 1900 || year > 3000) return '-';
+      return `${day}/${month}/${year}`;
+    } catch(e) {
+      console.error("Erro ao formatar data (fallback):", e, "Input:", dateInput);
+      return String(dateInput); // Retorna a entrada original em caso de erro
+    }
   }
+
 
   /** Mostra/esconde loader global */
   function showLoading(show, message = 'Carregando...') {
@@ -687,10 +1028,38 @@ const Dashboard = (function() {
   function showLoadingError(message) {
     if (typeof Utilities !== 'undefined' && Utilities.showNotification) { try { Utilities.showNotification(message, 'error', 8000); return; } catch(e) {} }
     console.error("Dashboard Error:", message);
+     // Fallback simples se Utilities não estiver disponível
+     // alert("Erro no Dashboard: " + message);
   }
 
    /** Verifica se containers dos gráficos existem */
-   function checkAndCreateChartContainers() { /* ... (código anterior, apenas para verificar/avisar) ... */ }
+   function checkAndCreateChartContainers() {
+       const requiredCanvasIds = [
+           'maintenance-status-chart', 'problem-categories-chart', 'monthly-trend-chart',
+           'area-distribution-chart', 'critical-vs-regular-chart', 'verification-results-chart',
+           'maintenance-frequency-chart' // ,'maintenance-type-chart' // Opcional
+       ];
+       const dashboardGrid = document.querySelector('#tab-dashboard .dashboard-grid'); // Container principal dos gráficos
+       if (!dashboardGrid) {
+           console.error("Container .dashboard-grid não encontrado! Não é possível verificar/criar canvases.");
+           return;
+       }
+
+       requiredCanvasIds.forEach(id => {
+           if (!document.getElementById(id)) {
+               console.warn(`Canvas #${id} não encontrado. Tentando criar...`);
+               // Cria um container div e o canvas dentro dele
+               const chartContainer = document.createElement('div');
+               chartContainer.className = 'chart-container'; // Adiciona classe para estilização
+               const canvas = document.createElement('canvas');
+               canvas.id = id;
+               // Definir altura/aspect ratio aqui se necessário
+               canvas.style.height = '200px'; // Altura padrão
+               chartContainer.appendChild(canvas); // Adiciona canvas ao container
+               dashboardGrid.appendChild(chartContainer); // Adiciona container ao grid
+           }
+       });
+   }
 
    /** Função utilitária para merge profundo de objetos (para opções de gráfico) */
    function deepMerge(target, source) {
@@ -722,11 +1091,27 @@ document.addEventListener('DOMContentLoaded', function() {
   if (typeof Chart === 'undefined') {
      console.error("FATAL: Chart.js não foi carregado. Os gráficos do Dashboard não funcionarão.");
      // Opcional: Exibir mensagem para o usuário aqui
-  } else if (typeof Dashboard !== 'undefined' && Dashboard.initialize) {
+     const dashboardTab = document.getElementById('tab-dashboard');
+     if(dashboardTab) {
+         dashboardTab.innerHTML = '<div class="alert alert-danger">Erro Crítico: Biblioteca de gráficos (Chart.js) não carregada. O Dashboard não pode ser exibido.</div>';
+     }
+  } else if (typeof Utilities === 'undefined') {
+      console.error("FATAL: utilities.js não foi carregado. Funções essenciais do Dashboard podem falhar.");
+      const dashboardTab = document.getElementById('tab-dashboard');
+      if(dashboardTab) {
+          dashboardTab.innerHTML = '<div class="alert alert-danger">Erro Crítico: Biblioteca de utilidades (utilities.js) não carregada. O Dashboard pode não funcionar corretamente.</div>';
+      }
+  }
+  else if (typeof Dashboard !== 'undefined' && Dashboard.initialize) {
      console.log("DOM carregado, inicializando Dashboard...");
-     // Pequeno delay para garantir que tudo esteja pronto
-     setTimeout(Dashboard.initialize, 100);
+     // Pequeno delay para garantir que tudo esteja pronto, especialmente se houver outras inicializações
+     setTimeout(Dashboard.initialize, 150); // Aumentei ligeiramente o delay
   } else {
      console.error("Módulo Dashboard ou Dashboard.initialize não encontrado!");
+      const dashboardTab = document.getElementById('tab-dashboard');
+      if(dashboardTab) {
+          dashboardTab.innerHTML = '<div class="alert alert-danger">Erro Crítico: Script do Dashboard (dashboard.js) não carregado ou inválido.</div>';
+      }
   }
 });
+--- END OF FILE dashboard.js ---
