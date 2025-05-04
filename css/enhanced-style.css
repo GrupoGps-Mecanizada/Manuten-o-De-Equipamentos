@@ -304,14 +304,14 @@ body, html {
   box-shadow: var(--card-shadow);
 }
 
-.section-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 1.25rem;
+/* Atualizado pela instrução 2.2 */
+.section-title,
+.section h3,
+.section h4 {
+  font-size: 1.2rem;
   font-weight: 600;
-  color: var(--primary-dark);
   margin-bottom: 1.25rem;
+  color: var(--primary-dark);
   padding-bottom: 0.75rem;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
@@ -330,18 +330,30 @@ body, html {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
+/* Atualizado pela instrução 2.2 */
+/* Substituir ou adicionar estes estilos para gráficos */
 .grid-container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1.75rem;
   margin-bottom: 2rem;
 }
 
+/* Atualizado pela instrução 2.2 */
 .chart-container {
   position: relative;
-  min-height: 265px;
-  width: 100%;
-  padding: 1rem 0.5rem;
+  min-height: 280px;
+  background-color: rgba(255, 255, 255, 0.8);
+  border-radius: var(--border-radius);
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
+}
+
+/* Adicionado pela instrução 2.2 */
+.chart-container:hover {
+  box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+  transform: translateY(-2px);
 }
 
 /* Tabelas Elegantes */
@@ -727,13 +739,18 @@ select.form-control {
 }
 
 /* Steps de formulário aprimorados */
+/* Atualizado pela instrução 4.1 */
+/* Substituir os estilos existentes da form-steps */
 .form-steps {
   display: flex;
   justify-content: center;
-  background-color: rgba(245, 247, 250, 0.8);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  padding: 1.25rem 0;
-  position: relative;
+  background-color: #f5f6f7;
+  border-bottom: 1px solid #dfe1e6;
+  padding: 20px 15px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  width: 100%;
 }
 
 .form-step {
@@ -1262,4 +1279,54 @@ select.form-control {
 
 .initialized {
   opacity: 1;
+}
+
+/* Adicionado pela instrução 2.1 */
+/* Estilos para o dropdown de filtros */
+.filter-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.filter-btn {
+  padding: 8px 16px;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-content {
+  display: none;
+  position: absolute;
+  right: 0;
+  background-color: white;
+  min-width: 350px;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+  border-radius: var(--border-radius);
+  padding: 16px;
+  z-index: 100;
+}
+
+.filter-content.show {
+  display: block;
+}
+
+.date-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
 }
