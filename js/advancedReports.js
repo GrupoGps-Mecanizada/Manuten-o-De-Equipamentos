@@ -2158,4 +2158,786 @@ const AdvancedReports = (function() {
   }
 
   /**
-   * Abre o modal para agendar um relat
+ * Abre o modal para agendar um relatório
+ */
+function openScheduleReportModal() {
+  console.log("Abrindo modal de agendamento de relatório...");
+  
+  // Verificar se o relatório atual existe
+  if (!currentReport) {
+    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+      Utilities.showNotification("É necessário gerar um relatório antes de agendar.", "warning");
+    } else {
+      alert("É necessário gerar um relatório antes de agendar.");
+    }
+    return;
+  }
+  
+  // Criar overlay para o modal
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  
+  // Criar o modal
+  const modal = document.createElement('div');
+  modal.className = 'modal-container';
+  
+  // Conteúdo do modal
+  modal.innerHTML = `
+    <div class="modal-header">
+      <h3 class="modal-title">Agendar Relatório</h3>
+      <button class="modal-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Título do Agendamento</label>
+        <input type="text" id="schedule-title" class="form-input" value="${currentReport.title || 'Relatório Agendado'}" placeholder="Título para identificação do agendamento">
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Frequência</label>
+        <select id="schedule-frequency" class="form-select">
+          <option value="daily">Diariamente</option>
+          <option value="weekly" selected>Semanalmente</option>
+          <option value="monthly">Mensalmente</option>
+          <option value="quarterly">Trimestralmente</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Destinatários</label>
+        <input type="text" id="schedule-recipients" class="form-input" placeholder="emails@exemplo.com (separados por vírgula)">
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Formato de Exportação</label>
+        <select id="schedule-format" class="form-select">
+          <option value="pdf">PDF</option>
+          <option value="xlsx">Excel</option>
+          <option value="csv">CSV</option>
+          <option value="json">JSON</option>
+        </select>
+      </div>
+      
+      <div class="form-checkbox">
+        <input type="checkbox" id="schedule-active" checked>
+        <label for="schedule-active">Agendamento Ativo</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary cancel-schedule-btn">Cancelar</button>
+      <button class="btn confirm-schedule-btn" style="background-color: var(--status-verification, #0066cc);">Agendar</button>
+    </div>
+  `;
+  
+  // Adicionar o modal ao overlay
+  overlay.appendChild(modal);
+  
+  // Adicionar ao body
+  document.body.appendChild(overlay);
+  
+  // Configurar eventos
+  modal.querySelector('.modal-close').addEventListener('click', () => {
+    overlay.remove();
+  });
+  
+  modal.querySelector('.cancel-schedule-btn').addEventListener('click', () => {
+    overlay.remove();
+  });
+  
+  // Fechar ao clicar fora do modal
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.remove();
+    }
+  });
+  
+  // Configurar evento para o botão de agendar
+  modal.querySelector('.confirm-schedule-btn').addEventListener('click', () => {
+    const title = document.getElementById('schedule-title').value;
+    const frequency = document.getElementById('schedule-frequency').value;
+    const recipients = document.getElementById('schedule-recipients').value;
+    const format = document.getElementById('schedule-format').value;
+    const active = document.getElementById('schedule-active').checked;
+    
+    if (!title) {
+      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+        Utilities.showNotification("Por favor, insira um título para o agendamento.", "warning");
+      } else {
+        alert("Por favor, insira um título para o agendamento.");
+      }
+      return;
+    }
+    
+    // Criar objeto de agendamento
+    const schedule = {
+      id: 'schedule-' + Date.now(),
+      reportId: currentReport.id,
+      title,
+      frequency,
+      recipients,
+      format,
+      active,
+      createdAt: new Date().toISOString(),
+      nextRun: calculateNextRun(frequency)
+    };
+    
+    // Adicionar ao array de agendamentos
+    scheduledReports.push(schedule);
+    
+    // Salvar no localStorage
+    saveReports();
+    
+    // Fechar o modal
+    overlay.remove();
+    
+    // Mostrar mensagem de sucesso
+    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+      Utilities.showNotification("Relatório agendado com sucesso!", "success");
+    } else {
+      alert("Relatório agendado com sucesso!");
+    }
+    
+    // Atualizar painel de agendamentos se estiver visível
+    const activeTab = document.querySelector('.panel-tab.active');
+    if (activeTab && activeTab.getAttribute('data-tab') === 'scheduled') {
+      loadScheduledReportsPanel();
+    }
+  });
+}
+
+/**
+ * Calcula a próxima data de execução com base na frequência
+ * @param {string} frequency - Frequência de agendamento
+ * @returns {string} Data ISO da próxima execução
+ */
+function calculateNextRun(frequency) {
+  const now = new Date();
+  let nextRun = new Date(now);
+  
+  switch (frequency) {
+    case 'daily':
+      nextRun.setDate(now.getDate() + 1);
+      nextRun.setHours(8, 0, 0, 0); // 8:00 AM
+      break;
+    case 'weekly':
+      nextRun.setDate(now.getDate() + (7 - now.getDay() + 1) % 7 + 1); // Próxima segunda-feira
+      nextRun.setHours(8, 0, 0, 0); // 8:00 AM
+      break;
+    case 'monthly':
+      nextRun.setMonth(now.getMonth() + 1);
+      nextRun.setDate(1); // Primeiro dia do próximo mês
+      nextRun.setHours(8, 0, 0, 0); // 8:00 AM
+      break;
+    case 'quarterly':
+      const currentQuarter = Math.floor(now.getMonth() / 3);
+      nextRun.setMonth((currentQuarter + 1) * 3);
+      nextRun.setDate(1); // Primeiro dia do próximo trimestre
+      nextRun.setHours(8, 0, 0, 0); // 8:00 AM
+      break;
+    default:
+      nextRun.setDate(now.getDate() + 1);
+      nextRun.setHours(8, 0, 0, 0); // 8:00 AM
+  }
+  
+  return nextRun.toISOString();
+}
+
+/**
+ * Edita um relatório agendado
+ * @param {string} id - ID do agendamento
+ */
+function editScheduledReport(id) {
+  console.log(`Editando agendamento: ${id}`);
+  
+  // Buscar o agendamento pelo ID
+  const schedule = scheduledReports.find(s => s.id === id);
+  
+  if (!schedule) {
+    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+      Utilities.showNotification("Agendamento não encontrado.", "error");
+    } else {
+      alert("Agendamento não encontrado.");
+    }
+    return;
+  }
+  
+  // Criar overlay para o modal
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  
+  // Criar o modal
+  const modal = document.createElement('div');
+  modal.className = 'modal-container';
+  
+  // Conteúdo do modal
+  modal.innerHTML = `
+    <div class="modal-header">
+      <h3 class="modal-title">Editar Agendamento</h3>
+      <button class="modal-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Título do Agendamento</label>
+        <input type="text" id="schedule-title" class="form-input" value="${schedule.title || ''}" placeholder="Título para identificação do agendamento">
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Frequência</label>
+        <select id="schedule-frequency" class="form-select">
+          <option value="daily" ${schedule.frequency === 'daily' ? 'selected' : ''}>Diariamente</option>
+          <option value="weekly" ${schedule.frequency === 'weekly' ? 'selected' : ''}>Semanalmente</option>
+          <option value="monthly" ${schedule.frequency === 'monthly' ? 'selected' : ''}>Mensalmente</option>
+          <option value="quarterly" ${schedule.frequency === 'quarterly' ? 'selected' : ''}>Trimestralmente</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Destinatários</label>
+        <input type="text" id="schedule-recipients" class="form-input" value="${schedule.recipients || ''}" placeholder="emails@exemplo.com (separados por vírgula)">
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Formato de Exportação</label>
+        <select id="schedule-format" class="form-select">
+          <option value="pdf" ${schedule.format === 'pdf' ? 'selected' : ''}>PDF</option>
+          <option value="xlsx" ${schedule.format === 'xlsx' ? 'selected' : ''}>Excel</option>
+          <option value="csv" ${schedule.format === 'csv' ? 'selected' : ''}>CSV</option>
+          <option value="json" ${schedule.format === 'json' ? 'selected' : ''}>JSON</option>
+        </select>
+      </div>
+      
+      <div class="form-checkbox">
+        <input type="checkbox" id="schedule-active" ${schedule.active ? 'checked' : ''}>
+        <label for="schedule-active">Agendamento Ativo</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary cancel-schedule-btn">Cancelar</button>
+      <button class="btn confirm-schedule-btn" style="background-color: var(--status-verification, #0066cc);">Salvar Alterações</button>
+    </div>
+  `;
+  
+  // Adicionar o modal ao overlay
+  overlay.appendChild(modal);
+  
+  // Adicionar ao body
+  document.body.appendChild(overlay);
+  
+  // Configurar eventos
+  modal.querySelector('.modal-close').addEventListener('click', () => {
+    overlay.remove();
+  });
+  
+  modal.querySelector('.cancel-schedule-btn').addEventListener('click', () => {
+    overlay.remove();
+  });
+  
+  // Fechar ao clicar fora do modal
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.remove();
+    }
+  });
+  
+  // Configurar evento para o botão de salvar
+  modal.querySelector('.confirm-schedule-btn').addEventListener('click', () => {
+    const title = document.getElementById('schedule-title').value;
+    const frequency = document.getElementById('schedule-frequency').value;
+    const recipients = document.getElementById('schedule-recipients').value;
+    const format = document.getElementById('schedule-format').value;
+    const active = document.getElementById('schedule-active').checked;
+    
+    if (!title) {
+      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+        Utilities.showNotification("Por favor, insira um título para o agendamento.", "warning");
+      } else {
+        alert("Por favor, insira um título para o agendamento.");
+      }
+      return;
+    }
+    
+    // Atualizar o agendamento
+    const index = scheduledReports.findIndex(s => s.id === id);
+    if (index !== -1) {
+      scheduledReports[index] = {
+        ...scheduledReports[index],
+        title,
+        frequency,
+        recipients,
+        format,
+        active,
+        nextRun: calculateNextRun(frequency)
+      };
+      
+      // Salvar no localStorage
+      saveReports();
+      
+      // Fechar o modal
+      overlay.remove();
+      
+      // Mostrar mensagem de sucesso
+      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+        Utilities.showNotification("Agendamento atualizado com sucesso!", "success");
+      } else {
+        alert("Agendamento atualizado com sucesso!");
+      }
+      
+      // Atualizar painel de agendamentos
+      loadScheduledReportsPanel();
+    }
+  });
+}
+
+/**
+ * Exclui um relatório agendado
+ * @param {string} id - ID do agendamento
+ */
+function deleteScheduledReport(id) {
+  console.log(`Excluindo agendamento: ${id}`);
+  
+  // Confirmar exclusão
+  const confirmDelete = function() {
+    // Encontrar índice do agendamento
+    const index = scheduledReports.findIndex(s => s.id === id);
+    
+    if (index !== -1) {
+      // Remover do array
+      scheduledReports.splice(index, 1);
+      
+      // Salvar no localStorage
+      saveReports();
+      
+      // Mostrar mensagem de sucesso
+      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+        Utilities.showNotification("Agendamento excluído com sucesso.", "success");
+      } else {
+        alert("Agendamento excluído com sucesso.");
+      }
+      
+      // Atualizar painel de agendamentos
+      loadScheduledReportsPanel();
+    } else {
+      if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+        Utilities.showNotification("Agendamento não encontrado.", "error");
+      } else {
+        alert("Agendamento não encontrado.");
+      }
+    }
+  };
+  
+  // Usar confirmação do Utilities se disponível
+  if (typeof Utilities !== 'undefined' && Utilities.showConfirmation) {
+    Utilities.showConfirmation(
+      "Tem certeza que deseja excluir este agendamento?", 
+      confirmDelete
+    );
+  } else {
+    if (confirm("Tem certeza que deseja excluir este agendamento?")) {
+      confirmDelete();
+    }
+  }
+}
+
+/**
+ * Carrega relatórios salvos do localStorage
+ */
+function loadSavedReports() {
+  try {
+    // Carregar relatórios salvos
+    const savedReportsStr = localStorage.getItem('advanced-reports-saved');
+    if (savedReportsStr) {
+      savedReports = JSON.parse(savedReportsStr);
+      console.log(`${savedReports.length} relatórios salvos carregados do localStorage`);
+    }
+    
+    // Carregar agendamentos
+    const scheduledReportsStr = localStorage.getItem('advanced-reports-scheduled');
+    if (scheduledReportsStr) {
+      scheduledReports = JSON.parse(scheduledReportsStr);
+      console.log(`${scheduledReports.length} agendamentos carregados do localStorage`);
+    }
+  } catch (e) {
+    console.error("Erro ao carregar relatórios do localStorage:", e);
+    // Inicializar com arrays vazios em caso de erro
+    savedReports = [];
+    scheduledReports = [];
+  }
+}
+
+/**
+ * Salva relatórios no localStorage
+ */
+function saveReports() {
+  try {
+    // Salvar relatórios
+    localStorage.setItem('advanced-reports-saved', JSON.stringify(savedReports));
+    
+    // Salvar agendamentos
+    localStorage.setItem('advanced-reports-scheduled', JSON.stringify(scheduledReports));
+    
+    console.log("Relatórios e agendamentos salvos com sucesso no localStorage");
+    return true;
+  } catch (e) {
+    console.error("Erro ao salvar relatórios no localStorage:", e);
+    
+    // Mostrar notificação de erro
+    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+      Utilities.showNotification("Não foi possível salvar os dados no navegador.", "error");
+    }
+    
+    return false;
+  }
+}
+
+/**
+ * Abre o modal de opções de exportação avançada
+ */
+function openAdvancedExportModal() {
+  console.log("Abrindo modal de exportação avançada...");
+  
+  // Verificar se há um relatório ativo
+  if (!currentReport) {
+    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+      Utilities.showNotification("Não há relatório para exportar. Gere um relatório primeiro.", "warning");
+    } else {
+      alert("Não há relatório para exportar. Gere um relatório primeiro.");
+    }
+    return;
+  }
+  
+  // Criar overlay para o modal
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  
+  // Criar o modal
+  const modal = document.createElement('div');
+  modal.className = 'modal-container';
+  
+  // Conteúdo do modal
+  modal.innerHTML = `
+    <div class="modal-header">
+      <h3 class="modal-title">Exportação Avançada</h3>
+      <button class="modal-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Formato de Exportação</label>
+        <select id="export-format" class="form-select">
+          <option value="pdf">PDF</option>
+          <option value="xlsx">Excel</option>
+          <option value="csv">CSV</option>
+          <option value="json">JSON</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Opções de Conteúdo</label>
+        <div class="form-checkbox">
+          <input type="checkbox" id="export-include-summary" checked>
+          <label for="export-include-summary">Incluir Resumo</label>
+        </div>
+        <div class="form-checkbox">
+          <input type="checkbox" id="export-include-charts" checked>
+          <label for="export-include-charts">Incluir Gráficos</label>
+        </div>
+        <div class="form-checkbox">
+          <input type="checkbox" id="export-include-table" checked>
+          <label for="export-include-table">Incluir Tabela de Dados</label>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Opções de Saída</label>
+        <div class="form-checkbox">
+          <input type="checkbox" id="export-open-after" checked>
+          <label for="export-open-after">Abrir Após Exportar</label>
+        </div>
+        <div class="form-checkbox">
+          <input type="checkbox" id="export-save-copy">
+          <label for="export-save-copy">Salvar Cópia no Servidor</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary cancel-export-btn">Cancelar</button>
+      <button class="btn confirm-export-btn" style="background-color: var(--primary-color, #1a5fb4);">Exportar</button>
+    </div>
+  `;
+  
+  // Adicionar o modal ao overlay
+  overlay.appendChild(modal);
+  
+  // Adicionar ao body
+  document.body.appendChild(overlay);
+  
+  // Configurar eventos
+  modal.querySelector('.modal-close').addEventListener('click', () => {
+    overlay.remove();
+  });
+  
+  modal.querySelector('.cancel-export-btn').addEventListener('click', () => {
+    overlay.remove();
+  });
+  
+  // Fechar ao clicar fora do modal
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.remove();
+    }
+  });
+  
+  // Configurar evento para o botão de exportar
+  modal.querySelector('.confirm-export-btn').addEventListener('click', () => {
+    const format = document.getElementById('export-format').value;
+    const includeSummary = document.getElementById('export-include-summary').checked;
+    const includeCharts = document.getElementById('export-include-charts').checked;
+    const includeTable = document.getElementById('export-include-table').checked;
+    const openAfter = document.getElementById('export-open-after').checked;
+    const saveCopy = document.getElementById('export-save-copy').checked;
+    
+    // Objeto de configuração de exportação
+    const exportConfig = {
+      format,
+      options: {
+        includeSummary,
+        includeCharts,
+        includeTable,
+        openAfter,
+        saveCopy
+      }
+    };
+    
+    // Fechar o modal
+    overlay.remove();
+    
+    // Executar exportação
+    exportReportAdvanced(exportConfig);
+  });
+}
+
+/**
+ * Exporta o relatório com configurações avançadas
+ * @param {Object} config - Configurações de exportação
+ */
+function exportReportAdvanced(config) {
+  console.log("Exportando relatório com configurações avançadas:", config);
+  
+  // Mostrar indicador de carregamento
+  showLoading(true, `Exportando como ${config.format.toUpperCase()}...`);
+  
+  // Simular chamada à API
+  setTimeout(() => {
+    // Esconder indicador de carregamento
+    showLoading(false);
+    
+    // Mostrar mensagem de sucesso
+    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+      Utilities.showNotification(`Relatório exportado com sucesso como ${config.format.toUpperCase()}.`, "success");
+    } else {
+      alert(`Relatório exportado com sucesso como ${config.format.toUpperCase()}.`);
+    }
+    
+    // Simular abertura do arquivo se selecionado
+    if (config.options.openAfter) {
+      const url = `data:application/${config.format};base64,EXEMPLO_BASE64_${Date.now()}`;
+      window.open(url, '_blank');
+    }
+    
+    // Aqui você integraria com a API real
+    // API.exportDataAdvanced(currentReport.id, config)
+    // .then(response => { ... })
+  }, 2000);
+}
+
+/**
+ * Cria um relatório avançado customizado
+ * @param {Object} config - Configurações do relatório
+ * @returns {Promise} Promessa com o relatório gerado
+ */
+function createAdvancedReport(config) {
+  console.log("Criando relatório avançado com configurações:", config);
+  
+  // Mostrar indicador de carregamento
+  showLoading(true, "Gerando relatório avançado...");
+  
+  // Criar promessa para permitir encadeamento de .then()
+  return new Promise((resolve, reject) => {
+    // Simular chamada à API
+    setTimeout(() => {
+      try {
+        // Gerar dados do relatório com as configurações
+        const reportData = {
+          id: 'report-' + Date.now(),
+          title: config.title || "Relatório Avançado",
+          createdAt: new Date().toISOString(),
+          period: {
+            startDate: config.startDate,
+            endDate: config.endDate,
+            label: config.periodLabel || "Personalizado"
+          },
+          filters: config.filters || {},
+          visualizations: config.visualizations || ["summary", "status", "type", "area"],
+          summary: {
+            total: Math.floor(Math.random() * 200) + 50,
+            completed: Math.floor(Math.random() * 100) + 30,
+            pending: Math.floor(Math.random() * 50) + 10,
+            critical: Math.floor(Math.random() * 30) + 5
+          },
+          charts: {
+            status: generateRandomChartData(["Concluído", "Pendente", "Verificado", "Reprovado"], 4),
+            type: generateRandomChartData(["Preventiva", "Corretiva", "Emergencial"], 3),
+            area: generateRandomChartData(["Área Interna", "Área Externa"], 2),
+            timeline: generateRandomTimelineData(6)
+          },
+          items: generateRandomItems(Math.floor(Math.random() * 50) + 30)
+        };
+        
+        // Esconder indicador de carregamento
+        showLoading(false);
+        
+        // Mostrar mensagem de sucesso
+        if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+          Utilities.showNotification("Relatório avançado gerado com sucesso!", "success");
+        }
+        
+        // Retornar dados do relatório
+        resolve(reportData);
+      } catch (error) {
+        // Esconder indicador de carregamento
+        showLoading(false);
+        
+        // Mostrar mensagem de erro
+        if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+          Utilities.showNotification("Erro ao gerar relatório avançado: " + error.message, "error");
+        }
+        
+        // Rejeitar promessa
+        reject(error);
+      }
+    }, 2000);
+  });
+}
+
+/**
+ * Gera dados aleatórios para gráficos
+ * @param {Array<string>} labels - Lista de rótulos
+ * @param {number} count - Quantidade de itens
+ * @returns {Array<Object>} Dados formatados para gráficos
+ */
+function generateRandomChartData(labels, count) {
+  const data = [];
+  const total = Math.floor(Math.random() * 100) + 50;
+  
+  let remaining = total;
+  
+  for (let i = 0; i < count - 1; i++) {
+    const value = i === count - 2 ? 
+                  Math.floor(remaining / 2) : 
+                  Math.floor(Math.random() * (remaining / (count - i))) + 1;
+    
+    data.push({
+      label: labels[i],
+      count: value
+    });
+    
+    remaining -= value;
+  }
+  
+  // Último item recebe o restante
+  data.push({
+    label: labels[count - 1],
+    count: remaining
+  });
+  
+  return data;
+}
+
+/**
+ * Gera dados aleatórios para gráficos de linha do tempo
+ * @param {number} months - Quantidade de meses
+ * @returns {Array<Object>} Dados formatados para timeline
+ */
+function generateRandomTimelineData(months) {
+  const data = [];
+  const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  
+  const today = new Date();
+  const currentMonth = today.getMonth();
+  
+  for (let i = 0; i < months; i++) {
+    const monthIndex = (currentMonth - months + i + 12) % 12;
+    data.push({
+      label: monthNames[monthIndex],
+      count: Math.floor(Math.random() * 30) + 5
+    });
+  }
+  
+  return data;
+}
+
+/**
+ * Gera itens aleatórios para o relatório
+ * @param {number} count - Quantidade de itens
+ * @returns {Array<Object>} Lista de manutenções
+ */
+function generateRandomItems(count) {
+  const items = [];
+  const equipmentTypes = ['Alta Pressão', 'Auto Vácuo / Hiper Vácuo', 'Aspirador', 'Poliguindaste', 'Outro'];
+  const maintenanceTypes = ['Preventiva', 'Corretiva', 'Emergencial'];
+  const statuses = ['Pendente', 'Verificado', 'Aprovado', 'Reprovado', 'Concluído'];
+  const areas = ['Área Interna Usiminas', 'Área Externa Usiminas'];
+  
+  // Gerar IDs de exemplo
+  const equipmentIds = [];
+  for (let i = 0; i < 20; i++) {
+    const prefix = ['PUB', 'LUX', 'EZS', 'EOF', 'DSY'][Math.floor(Math.random() * 5)];
+    const suffix = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    equipmentIds.push(`${prefix}-${suffix}`);
+  }
+  
+  // Gerar nomes de responsáveis
+  const technicians = [
+    'Carlos Silva', 'Ana Oliveira', 'Roberto Santos', 'Mariana Lima',
+    'Paulo Souza', 'Fernanda Costa', 'Lucas Pereira', 'Juliana Almeida'
+  ];
+  
+  // Gerar itens
+  for (let i = 0; i < count; i++) {
+    const createdDate = new Date();
+    createdDate.setDate(createdDate.getDate() - Math.floor(Math.random() * 180)); // Até 180 dias atrás
+    
+    const critical = Math.random() < 0.2; // 20% críticos
+    
+    items.push({
+      id: `MAINT-${1000 + i}`,
+      equipmentType: equipmentTypes[Math.floor(Math.random() * equipmentTypes.length)],
+      equipmentId: equipmentIds[Math.floor(Math.random() * equipmentIds.length)],
+      maintenanceType: maintenanceTypes[Math.floor(Math.random() * maintenanceTypes.length)],
+      status: statuses[Math.floor(Math.random() * statuses.length)],
+      technician: technicians[Math.floor(Math.random() * technicians.length)],
+      area: areas[Math.floor(Math.random() * areas.length)],
+      date: createdDate.toISOString().split('T')[0],
+      critical
+    });
+  }
+  
+  return items;
+}
+
+  // Retornar API pública do módulo
+  return {
+    initialize,
+    openAdvancedReportsPanel,
+    createAdvancedReport,
+    exportReport,
+    exportReportAdvanced
+  };
+})();
+
+// Auto-inicialização quando o script é carregado
+document.addEventListener('DOMContentLoaded', function() {
+  // Inicializar o módulo se já não estiver inicializado
+  if (!isInitialized) {
+    AdvancedReports.initialize();
+  }
+});                         
