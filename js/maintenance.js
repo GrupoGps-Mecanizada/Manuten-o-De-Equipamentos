@@ -1,8 +1,3 @@
-Combinado! Segui suas instruções e substituí a função `setupDynamicFieldListeners` no código original pela versão fornecida na sua atualização.
-
-Aqui está o código completo e atualizado:
-
-```javascript
 // Verificar dependências no início
 if (!window.API || !window.Utilities) {
   console.error("Erro CRÍTICO: Dependências API ou Utilities não carregadas antes de maintenance.js");
