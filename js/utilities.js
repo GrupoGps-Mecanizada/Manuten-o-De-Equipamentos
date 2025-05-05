@@ -349,3 +349,7 @@ if (!window.Utilities.showNotification) {
 // }
 
 console.log("Utilities.js carregado e funções adicionadas ao objeto global Utilities.");
+
+// Adicione estas linhas ao final de utilities.js
+window.UTILITIES_LOADED = true;
+console.log("Flag UTILITIES_LOADED definida como true");
