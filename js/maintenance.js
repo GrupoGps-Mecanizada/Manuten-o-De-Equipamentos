@@ -153,7 +153,7 @@ const Maintenance = (() => {
     setupCloseModalListeners();
 
     // Eventos para campos dinâmicos
-    setupDynamicFieldListeners(); // Função será substituída pela atualização
+    setupDynamicFieldListeners(); // <<< ESTA FUNÇÃO SERÁ SUBSTITUÍDA PELA ATUALIZAÇÃO 1
 
     // Form submit
     setupFormSubmitListener();
@@ -270,101 +270,134 @@ const Maintenance = (() => {
   }
 
   // =========================================================================
-  // == INÍCIO DA ATUALIZAÇÃO 2: setupDynamicFieldListeners e loadEquipmentsForType ==
+  // == INÍCIO DA ATUALIZAÇÃO 1: setupDynamicFieldListeners e populateEquipmentSelect ==
   // =========================================================================
   function setupDynamicFieldListeners() {
-    const equipmentTypeSelect = document.getElementById('equipment-type');
-    if (equipmentTypeSelect) {
-      equipmentTypeSelect.addEventListener('change', function() {
-        const selectedType = this.value; // Usa o valor (slug) ex: 'alta-pressao', 'aspirador'
-        const equipmentIdContainer = document.getElementById('equipment-id').closest('.form-group, .form-col');
-        const otherEquipmentField = document.getElementById('other-equipment-field'); // Container do campo texto
+      const equipmentTypeSelect = document.getElementById('equipment-type');
+      if (equipmentTypeSelect) {
+        equipmentTypeSelect.addEventListener('change', function() {
+          const selectedType = this.value; // Pega o valor selecionado (slug)
+          const selectedText = this.options[this.selectedIndex].text; // Pega o texto visível
+          console.log(`Tipo selecionado: ${selectedText} (${selectedType})`);
 
-        // Primeiro, resetamos tudo para estado inicial/escondido
-        if (equipmentIdContainer) equipmentIdContainer.style.display = 'none';
-        if (otherEquipmentField) otherEquipmentField.style.display = 'none';
+          // Elementos que precisamos manipular
+          const equipmentIdSelect = document.getElementById('equipment-id');
+          const equipmentIdContainer = equipmentIdSelect?.closest('.form-group, .form-col');
+          const otherEquipmentField = document.getElementById('other-equipment-field');
+          const otherEquipmentInput = document.getElementById('other-equipment');
 
-        // Limpamos o select de equipamentos
-        const equipmentIdSelect = document.getElementById('equipment-id');
-        if (equipmentIdSelect) {
-          equipmentIdSelect.innerHTML = '<option value="">Selecione o equipamento...</option>';
-          equipmentIdSelect.disabled = true;
-          equipmentIdSelect.removeAttribute('required');
-        }
+          // 1. Primeiro, escondemos tudo
+          if (equipmentIdContainer) equipmentIdContainer.style.display = 'none';
+          if (otherEquipmentField) otherEquipmentField.style.display = 'none';
 
-        // Resetamos o campo de texto
-        const otherEquipmentInput = document.getElementById('other-equipment');
-        if (otherEquipmentInput) {
-          otherEquipmentInput.value = '';
-          otherEquipmentInput.removeAttribute('required');
-        }
+          // 2. Resetamos os valores e required
+          if (equipmentIdSelect) {
+            equipmentIdSelect.innerHTML = '<option value="">Selecione o equipamento...</option>';
+            equipmentIdSelect.removeAttribute('required');
+            equipmentIdSelect.disabled = true;
+          }
 
-        // Agora decidimos qual campo mostrar baseado no tipo selecionado
-        if (selectedType) {
-          if (selectedType === 'aspirador' || selectedType === 'poliguindaste' || selectedType === 'outro') {
-            // Mostra campo de entrada manual
-            console.log(`Tipo '${selectedType}' selecionado. Mostrando campo de texto.`);
-            if (otherEquipmentField) {
-              otherEquipmentField.style.display = 'block'; // Mostrar o container do campo texto
-              if (otherEquipmentInput) otherEquipmentInput.setAttribute('required', 'required'); // Marcar como obrigatório
-            }
-            if (equipmentIdSelect) equipmentIdSelect.removeAttribute('required'); // Remover obrigatório do select
-            if (equipmentIdSelect) equipmentIdSelect.disabled = true; // Manter select desabilitado
-            if (equipmentIdContainer) equipmentIdContainer.style.display = 'none'; // Garantir que select está escondido
+          if (otherEquipmentInput) {
+            otherEquipmentInput.value = '';
+            otherEquipmentInput.removeAttribute('required');
+          }
 
-          } else {
-            // Mostra campo de seleção de ID/Placa (para tipos como 'alta-pressao', 'auto-vacuo-hiper-vacuo', etc.)
-            console.log(`Tipo '${selectedType}' selecionado. Carregando equipamentos.`);
-            if (equipmentIdContainer) {
-              equipmentIdContainer.style.display = 'block'; // Mostrar o select
-              if (equipmentIdSelect) {
-                equipmentIdSelect.setAttribute('required', 'required'); // Marcar select como obrigatório
-                equipmentIdSelect.disabled = false; // Habilitar (será desabilitado durante a carga)
+          // 3. Agora mostramos o campo apropriado baseado na seleção
+          if (selectedType) {
+            if (selectedType === 'aspirador' || selectedType === 'poliguindaste' || selectedType === 'outro') {
+              // Para tipos que precisam de entrada manual
+              if (otherEquipmentField) {
+                otherEquipmentField.style.display = 'block';
+                if (otherEquipmentInput) {
+                  otherEquipmentInput.setAttribute('required', 'required');
+                  otherEquipmentInput.focus();
+                }
+              }
+            } else if (selectedType === 'alta-pressao' || selectedType === 'auto-vacuo-hiper-vacuo') {
+              // Para tipos com lista pré-definida
+              if (equipmentIdContainer) {
+                equipmentIdContainer.style.display = 'block';
+                if (equipmentIdSelect) {
+                  equipmentIdSelect.setAttribute('required', 'required');
 
-                // Carrega os equipamentos do tipo selecionado (usando o valor/slug como chave)
-                loadEquipmentsForType(selectedType, equipmentIdSelect);
+                  // Carregar os dados no select
+                  // Mapeia o slug de volta para a chave original do objeto EQUIPMENT_IDS
+                  const equipType = selectedType === 'alta-pressao' ? 'Alta Pressão' : 'Auto Vácuo / Hiper Vácuo';
+                  populateEquipmentSelect(equipType, equipmentIdSelect); // <<< CHAMA A NOVA FUNÇÃO
+                }
               }
             }
-             if (otherEquipmentField) otherEquipmentField.style.display = 'none'; // Esconder o campo texto
-             if (otherEquipmentInput) otherEquipmentInput.removeAttribute('required'); // Remover obrigatório do texto
           }
-        } else {
-             // Reset se nada selecionado ("Selecione o tipo...")
-             console.log("Nenhum tipo selecionado. Resetando campos.");
-             if(equipmentIdContainer) equipmentIdContainer.style.display = 'none'; // Esconder select por padrão
-             if (otherEquipmentField) otherEquipmentField.style.display = 'none'; // Esconder campo texto
-             if(otherEquipmentInput) otherEquipmentInput.removeAttribute('required');
-             if(equipmentIdSelect) equipmentIdSelect.removeAttribute('required');
-             if(equipmentIdSelect) equipmentIdSelect.disabled = true; // Desabilitar até que um tipo seja escolhido
-        }
+        });
+      }
+
+      // Configurar outros listeners (manter os já existentes) -> Listener para categoria de problema
+      addSafeListener('problem-category-select', 'change', function(event) {
+          const selectedCategory = this.value;
+          console.log(`Categoria de problema alterada para: ${selectedCategory}`);
+
+          // Mostrar/esconder campo de "outro" baseado na seleção
+          const otherCategoryField = document.getElementById('other-category-field');
+          const otherCategoryInput = document.getElementById('other-category');
+
+          if (otherCategoryField && otherCategoryInput) {
+              if (selectedCategory === 'Outros') { // Ajustado para 'Outros' que está na lista DEFAULT_PROBLEM_CATEGORIES
+                  otherCategoryField.style.display = 'block';
+                  otherCategoryInput.setAttribute('required', 'required');
+              } else {
+                  otherCategoryField.style.display = 'none';
+                  otherCategoryInput.removeAttribute('required');
+                  otherCategoryInput.value = ''; // Limpa o valor se não for mais necessário
+              }
+          }
       });
-    } else {
-      console.error("Elemento #equipment-type não encontrado para adicionar listener!");
     }
 
-     // Listener original para categoria de problema (mantido)
-     addSafeListener('problem-category-select', 'change', function(event) {
-      const selectedCategory = this.value;
-      console.log(`Categoria de problema alterada para: ${selectedCategory}`);
+    // Nova função para popular o select de equipamentos (da Atualização 1)
+    function populateEquipmentSelect(equipmentType, selectElement) {
+      // Mostra mensagem de carregamento
+      selectElement.innerHTML = '<option value="">Carregando equipamentos...</option>';
+      selectElement.disabled = true;
 
-      // Mostrar/esconder campo de "outro" baseado na seleção
-      const otherCategoryField = document.getElementById('other-category-field');
-      const otherCategoryInput = document.getElementById('other-category');
-
-      if (otherCategoryField && otherCategoryInput) {
-          if (selectedCategory === 'Outros') { // Ajustado para 'Outros' que está na lista DEFAULT_PROBLEM_CATEGORIES
-              otherCategoryField.style.display = 'block';
-              otherCategoryInput.setAttribute('required', 'required');
-          } else {
-              otherCategoryField.style.display = 'none';
-              otherCategoryInput.removeAttribute('required');
-              otherCategoryInput.value = ''; // Limpa o valor se não for mais necessário
-          }
+      // Determina quais equipamentos mostrar
+      let equipList = [];
+      if (equipmentType === 'Alta Pressão' && EQUIPMENT_IDS['Alta Pressão']) {
+        equipList = EQUIPMENT_IDS['Alta Pressão'];
+      } else if (equipmentType === 'Auto Vácuo / Hiper Vácuo' && EQUIPMENT_IDS['Auto Vácuo / Hiper Vácuo']) {
+        equipList = EQUIPMENT_IDS['Auto Vácuo / Hiper Vácuo'];
       }
-    });
-  }
 
-  // Nova função para carregar equipamentos sem duplicações
+      // Limpa e adiciona a opção padrão
+      selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
+
+      // Populando o select com os dados
+      if (equipList && equipList.length > 0) {
+        // Remove duplicados
+        const uniqueItems = [...new Set(equipList)];
+
+        // Adiciona as opções em ordem alfabética
+        uniqueItems.sort().forEach(item => {
+          const option = document.createElement('option');
+          option.value = item;
+          option.textContent = item;
+          selectElement.appendChild(option);
+        });
+
+        selectElement.disabled = false; // Habilita para seleção
+      } else {
+        // Se não houver equipamentos
+        selectElement.innerHTML += '<option value="" disabled>Nenhum equipamento encontrado</option>';
+        selectElement.disabled = true;
+      }
+    }
+  // =======================================================================
+  // == FIM DA ATUALIZAÇÃO 1 ==
+  // =======================================================================
+
+  // Função original loadEquipmentsForType - Será chamada pela função setupDynamicFieldListeners substituída?
+  // A nova setupDynamicFieldListeners chama populateEquipmentSelect.
+  // Mantendo a função loadEquipmentsForType original caso outra parte do código a use (improvável).
+  // Se tiver certeza que não é mais usada, pode ser removida.
   function loadEquipmentsForType(type, selectElement) {
     if (!selectElement) return;
 
@@ -373,41 +406,32 @@ const Maintenance = (() => {
     selectElement.innerHTML = '<option value="">Carregando equipamentos...</option>';
 
     // Mapeia o slug de volta para a chave original do objeto EQUIPMENT_IDS, se necessário
-    // (Neste caso, a chave do objeto já corresponde ao texto dos tipos não-manuais,
-    // e usamos o slug para os tipos manuais. A API pode precisar do texto original.)
-    let apiTypeParam = type; // Por padrão, usa o slug
-    // Se a API esperar o texto original (ex: "Alta Pressão"), precisamos mapear de volta
+    let apiTypeParam = type;
     const equipmentTypeSelect = document.getElementById('equipment-type');
     if(equipmentTypeSelect) {
         const selectedOption = Array.from(equipmentTypeSelect.options).find(opt => opt.value === type);
         if(selectedOption) {
-            apiTypeParam = selectedOption.textContent; // Usa o texto da opção (ex: "Alta Pressão") para a API
+            apiTypeParam = selectedOption.textContent;
         }
     }
     console.log(`Chamando loadEquipmentsForType com tipo (slug): ${type}, parâmetro API (texto): ${apiTypeParam}`);
 
     // Tenta carregar da lista local primeiro (EQUIPMENT_IDS)
-    // Procura pela chave original (texto, ex: "Alta Pressão")
     if (EQUIPMENT_IDS && EQUIPMENT_IDS[apiTypeParam]) {
         console.log(`Carregando da lista local EQUIPMENT_IDS para '${apiTypeParam}'`);
-        // Remove duplicatas usando Set
         const uniqueEquipments = [...new Set(EQUIPMENT_IDS[apiTypeParam])];
-
-        // Limpa o select
         selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
-
-        // Adiciona as opções únicas ordenadas
         if (uniqueEquipments.length > 0) {
             uniqueEquipments.sort().forEach(item => {
                 const option = document.createElement('option');
-                option.value = item; // O valor é a própria placa/ID
-                option.textContent = item; // O texto também
+                option.value = item;
+                option.textContent = item;
                 selectElement.appendChild(option);
             });
              selectElement.disabled = false;
         } else {
              selectElement.innerHTML += '<option value="" disabled>Nenhum equipamento na lista local</option>';
-             selectElement.disabled = true; // Desabilitar se vazio
+             selectElement.disabled = true;
         }
         return;
     }
@@ -415,48 +439,36 @@ const Maintenance = (() => {
     // Caso não tenhamos lista local para esse tipo, tentamos via API
     console.log(`Tipo '${apiTypeParam}' não encontrado em EQUIPMENT_IDS. Tentando via API.`);
     if (window.API && typeof API.getEquipmentsByType === 'function') {
-      // Passa o TEXTO do tipo para a API (ajuste se a API esperar o slug)
       API.getEquipmentsByType(apiTypeParam)
         .then(response => {
           selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
-
           if (response.success && Array.isArray(response.equipment)) {
              console.log("Equipamentos carregados da API:", response.equipment);
-            // Filtra duplicatas antes de adicionar
             const uniqueItems = new Map();
-
             response.equipment.forEach(item => {
-              // Prioriza 'placaOuId', depois 'id', senão vazio
               const id = item.placaOuId || item.id || '';
               if (id && !uniqueItems.has(id)) {
-                uniqueItems.set(id, item); // Guarda o item inteiro para ter nome/descrição
+                uniqueItems.set(id, item);
               }
             });
-
-            // Adiciona os itens únicos ao select
             if (uniqueItems.size > 0) {
-              // Ordenar pelo ID/Placa antes de adicionar
               const sortedItems = Array.from(uniqueItems.values()).sort((a, b) => {
                   const idA = a.placaOuId || a.id || '';
                   const idB = b.placaOuId || b.id || '';
                   return idA.localeCompare(idB);
               });
-
               sortedItems.forEach(item => {
                 const option = document.createElement('option');
-                const itemId = item.placaOuId || item.id; // Já sabemos que existe e é único
-                // Usar nome/descrição se disponível, senão o próprio ID
+                const itemId = item.placaOuId || item.id;
                 const itemName = item.name || item.descricao || itemId;
-
                 option.value = itemId;
-                // Mostrar nome e ID para clareza, a menos que sejam iguais
                 option.textContent = (itemName && itemName !== itemId) ? `${itemName} (${itemId})` : itemId;
                 selectElement.appendChild(option);
               });
               selectElement.disabled = false;
             } else {
               selectElement.innerHTML += '<option value="" disabled>Nenhum equipamento encontrado via API</option>';
-              selectElement.disabled = true; // Desabilitar se API não retornou nada
+              selectElement.disabled = true;
             }
           } else {
             console.error('API retornou sucesso=false ou formato inválido:', response);
@@ -477,10 +489,6 @@ const Maintenance = (() => {
       selectElement.disabled = true;
     }
   }
-  // =======================================================================
-  // == FIM DA ATUALIZAÇÃO 2 ==
-  // =======================================================================
-
 
   function setupFormSubmitListener() {
     const form = document.getElementById('maintenance-form');
@@ -520,8 +528,6 @@ const Maintenance = (() => {
     const element = document.getElementById(elementId);
     if (element) {
       // Clone o elemento para remover todos os listeners antigos
-      // Nota: Isso pode ter efeitos colaterais se outros scripts adicionarem listeners
-      // Uma alternativa é usar uma flag ou remover o listener específico antes de adicionar
       const newElement = element.cloneNode(true);
       element.parentNode.replaceChild(newElement, element);
 
@@ -629,26 +635,22 @@ const Maintenance = (() => {
     console.log("Populando formulário para edição:", data);
 
     // Normalizar o tipo de equipamento para encontrar o 'value' (slug)
-    // Considera 'equipamentoOutro' se existir, senão usa 'tipoEquipamento'
     let equipmentTypeValueOrText = data.tipoEquipamento;
     let useOtherField = false;
 
-    // Verifica se é um tipo que usa o campo 'outro'
     const manualTypes = ['aspirador', 'poliguindaste', 'outro'];
     const originalTypeSlug = data.tipoEquipamento?.toLowerCase().replace(/ /g, '-').replace(/\//g, '-');
 
     if (manualTypes.includes(originalTypeSlug)) {
-        equipmentTypeValueOrText = originalTypeSlug; // Usar o slug ('aspirador', 'poliguindaste', 'outro')
+        equipmentTypeValueOrText = originalTypeSlug;
         useOtherField = true;
     } else {
-        // Tenta encontrar pelo texto original primeiro (ex: "Alta Pressão")
-        // Se não achar, tenta pelo slug (ex: "alta-pressao")
          const equipSelect = document.getElementById('equipment-type');
          const optionByText = Array.from(equipSelect.options).find(opt => opt.textContent === data.tipoEquipamento);
          if (optionByText) {
-            equipmentTypeValueOrText = optionByText.value; // Usa o slug correspondente ao texto
+            equipmentTypeValueOrText = optionByText.value;
          } else {
-             equipmentTypeValueOrText = originalTypeSlug; // Usa o slug como fallback
+             equipmentTypeValueOrText = originalTypeSlug;
          }
     }
 
@@ -669,25 +671,24 @@ const Maintenance = (() => {
         console.log("Populando other-equipment com:", data.placaOuId || data.equipamentoOutro);
         setInputValue('other-equipment', data.placaOuId || data.equipamentoOutro);
       } else if (currentSelectedTypeValue) {
-         // Esperar um pouco mais se for carregamento de API
+         // Esperar um pouco mais se for carregamento de API ou da nova populateEquipmentSelect
          setTimeout(() => {
             console.log("Populando equipment-id com:", data.placaOuId);
             if (!setSelectValue('equipment-id', data.placaOuId)) {
                 console.warn(`Falha ao selecionar ${data.placaOuId} no select #equipment-id. Pode não ter sido carregado ou não existe.`);
-                // Opcional: Adicionar a opção manualmente se não existir?
                 const equipIdSelect = document.getElementById('equipment-id');
                 const exists = Array.from(equipIdSelect.options).some(opt => opt.value === data.placaOuId);
                 if (!exists && data.placaOuId) {
                     console.log(`Adicionando opção ausente: ${data.placaOuId}`);
                     const option = document.createElement('option');
                     option.value = data.placaOuId;
-                    option.textContent = data.placaOuId; // Usar nome/descrição se disponível em `data`
+                    option.textContent = data.placaOuId;
                     option.selected = true;
                     equipIdSelect.appendChild(option);
-                    equipIdSelect.disabled = false; // Garantir que esteja habilitado
+                    equipIdSelect.disabled = false;
                 }
             }
-         }, 300); // Delay um pouco maior para API
+         }, 300); // Delay um pouco maior
       }
 
       // Preencher o restante dos campos da etapa 1 (após o primeiro timeout)
@@ -748,7 +749,6 @@ const Maintenance = (() => {
       if (found) {
           console.log(`Valor/Texto "${value}" definido para #${id}`);
           // Disparar evento de change para atualizar campos dependentes
-          // Fazendo isso de forma segura para não causar loops infinitos se houver listeners complexos
           setTimeout(() => {
               const event = new Event('change', { bubbles: true });
               element.dispatchEvent(event);
@@ -756,12 +756,9 @@ const Maintenance = (() => {
           return true;
       } else {
           console.warn(`Valor/Texto "${value}" não encontrado nas opções de #${id}. Opções disponíveis (valores):`, Array.from(element.options).map(opt => opt.value));
-          // Opcional: Selecionar a opção padrão (vazia) se não encontrar
-          // element.selectedIndex = 0;
           return false;
       }
     } else {
-       // Não logar warning se o valor for null/undefined de propósito
        if (value !== undefined && value !== null) {
            console.warn(`Elemento #${id} não encontrado ou valor inválido: ${value}`);
        }
@@ -776,7 +773,6 @@ const Maintenance = (() => {
       element.value = value;
       return true;
     }
-     // console.warn(`Elemento #${id} não encontrado ou valor nulo/indefinido.`);
     return false;
   }
 
@@ -793,21 +789,14 @@ const Maintenance = (() => {
     if (!dateString) return '';
 
     try {
-      // Tentar criar data a partir de vários formatos comuns (ISO, DD/MM/YYYY)
       let date;
       if (dateString.includes('/')) {
-          // Assumir DD/MM/YYYY
           const parts = dateString.split('/');
           if (parts.length === 3) {
-              // Formato DD/MM/YYYY -> YYYY-MM-DD (Tratar como UTC para evitar timezone shift)
               date = new Date(Date.UTC(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])));
           }
       } else {
-           // Tentar como ISO (YYYY-MM-DD ou completo) - Date.parse geralmente lida bem
            date = new Date(dateString);
-           // Se for apenas YYYY-MM-DD, pode haver problema de timezone (interpreta como UTC 00:00)
-           // Se for ISO completo com Z ou offset, ok.
-           // Para garantir YYYY-MM-DD sem shift:
            if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
                const parts = dateString.split('-');
                date = new Date(Date.UTC(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])));
@@ -817,10 +806,9 @@ const Maintenance = (() => {
 
       if (!date || isNaN(date.getTime())) {
            console.warn("Data inválida para formatar para input:", dateString);
-           return ''; // Retorna vazio se a data for inválida
+           return '';
       }
 
-      // Usar getUTCFullYear, getUTCMonth, getUTCDate para consistência
       const year = date.getUTCFullYear();
       const month = String(date.getUTCMonth() + 1).padStart(2, '0');
       const day = String(date.getUTCDate()).padStart(2, '0');
@@ -866,17 +854,12 @@ const Maintenance = (() => {
     const equipmentTypeSelect = document.getElementById('equipment-type');
     if(equipmentTypeSelect) {
         equipmentTypeSelect.selectedIndex = 0; // Volta para "Selecione o tipo"
-        // Disparar change para resetar campos dependentes
         equipmentTypeSelect.dispatchEvent(new Event('change'));
     }
-
-    // Garantir que campos condicionais estejam no estado resetado (evento 'change' acima deve cuidar disso)
-    // Não precisa resetar aqui explicitamente pois o 'change' do tipo já faz isso.
 
     const problemCategorySelect = document.getElementById('problem-category-select');
     if(problemCategorySelect) {
         problemCategorySelect.selectedIndex = 0;
-        // Disparar change para resetar campo dependente
          problemCategorySelect.dispatchEvent(new Event('change'));
     }
 
@@ -966,37 +949,29 @@ const Maintenance = (() => {
           const element = document.getElementById(field.id);
           if (!element) {
               console.warn(`Campo de validação ${field.id} não encontrado no DOM!`);
-              return; // Pula para o próximo campo se não encontrar
+              return;
           }
 
           let fieldValue = element.value;
           let fieldValid = false;
 
-           // Verifica visibilidade do elemento ou de seu container relevante
           const container = element.closest('.form-col, .form-group, #other-equipment-field, #other-category-field');
-          // Se não achar container específico, usa o próprio elemento
           const checkElement = container || element;
           const isVisible = window.getComputedStyle(checkElement).display !== 'none';
 
-
-          // Só valida se estiver visível E tiver o atributo 'required' ou estiver na lista
-           // O atributo 'required' é dinamicamente adicionado/removido nos listeners
           const isRequired = element.hasAttribute('required');
 
           if(isVisible && isRequired) {
-              // Lógica de validação específica
               if (element.tagName === 'SELECT') {
                   fieldValid = fieldValue !== '' && fieldValue !== null;
               } else if (element.type === 'checkbox') {
-                   // Validação de checkbox normalmente é feita de outra forma se for obrigatório
-                   fieldValid = element.checked; // Considera válido se marcado
-              } else { // Inputs de texto, data, etc.
+                   fieldValid = element.checked;
+              } else {
                   fieldValid = fieldValue && fieldValue.trim() !== '';
               }
 
               if (!fieldValid) {
                   isValid = false;
-                  // Usar a mensagem definida em fieldsToValidate ou uma genérica
                   const errorMsg = field.errorMsg || `${field.name} é obrigatório`;
                   markFieldAsInvalid(element, errorMsg);
                   if (!firstInvalidField) {
@@ -1006,12 +981,10 @@ const Maintenance = (() => {
                   clearFieldValidation(element);
               }
           } else {
-               // Se não está visível ou não é obrigatório, limpar qualquer validação anterior
                clearFieldValidation(element);
           }
       });
 
-      // Focar no primeiro campo inválido, se houver
       if (firstInvalidField) {
           firstInvalidField.focus();
           console.log(`Foco no primeiro campo inválido: #${firstInvalidField.id}`);
@@ -1022,32 +995,24 @@ const Maintenance = (() => {
 
 
   function markFieldAsInvalid(element, message) {
-    // Adicionar classe de erro ao elemento
     element.classList.add('is-invalid');
-
-    // Procurar o container pai (form-group ou form-col ou o container específico)
     const formGroup = element.closest('.form-group, .form-col, #other-equipment-field, #other-category-field');
     if (formGroup) {
       formGroup.classList.add('has-error');
-
-      // Verificar se já existe mensagem de erro para não duplicar
       let errorElement = formGroup.querySelector('.error-message');
       if (!errorElement) {
         errorElement = document.createElement('div');
         errorElement.className = 'error-message';
-        errorElement.style.color = '#dc3545'; // Cor de erro Bootstrap
+        errorElement.style.color = '#dc3545';
         errorElement.style.fontSize = '0.875em';
         errorElement.style.marginTop = '0.25rem';
-        errorElement.style.width = '100%'; // Ocupar largura para evitar quebra
-        // Inserir após o elemento inválido ou no final do form-group
-        formGroup.appendChild(errorElement); // Adicionar no final do grupo é mais seguro
+        errorElement.style.width = '100%';
+        formGroup.appendChild(errorElement);
       }
-
       errorElement.textContent = message;
-      errorElement.style.display = 'block'; // Garantir que esteja visível
+      errorElement.style.display = 'block';
     } else {
        console.warn("Não foi possível encontrar .form-group ou .form-col para exibir mensagem de erro para:", element);
-       // Tentar adicionar após o próprio elemento como fallback
        let errorElement = element.nextElementSibling;
        if (!errorElement || !errorElement.classList.contains('error-message')) {
            errorElement = document.createElement('div');
@@ -1064,21 +1029,15 @@ const Maintenance = (() => {
 
 
   function clearFieldValidation(element) {
-    // Remover classe de erro do elemento
     element.classList.remove('is-invalid');
-
-    // Procurar o container pai (form-group ou form-col)
     const formGroup = element.closest('.form-group, .form-col, #other-equipment-field, #other-category-field');
     if (formGroup) {
       formGroup.classList.remove('has-error');
-
-      // Remover mensagem de erro se existir DENTRO do formGroup
       const errorElement = formGroup.querySelector('.error-message');
       if (errorElement) {
-        errorElement.remove(); // Remove o elemento de erro
+        errorElement.remove();
       }
     } else {
-       // Remover mensagem de erro que pode estar como irmão (fallback do markField)
        const errorElement = element.nextElementSibling;
         if (errorElement && errorElement.classList.contains('error-message')) {
             errorElement.remove();
@@ -1094,35 +1053,31 @@ const Maintenance = (() => {
 
     formData.tipoEquipamento = equipTypeText; // Salva o texto da opção selecionada
 
-    // Capturar ID/Descrição baseado no tipo de equipamento e visibilidade dos campos
     // Usa o VALOR (slug) para a lógica
     if (equipTypeValue === 'aspirador' || equipTypeValue === 'poliguindaste' || equipTypeValue === 'outro') {
         const otherInput = document.getElementById('other-equipment');
         if(otherInput && otherInput.closest('#other-equipment-field')?.style.display !== 'none') {
-           formData.placaOuId = otherInput.value.trim(); // Salva o valor digitado
-           formData.equipamentoOutro = null; // Por padrão
-
-           // Se o tipo FOR 'outro', usar a descrição digitada como tipo E salvar em equipamentoOutro
+           formData.placaOuId = otherInput.value.trim();
+           formData.equipamentoOutro = null;
            if(equipTypeValue === 'outro') {
-              formData.tipoEquipamento = otherInput.value.trim() || 'Outro (não especificado)'; // Sobrescreve tipoEquipamento
-              formData.equipamentoOutro = otherInput.value.trim(); // Campo específico para 'outro'
-              // placaOuId já foi definido acima
+              formData.tipoEquipamento = otherInput.value.trim() || 'Outro (não especificado)';
+              formData.equipamentoOutro = otherInput.value.trim();
            }
         } else {
-            formData.placaOuId = ''; // Campo não visível/aplicável
+            formData.placaOuId = '';
             formData.equipamentoOutro = null;
         }
     } else if (equipTypeValue) {
         const idSelect = document.getElementById('equipment-id');
          if(idSelect && idSelect.closest('.form-col, .form-group')?.style.display !== 'none') {
-            formData.placaOuId = idSelect.value; // Salva o ID/Placa selecionado
-            formData.equipamentoOutro = null; // Garantir que não haja valor de 'outro'
+            formData.placaOuId = idSelect.value;
+            formData.equipamentoOutro = null;
          } else {
-            formData.placaOuId = ''; // Campo não visível/aplicável
+            formData.placaOuId = '';
              formData.equipamentoOutro = null;
          }
     } else {
-        formData.placaOuId = ''; // Nenhum tipo selecionado
+        formData.placaOuId = '';
         formData.equipamentoOutro = null;
     }
 
@@ -1139,17 +1094,13 @@ const Maintenance = (() => {
   function saveStep2Data() {
     console.log("Salvando dados da etapa 2...");
 
-    // Capturar valores dos campos (usando ID corrigido)
     const problemCategorySelect = document.getElementById('problem-category-select');
     formData.categoriaProblema = problemCategorySelect.value;
 
-    // Se categoria for "Outros", salvar categoria específica
     if (formData.categoriaProblema === 'Outros') { // Usa 'Outros'
       formData.categoriaProblemaOutro = document.getElementById('other-category').value.trim();
-       // Opcional: usar a descrição como a categoria principal? Decisão de negócio.
-       // Ex: formData.categoriaProblema = formData.categoriaProblemaOutro || 'Outros';
     } else {
-        formData.categoriaProblemaOutro = null; // Garantir que não haja valor antigo
+        formData.categoriaProblemaOutro = null;
     }
 
     formData.detalhesproblema = document.getElementById('problem-description').value; // Ajustar ID se necessário
@@ -1163,17 +1114,14 @@ const Maintenance = (() => {
   function updateSummary() {
     console.log("Atualizando resumo...");
 
-    // Formatar os dados para exibição
     let equipmentSummary = '-';
-    // Usar os dados JÁ COLETADOS em formData
     if (formData.tipoEquipamento) {
-        // Se tipoEquipamento foi sobrescrito por ser 'outro', ele já contém a descrição
         if (formData.equipamentoOutro) {
-             equipmentSummary = formData.tipoEquipamento; // Mostra a descrição digitada (que virou o tipo)
+             equipmentSummary = formData.tipoEquipamento;
         } else if (formData.placaOuId) {
-             equipmentSummary = `${formData.tipoEquipamento} (${formData.placaOuId})`; // Tipo (Placa/ID)
+             equipmentSummary = `${formData.tipoEquipamento} (${formData.placaOuId})`;
         } else {
-             equipmentSummary = formData.tipoEquipamento; // Apenas o tipo
+             equipmentSummary = formData.tipoEquipamento;
         }
     }
 
@@ -1183,7 +1131,6 @@ const Maintenance = (() => {
         categorySummary = `${formData.categoriaProblema} (${formData.categoriaProblemaOutro})`;
     }
 
-    // Mapear IDs dos elementos de resumo para os valores formatados
     const summaryElements = {
       'summary-equipment': equipmentSummary,
       'summary-technician': formData.responsavel || '-',
@@ -1196,11 +1143,10 @@ const Maintenance = (() => {
       'summary-notes': formData.observacoes || 'Nenhuma'
     };
 
-    // Atualizar elementos no DOM
     Object.entries(summaryElements).forEach(([elementId, value]) => {
       const element = document.getElementById(elementId);
       if (element) {
-        element.textContent = value; // Usar textContent é mais seguro que innerHTML para texto simples
+        element.textContent = value;
       } else {
         console.warn(`Elemento de resumo #${elementId} não encontrado!`);
       }
@@ -1213,33 +1159,25 @@ const Maintenance = (() => {
   function submitMaintenance() {
     console.log(`${isEditMode ? 'Atualizando' : 'Criando nova'} manutenção... Dados coletados:`, formData);
 
-    // Mostrar indicador de carregamento
     showLoading(true, `${isEditMode ? 'Atualizando' : 'Registrando'} manutenção...`);
 
-    // Preparar dados para envio (mapeamento final para a API)
-    // Adaptar os nomes das chaves conforme esperado pela API
     const dataToSend = {
-      // ID só é enviado na atualização
-      tipoEquipamento: formData.tipoEquipamento, // Já contém a descrição se for 'outro'
+      tipoEquipamento: formData.tipoEquipamento,
       placaOuId: formData.placaOuId,
-      // O campo 'equipamentoOutro' pode não ser necessário se a API só usa 'tipoEquipamento' e 'placaOuId'
-      // Mas enviar pode ser útil para referência. Verifique a necessidade da API.
-      equipamentoOutro: formData.equipamentoOutro, // Será null a menos que o tipo original fosse 'outro'
+      equipamentoOutro: formData.equipamentoOutro,
       responsavel: formData.responsavel,
-      dataRegistro: formData.dataRegistro, // Formato YYYY-MM-DD
+      dataRegistro: formData.dataRegistro,
       area: formData.area,
       localOficina: formData.localOficina,
       tipoManutencao: formData.tipoManutencao,
       eCritico: formData.eCritico,
-      categoriaProblema: formData.categoriaProblema, // Categoria selecionada ou 'Outros'
-      categoriaProblemaOutro: formData.categoriaProblemaOutro, // Descrição se categoria foi 'Outros'
-      detalhesproblema: formData.detalhesproblema, // Verificar nome do campo esperado pela API
-      observacoes: formData.observacoes, // Verificar nome do campo esperado pela API
-      // Adicionar status inicial se for criação
-      status: isEditMode ? undefined : 'Pendente' // Só envia status na criação
+      categoriaProblema: formData.categoriaProblema,
+      categoriaProblemaOutro: formData.categoriaProblemaOutro,
+      detalhesproblema: formData.detalhesproblema,
+      observacoes: formData.observacoes,
+      status: isEditMode ? undefined : 'Pendente'
     };
 
-     // Remover campos indefinidos ou nulos se a API não os aceitar
      Object.keys(dataToSend).forEach(key => {
          if (dataToSend[key] === undefined || dataToSend[key] === null) {
              delete dataToSend[key];
@@ -1247,7 +1185,6 @@ const Maintenance = (() => {
      });
 
 
-    // Se estiver editando, incluir ID
     if (isEditMode && editingMaintenanceId) {
       dataToSend.id = editingMaintenanceId;
     } else if (isEditMode && !editingMaintenanceId) {
@@ -1259,7 +1196,6 @@ const Maintenance = (() => {
 
     console.log("Dados a serem enviados para a API:", dataToSend);
 
-    // Chamar API para salvar os dados
      if (!window.API || !(isEditMode ? API.updateMaintenance : API.createMaintenance)) {
          console.error("Função da API necessária (create/update) não encontrada!");
          showNotification("Erro: Falha na comunicação com o servidor (API não disponível).", "error");
@@ -1273,65 +1209,50 @@ const Maintenance = (() => {
 
     apiCall
       .then(response => {
-        // Normalizar a resposta (algumas APIs podem retornar string JSON)
          let parsedResponse = response;
          if (typeof response === 'string') {
              try {
                  parsedResponse = JSON.parse(response);
              } catch (e) {
                  console.error("Erro ao parsear resposta da API:", e);
-                 // Considerar a string como mensagem de erro se o parse falhar
                  parsedResponse = { success: false, message: response || "Resposta inválida do servidor." };
              }
          } else if (typeof response !== 'object' || response === null) {
-             // Lidar com respostas inesperadas que não são strings nem objetos
              parsedResponse = { success: false, message: "Formato de resposta inesperado do servidor." };
          }
 
 
         if (parsedResponse && parsedResponse.success) {
           console.log("Manutenção salva com sucesso:", parsedResponse);
-
-          // Mostrar notificação de sucesso
           const message = isEditMode ?
             "Manutenção atualizada com sucesso!" :
             "Nova manutenção registrada com sucesso!";
-
           showNotification(message, "success");
-
-          // Fechar o formulário
           closeForm();
-
-          // Recarregar a lista de manutenções
-          loadMaintenanceList(); // Recarrega a lista completa (ou com filtros atuais, se implementado)
+          loadMaintenanceList();
         } else {
           console.error("Erro ao salvar manutenção (API retornou erro):", parsedResponse);
-          // Tentar extrair uma mensagem mais útil da resposta
           const errorMessage = parsedResponse?.message || parsedResponse?.error || (typeof parsedResponse === 'string' ? parsedResponse : 'Erro desconhecido do servidor.');
           showNotification(`Erro ao ${isEditMode ? 'atualizar' : 'registrar'} manutenção: ${errorMessage}`, "error");
         }
       })
       .catch(error => {
         console.error("Falha na chamada da API ao salvar manutenção:", error);
-        // Tentar extrair mensagem do erro
         const errorMessage = error?.message || (typeof error === 'string' ? error : 'Verifique sua conexão ou contate o suporte.');
         showNotification(`Falha ao conectar com o servidor: ${errorMessage}`, "error");
       })
       .finally(() => {
-        // Esconder indicador de carregamento
         showLoading(false);
       });
   }
 
   // --- Funções de Dados e Tabela ---
   function loadMaintenanceList() {
-      // Verificar se há filtros ativos e carregar com eles, senão carregar tudo
       const statusFilter = document.getElementById('maintenance-status-filter')?.value;
       const typeFilter = document.getElementById('maintenance-type-filter')?.value;
       const dateFrom = document.getElementById('maintenance-date-from')?.value;
       const dateTo = document.getElementById('maintenance-date-to')?.value;
 
-      // Determinar se algum filtro está ativo (diferente de 'all' ou vazio)
       const filtersActive = (statusFilter && statusFilter !== 'all') ||
                             (typeFilter && typeFilter !== 'all') ||
                             dateFrom || dateTo;
@@ -1341,7 +1262,7 @@ const Maintenance = (() => {
           loadMaintenanceListWithFilters(statusFilter, typeFilter, dateFrom, dateTo);
       } else {
           console.log("Carregando lista completa de manutenções (sem filtros ativos).");
-          loadMaintenanceListWithoutFilters(); // Função separada para clareza
+          loadMaintenanceListWithoutFilters();
       }
   }
 
@@ -1366,7 +1287,6 @@ const Maintenance = (() => {
     }
   }
 
-  // Função para carregar manutenções COM filtros (vinda da atualização 3.2)
   function loadMaintenanceListWithFilters(status, type, dateFrom, dateTo) {
     console.log(`Carregando lista com filtros: Status=${status || 'N/A'}, Tipo=${type || 'N/A'}, De=${dateFrom || 'N/A'}, Até=${dateTo || 'N/A'}`);
 
@@ -1377,23 +1297,20 @@ const Maintenance = (() => {
        tableBody.innerHTML = '<tr><td colspan="10" class="text-center">Filtrando...</td></tr>';
      }
 
-    // Montar parâmetros para a API (só incluir se tiver valor e não for 'all')
     const params = {};
     if (status && status !== 'all') params.status = status;
-    if (type && type !== 'all') params.tipo = type; // Verificar se a API espera 'tipo' ou 'tipoManutencao'
-    if (dateFrom) params.dataInicio = dateFrom; // Verificar nome esperado pela API
-    if (dateTo) params.dataFim = dateTo; // Verificar nome esperado pela API
+    if (type && type !== 'all') params.tipo = type;
+    if (dateFrom) params.dataInicio = dateFrom;
+    if (dateTo) params.dataFim = dateTo;
 
-    // Verificar se a função da API existe
     if (window.API && typeof API.getMaintenanceListFiltered === 'function') {
       API.getMaintenanceListFiltered(params)
-        .then(response => handleApiResponse(response, tableBody)) // Reutiliza o handler
-        .catch(error => handleApiError(error, tableBody)) // Reutiliza o handler
+        .then(response => handleApiResponse(response, tableBody))
+        .catch(error => handleApiError(error, tableBody))
         .finally(() => showLoading(false));
     } else if (window.API && typeof API.getMaintenanceList === 'function') {
-        // Fallback: Usar getMaintenanceList com query params se getMaintenanceListFiltered não existir
         console.warn("API.getMaintenanceListFiltered não encontrada. Tentando usar API.getMaintenanceList com parâmetros.");
-        API.getMaintenanceList(params) // Passa os mesmos parâmetros
+        API.getMaintenanceList(params)
             .then(response => handleApiResponse(response, tableBody))
             .catch(error => handleApiError(error, tableBody))
             .finally(() => showLoading(false));
@@ -1404,7 +1321,6 @@ const Maintenance = (() => {
   }
 
 
-  // Handler comum para respostas da API (lista/filtrada)
   function handleApiResponse(response, tableBody) {
       let parsedResponse = response;
       if (typeof response === 'string') {
@@ -1421,32 +1337,29 @@ const Maintenance = (() => {
       if (parsedResponse && parsedResponse.success && Array.isArray(parsedResponse.maintenances)) {
         fullMaintenanceList = parsedResponse.maintenances;
         console.log(`Lista de manutenções recebida/filtrada (${fullMaintenanceList.length} itens).`);
-        renderMaintenanceTable(fullMaintenanceList); // Chama a função atualizada de renderização
+        renderMaintenanceTable(fullMaintenanceList);
       } else {
         console.error("Erro ao carregar/filtrar manutenções:", parsedResponse);
         const errorMessage = parsedResponse?.message || 'Formato inválido ou nenhum dado retornado.';
         if (tableBody) {
           tableBody.innerHTML = `<tr><td colspan="10" class="text-center error-message">Erro ao carregar dados: ${errorMessage}</td></tr>`;
         }
-        fullMaintenanceList = []; // Limpar a lista em caso de erro
-        renderMaintenanceTable(fullMaintenanceList); // Renderizar tabela vazia com mensagem
+        fullMaintenanceList = [];
+        renderMaintenanceTable(fullMaintenanceList);
       }
   }
 
-  // Handler comum para erros de API (fetch/network)
   function handleApiError(error, tableBody) {
       console.error("Falha na comunicação com a API:", error);
       const errorMessage = error?.message || (typeof error === 'string' ? error : 'Falha ao conectar com o servidor.');
       if (tableBody) {
         tableBody.innerHTML = `<tr><td colspan="10" class="text-center error-message">${errorMessage}. Tente novamente mais tarde.</td></tr>`;
       }
-      fullMaintenanceList = []; // Limpar a lista em caso de erro
-      renderMaintenanceTable(fullMaintenanceList); // Renderizar tabela vazia com mensagem
+      fullMaintenanceList = [];
+      renderMaintenanceTable(fullMaintenanceList);
   }
 
 
- // *** FUNÇÃO SUBSTITUÍDA CONFORME Atualizações.txt (Item 3.1 e 5 - são idênticas no exemplo) ***
- // Esta função não foi alterada pelas atualizações 2 ou 3, mantendo a versão original.
  function renderMaintenanceTable(maintenances) {
     const tbody = document.getElementById('maintenance-tbody');
     if (!tbody) {
@@ -1457,7 +1370,6 @@ const Maintenance = (() => {
     tbody.innerHTML = ''; // Limpa o corpo da tabela
 
     if (!maintenances || maintenances.length === 0) {
-        // Verificar se filtros estão ativos para mensagem mais específica
         const statusFilter = document.getElementById('maintenance-status-filter')?.value;
         const typeFilter = document.getElementById('maintenance-type-filter')?.value;
         const dateFrom = document.getElementById('maintenance-date-from')?.value;
@@ -1473,31 +1385,26 @@ const Maintenance = (() => {
     console.log(`Renderizando ${maintenances.length} manutenções na tabela.`);
 
     maintenances.forEach(maintenance => {
-        // Garantir valores confiáveis com fallbacks para cada campo
         const id = maintenance.id || '-';
         const tipoEquipamento = maintenance.tipoEquipamento || 'Não especificado';
         const placaOuId = maintenance.placaOuId || '-';
-        // Exibir 'tipo (placa)' apenas se placa/id existir
         const equipamentoDisplay = placaOuId !== '-' ? `${tipoEquipamento} (${placaOuId})` : tipoEquipamento;
-        const tipoManutencao = maintenance.tipoManutencao || 'Preventiva'; // Valor padrão mais específico
-        const dataRegistro = formatDate(maintenance.dataRegistro) || '-'; // Usa a função de formatação
+        const tipoManutencao = maintenance.tipoManutencao || 'Preventiva';
+        const dataRegistro = formatDate(maintenance.dataRegistro) || '-';
         const responsavel = maintenance.responsavel || 'Não atribuído';
         const area = maintenance.area || 'Não especificada';
-        const local = maintenance.localOficina || maintenance.local || '-'; // Usa localOficina ou local como fallback
-        // Usar htmlspecialchars ou similar para exibir problema/detalhes com segurança se puderem conter HTML
+        const local = maintenance.localOficina || maintenance.local || '-';
         const problemaRaw = maintenance.detalhesproblema || maintenance.problema || '-';
-        const problema = Utilities.escapeHtml ? Utilities.escapeHtml(problemaRaw) : problemaRaw; // Usar escape se disponível
+        const problema = Utilities.escapeHtml ? Utilities.escapeHtml(problemaRaw) : problemaRaw;
 
-        const status = maintenance.status || 'Pendente'; // Default 'Pendente'
+        const status = maintenance.status || 'Pendente';
         const statusLower = status.toLowerCase();
-        const statusClass = getStatusClass(status); // Obtém a classe CSS para o status
+        const statusClass = getStatusClass(status);
 
         const row = document.createElement('tr');
-        row.dataset.id = id; // Adiciona o ID real ao dataset da linha
+        row.dataset.id = id;
 
-        // Determinar quais botões mostrar com base no status (lógica vinda das atualizações)
         const canVerify = ['pendente', 'aguardando verificacao', 'aguardando verificação'].includes(statusLower);
-        // Permitir editar se pendente, aguardando, ajustes ou reprovado (ajustar conforme regra de negócio)
         const canEdit = ['pendente', 'aguardando verificacao', 'aguardando verificação', 'ajustes', 'reprovado'].includes(statusLower);
 
 
@@ -1517,14 +1424,12 @@ const Maintenance = (() => {
             <button class="btn-icon view-maintenance" title="Ver Detalhes" data-id="${id}">👁️</button>
             ${canEdit ? `<button class="btn-icon edit-maintenance" title="Editar" data-id="${id}">✏️</button>` : ''}
             ${canVerify ? `<button class="btn-icon verify-maintenance" title="Verificar" data-id="${id}">✔️</button>` : ''}
-            <!-- Adicionar outros botões aqui se necessário (ex: delete, etc.) -->
           </td>
         `;
 
         tbody.appendChild(row);
     });
 
-     // Re-configurar listeners para ações na tabela após renderizar
      setupTableActionListeners();
      console.log("Tabela renderizada e listeners de ação configurados.");
  }
@@ -1534,22 +1439,15 @@ const Maintenance = (() => {
     const tableBody = document.getElementById('maintenance-tbody');
     if (!tableBody) return;
 
-    // Remover listeners antigos para evitar duplicação (delegação de eventos é mais eficiente)
-    // Clonar e substituir é uma forma bruta, mas eficaz se houver problemas com listeners duplicados
     const newTableBody = tableBody.cloneNode(true);
     tableBody.parentNode.replaceChild(newTableBody, tableBody);
 
-
-    // Usar delegação de eventos no novo corpo da tabela
     newTableBody.addEventListener('click', function(event) {
-      const button = event.target.closest('.btn-icon[data-id]'); // Procura por botão de ícone com data-id
-      if (!button) return; // Clique não foi em um botão de ação válido
+      const button = event.target.closest('.btn-icon[data-id]');
+      if (!button) return;
 
       const maintenanceId = button.getAttribute('data-id');
-      if (!maintenanceId) return; // Botão sem data-id (improvável devido ao seletor)
-
-      // Garantir que o ID seja tratado como string ou número consistentemente
-      // const maintenanceIdNum = parseInt(maintenanceId, 10); // Use se IDs forem números
+      if (!maintenanceId) return;
 
       console.log(`Ação clicada: ${Array.from(button.classList).join(' ')}, ID: ${maintenanceId}`);
 
@@ -1560,17 +1458,12 @@ const Maintenance = (() => {
       } else if (button.classList.contains('verify-maintenance')) {
         verifyMaintenance(maintenanceId);
       }
-      // Adicionar outras ações aqui (delete, etc.)
-       // else if (button.classList.contains('delete-maintenance')) {
-       //   deleteMaintenance(maintenanceId);
-       // }
     });
   }
 
 
   function viewMaintenanceDetails(id) {
       console.log(`Buscando detalhes para manutenção ID: ${id}`);
-      // Buscar dados da manutenção na lista local
       const maintenanceData = findMaintenanceById(id);
 
       if (!maintenanceData) {
@@ -1581,30 +1474,23 @@ const Maintenance = (() => {
 
       console.log("Dados encontrados para visualização:", maintenanceData);
 
-      // Tentar usar Utilities.viewMaintenanceDetails se existir
       if (typeof Utilities !== 'undefined' && Utilities.viewMaintenanceDetails) {
           console.log("Usando Utilities.viewMaintenanceDetails");
-          // Passar a função de verificação como callback para o Utilities, se necessário
-          // E passar a função de edição como callback também
           const actions = {
               canVerify: ['pendente', 'aguardando verificacao', 'aguardando verificação'].includes((maintenanceData.status || '').toLowerCase()),
               canEdit: ['pendente', 'aguardando verificacao', 'aguardando verificação', 'ajustes', 'reprovado'].includes((maintenanceData.status || '').toLowerCase()),
               onVerify: () => verifyMaintenance(id),
               onEdit: () => editMaintenance(id)
-              // Adicionar onDelete se houver
           };
           Utilities.viewMaintenanceDetails(id, maintenanceData, actions);
       } else {
-          // Fallback: Usar um modal/overlay genérico se Utilities não estiver disponível
           console.warn("Utilities.viewMaintenanceDetails não encontrado. Usando modal de fallback.");
-          // Implementação de um modal de detalhes básico (exemplo)
-          const detailOverlay = document.getElementById('detail-overlay'); // Precisa existir no HTML
-          const detailContent = document.getElementById('maintenance-detail-content'); // Precisa existir no HTML
+          const detailOverlay = document.getElementById('detail-overlay');
+          const detailContent = document.getElementById('maintenance-detail-content');
 
           if (detailOverlay && detailContent) {
                let htmlContent = `<h2>Detalhes da Manutenção #${maintenanceData.id || '-'}</h2>`;
 
-                // Mapeamento de campos para exibição
                 const equipamentoDisplayFallback = maintenanceData.placaOuId ? `${maintenanceData.tipoEquipamento || '-'} (${maintenanceData.placaOuId})` : (maintenanceData.tipoEquipamento || '-');
                 const categoryDisplayFallback = (maintenanceData.categoriaProblema === 'Outros' && maintenanceData.categoriaProblemaOutro) ? `${maintenanceData.categoriaProblema} (${maintenanceData.categoriaProblemaOutro})` : (maintenanceData.categoriaProblema || '-');
 
@@ -1620,16 +1506,14 @@ const Maintenance = (() => {
                     { label: 'Observações', value: Utilities.escapeHtml ? Utilities.escapeHtml(maintenanceData.observacoes || 'Nenhuma') : (maintenanceData.observacoes || 'Nenhuma') },
                 ];
 
-                 htmlContent += '<div class="details-grid">'; // Usar grid para melhor layout
+                 htmlContent += '<div class="details-grid">';
                  detailsMap.forEach(item => {
-                      // Usar innerHTML para value apenas se contiver HTML (badge, span), senão textContent
                       const valueHtml = item.value.includes('<span') ? item.value : (Utilities.escapeHtml ? Utilities.escapeHtml(item.value) : item.value);
                       htmlContent += `<div class="detail-item"><strong>${item.label}:</strong> <div>${valueHtml || '-'}</div></div>`;
                  });
                  htmlContent += '</div>';
 
 
-               // Adicionar seção de verificação se existir nos dados da API
               if (maintenanceData.verificacao && typeof maintenanceData.verificacao === 'object' && Object.keys(maintenanceData.verificacao).length > 0) {
                     htmlContent += `<h3 style="margin-top: 20px;">Informações da Verificação</h3>`;
                     const verificationMap = [
@@ -1648,65 +1532,57 @@ const Maintenance = (() => {
 
                 detailContent.innerHTML = htmlContent;
 
-                // Botões de ação no modal de detalhes (se aplicável)
-                 const detailActions = detailOverlay.querySelector('.modal-actions'); // Container para botões no modal
+                 const detailActions = detailOverlay.querySelector('.modal-actions');
                  if (detailActions) {
-                    detailActions.innerHTML = ''; // Limpa ações antigas
+                    detailActions.innerHTML = '';
                      const statusLower = (maintenanceData.status || '').toLowerCase();
                      const canVerify = ['pendente', 'aguardando verificacao', 'aguardando verificação'].includes(statusLower);
                      const canEdit = ['pendente', 'aguardando verificacao', 'aguardando verificação', 'ajustes', 'reprovado'].includes(statusLower);
 
-                     // Botão Editar (se aplicável)
                      if (canEdit) {
                          const editBtn = document.createElement('button');
-                         editBtn.innerHTML = '✏️ Editar'; // Usar ícone + texto
-                         editBtn.className = 'btn btn-secondary'; // Ajustar classe
+                         editBtn.innerHTML = '✏️ Editar';
+                         editBtn.className = 'btn btn-secondary';
                          editBtn.onclick = () => {
-                             detailOverlay.style.display = 'none'; // Fecha detalhes
-                             editMaintenance(id); // Abre edição
+                             detailOverlay.style.display = 'none';
+                             editMaintenance(id);
                          };
                          detailActions.appendChild(editBtn);
                      }
 
-                     // Botão Verificar (se aplicável)
                      if (canVerify) {
                           const verifyBtn = document.createElement('button');
-                          verifyBtn.innerHTML = '✔️ Verificar'; // Usar ícone + texto
-                          verifyBtn.className = 'btn btn-primary'; // Usar classes CSS apropriadas
+                          verifyBtn.innerHTML = '✔️ Verificar';
+                          verifyBtn.className = 'btn btn-primary';
                           verifyBtn.onclick = () => {
-                               detailOverlay.style.display = 'none'; // Fecha detalhes
-                               verifyMaintenance(id); // Abre verificação
+                               detailOverlay.style.display = 'none';
+                               verifyMaintenance(id);
                           };
                           detailActions.appendChild(verifyBtn);
                      }
 
-                      // Botão de fechar sempre presente
                       const closeBtn = document.createElement('button');
                       closeBtn.textContent = 'Fechar';
-                      closeBtn.className = 'btn btn-light'; // Usar classe apropriada
+                      closeBtn.className = 'btn btn-light';
                       closeBtn.onclick = () => detailOverlay.style.display = 'none';
                       detailActions.appendChild(closeBtn);
                  }
 
 
-                detailOverlay.style.display = 'flex'; // Mostra o overlay
+                detailOverlay.style.display = 'flex';
 
-                // Adicionar event listener para fechar clicando fora (opcional)
                 detailOverlay.onclick = function(event) {
-                    // Fechar só se clicar DIRETAMENTE no overlay (não nos filhos)
                     if (event.target === detailOverlay) {
                         detailOverlay.style.display = 'none';
                     }
                 };
 
-                 // Garantir que os botões de fechar dentro do modal funcionem (se houver com classe específica)
-                 detailOverlay.querySelectorAll('.close-modal-btn').forEach(btn => { // Adicione essa classe aos botões X ou Fechar internos
+                 detailOverlay.querySelectorAll('.close-modal-btn').forEach(btn => {
                      btn.onclick = () => detailOverlay.style.display = 'none';
                  });
 
 
           } else {
-              // Fallback final se nem o overlay existir: alert simples
               const alertMessage = `Detalhes Manutenção #${id}\n` +
                                    `Equipamento: ${maintenanceData.tipoEquipamento || '-'} (${maintenanceData.placaOuId || '-'})\n` +
                                    `Status: ${maintenanceData.status || '-'}\n` +
@@ -1719,7 +1595,6 @@ const Maintenance = (() => {
 
   function editMaintenance(id) {
     console.log(`Iniciando edição para manutenção ID: ${id}`);
-    // Buscar dados da manutenção na lista local
     const maintenanceData = findMaintenanceById(id);
 
     if (!maintenanceData) {
@@ -1730,13 +1605,11 @@ const Maintenance = (() => {
 
      console.log("Dados encontrados para edição:", maintenanceData);
 
-    // Abrir formulário no modo de edição, passando os dados
     openMaintenanceForm(id, maintenanceData);
   }
 
   function verifyMaintenance(id) {
       console.log(`Iniciando verificação para manutenção ID: ${id}`);
-      // Buscar dados da manutenção na lista local
       const maintenanceData = findMaintenanceById(id);
 
       if (!maintenanceData) {
@@ -1747,30 +1620,23 @@ const Maintenance = (() => {
 
       console.log("Dados encontrados para verificação:", maintenanceData);
 
-      // Tentar usar módulo global Verification se existir
       if (typeof Verification !== 'undefined' && Verification.openVerificationForm) {
           console.log("Usando módulo global Verification.openVerificationForm");
           Verification.openVerificationForm(id, maintenanceData);
       } else {
-          // Fallback: Usar um formulário/modal de verificação interno ou genérico
           console.warn("Módulo global Verification não encontrado. Usando formulário de verificação de fallback.");
 
-          // Aqui você precisaria ter um HTML para o modal/formulário de verificação de fallback
-          // Exemplo: <div id="verification-form-overlay-fallback"> <form id="verification-form-fallback"> ... </form> </div>
-          const verificationOverlay = document.getElementById('verification-form-overlay-fallback'); // Usar ID de fallback
-          const verificationForm = document.getElementById('verification-form-fallback'); // Usar ID de fallback
+          const verificationOverlay = document.getElementById('verification-form-overlay-fallback');
+          const verificationForm = document.getElementById('verification-form-fallback');
 
           if (verificationOverlay && verificationForm) {
-              // Resetar o formulário de verificação
               verificationForm.reset();
-              // Limpar validações visuais (reusar funções se possível)
-              verificationForm.querySelectorAll('.is-invalid').forEach(el => clearFieldValidation(el)); // Requer clearFieldValidation global ou local
+              verificationForm.querySelectorAll('.is-invalid').forEach(el => clearFieldValidation(el));
               verificationForm.querySelectorAll('.has-error').forEach(el => el.classList.remove('has-error'));
               verificationForm.querySelectorAll('.error-message').forEach(el => el.remove());
 
 
-              // Preencher campos fixos com dados da manutenção (assumindo que existem no HTML do fallback)
-              setInputValue('verification-id-fallback', id); // Usar IDs de fallback
+              setInputValue('verification-id-fallback', id);
               const equipmentDisplayFallbackV = maintenanceData.placaOuId ? `${maintenanceData.tipoEquipamento || '-'} (${maintenanceData.placaOuId})` : (maintenanceData.tipoEquipamento || '-');
               setInputValue('verification-equipment-fallback', equipmentDisplayFallbackV);
               setInputValue('verification-type-fallback', maintenanceData.tipoManutencao || '-');
@@ -1778,42 +1644,36 @@ const Maintenance = (() => {
               if(problemDisplayFallback) problemDisplayFallback.textContent = maintenanceData.detalhesproblema || '-';
 
 
-              // Mostrar overlay/modal
               verificationOverlay.style.display = 'flex';
 
-              // Configurar listeners de fechar (usando addSafeListener se disponível globalmente ou implementar localmente)
               addSafeListener('close-verification-form-fallback', 'click', () => verificationOverlay.style.display = 'none');
               addSafeListener('cancel-verification-fallback', 'click', () => verificationOverlay.style.display = 'none');
 
-               // Configurar listener para o botão de submissão da verificação (usando ID de fallback)
-              addSafeListener('submit-verification-btn-fallback', 'click', function(event) { // Adicione um ID ao botão submit
-                  event.preventDefault(); // Prevenir submit padrão se for type="submit"
+              addSafeListener('submit-verification-btn-fallback', 'click', function(event) {
+                  event.preventDefault();
 
-                  // Coletar dados do formulário de verificação (usando IDs de fallback)
                   const verifierNameInput = document.getElementById('verifier-name-fallback');
                   const resultRadio = verificationForm.querySelector('input[name="verification-result-fallback"]:checked');
                   const commentsInput = document.getElementById('verification-comments-fallback');
 
                   const verificationData = {
                       maintenanceId: id,
-                      // Usar nome do usuário logado se disponível, senão pegar do input
                       verifierName: (typeof UserSession !== 'undefined' && UserSession.getUserName) ? UserSession.getUserName() : (verifierNameInput ? verifierNameInput.value.trim() : ''),
-                      result: resultRadio ? resultRadio.value : null, // Ex: 'Aprovado', 'Reprovado', 'Ajustes'
+                      result: resultRadio ? resultRadio.value : null,
                       comments: commentsInput ? commentsInput.value.trim() : '',
-                      verificationDate: new Date().toISOString().split('T')[0] // Data YYYY-MM-DD
+                      verificationDate: new Date().toISOString().split('T')[0]
                   };
 
-                  // Validar dados da verificação (reusando funções se possível)
                   let isVerificationValid = true;
-                   if (!verificationData.verifierName && verifierNameInput && window.getComputedStyle(verifierNameInput).display !== 'none') { // Só valida nome se input estiver visível
-                       markFieldAsInvalid(verifierNameInput, 'Nome do verificador é obrigatório.'); // Requer markFieldAsInvalid global ou local
+                   if (!verificationData.verifierName && verifierNameInput && window.getComputedStyle(verifierNameInput).display !== 'none') {
+                       markFieldAsInvalid(verifierNameInput, 'Nome do verificador é obrigatório.');
                        isVerificationValid = false;
                    } else if (verifierNameInput) {
-                       clearFieldValidation(verifierNameInput); // Requer clearFieldValidation global ou local
+                       clearFieldValidation(verifierNameInput);
                    }
 
                    if (!verificationData.result) {
-                       const radioGroupContainer = verificationForm.querySelector('input[name="verification-result-fallback"]')?.closest('.form-group, .radio-group-container'); // Ajuste o seletor
+                       const radioGroupContainer = verificationForm.querySelector('input[name="verification-result-fallback"]')?.closest('.form-group, .radio-group-container');
                        if(radioGroupContainer) markFieldAsInvalid(radioGroupContainer, 'Selecione um resultado.');
                        isVerificationValid = false;
                   } else {
@@ -1821,7 +1681,6 @@ const Maintenance = (() => {
                        if(radioGroupContainer) clearFieldValidation(radioGroupContainer);
                   }
 
-                  // Tornar comentários obrigatórios dependendo do resultado (ex: obrigatório se 'Reprovado' ou 'Ajustes')
                   const isCommentRequired = ['Reprovado', 'Ajustes'].includes(verificationData.result);
                    if (isCommentRequired && !verificationData.comments) {
                        if(commentsInput) markFieldAsInvalid(commentsInput, 'Comentários são obrigatórios para este resultado.');
@@ -1832,12 +1691,11 @@ const Maintenance = (() => {
 
 
                   if (!isVerificationValid) {
-                      showNotification("Por favor, preencha os campos obrigatórios da verificação.", "warning"); // Requer showNotification
+                      showNotification("Por favor, preencha os campos obrigatórios da verificação.", "warning");
                       return;
                   }
 
-                  // Submeter verificação via API (ou função de fallback)
-                  submitVerification(verificationData); // Reutiliza a função de submissão
+                  submitVerification(verificationData);
               });
 
           } else {
@@ -1851,14 +1709,11 @@ const Maintenance = (() => {
   function submitVerification(data) {
     console.log("Submetendo verificação via API:", data);
 
-    // Mostrar indicador de carregamento
     showLoading(true, "Registrando verificação...");
 
-    // Chamar API para registrar verificação
     if (window.API && typeof API.submitVerification === 'function') {
       API.submitVerification(data)
         .then(response => {
-           // Normalizar resposta
            let parsedResponse = response;
             if (typeof response === 'string') {
                 try {
@@ -1875,13 +1730,11 @@ const Maintenance = (() => {
             console.log("Verificação registrada com sucesso:", parsedResponse);
             showNotification("Verificação registrada com sucesso!", "success");
 
-            // Fechar o formulário de verificação (tentar fechar ambos, normal e fallback)
             const verificationOverlay = document.getElementById('verification-form-overlay') || document.getElementById('verification-form-overlay-fallback');
             if (verificationOverlay) {
               verificationOverlay.style.display = 'none';
             }
 
-            // Recarregar a lista de manutenções para refletir a mudança de status
             loadMaintenanceList();
           } else {
             console.error("Erro ao registrar verificação (API retornou erro):", parsedResponse);
@@ -1901,7 +1754,6 @@ const Maintenance = (() => {
       console.error("API.submitVerification não disponível.");
       showNotification("Erro: Função da API para submeter verificação não encontrada.", "error");
       showLoading(false);
-      // Fechar o formulário mesmo em caso de erro de API para não travar o usuário
       const verificationOverlay = document.getElementById('verification-form-overlay') || document.getElementById('verification-form-overlay-fallback');
       if (verificationOverlay) {
           verificationOverlay.style.display = 'none';
@@ -1912,153 +1764,122 @@ const Maintenance = (() => {
 
   function findMaintenanceById(id) {
       if (!id || !Array.isArray(fullMaintenanceList)) return null;
-      // Comparar como strings para evitar problemas de tipo (e.g., API retorna string, local é número)
       const stringId = String(id);
       return fullMaintenanceList.find(item => String(item.id) === stringId);
   }
 
-  // --- Funções Utilitárias (Podem vir de Utilities ou ter fallback aqui) ---
+  // --- Funções Utilitárias ---
   function formatDate(dateString) {
     if (!dateString) return '-';
 
-    // Tentar usar Utilities.formatDate se disponível
     if (typeof Utilities !== 'undefined' && Utilities.formatDate) {
       return Utilities.formatDate(dateString);
     }
 
-    // Implementação de fallback robusta
     try {
         let date;
-        // Verificar se a string já contém informações de timezone ou se é apenas data
         if (dateString.includes('T') || dateString.includes('Z')) {
-            date = new Date(dateString); // Tentar parsear como ISO 8601 completo
+            date = new Date(dateString);
         } else if (dateString.includes('-')) {
-             // Assumir YYYY-MM-DD e tratar como UTC para evitar problemas de timezone
              const parts = dateString.split('-');
              if(parts.length === 3 && parts.every(p => !isNaN(parseInt(p)))) {
                 date = new Date(Date.UTC(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])));
              }
         } else if (dateString.includes('/')) {
-            // Assumir DD/MM/YYYY e tratar como UTC
             const parts = dateString.split('/');
              if(parts.length === 3 && parts.every(p => !isNaN(parseInt(p)))) {
                  date = new Date(Date.UTC(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])));
              }
         }
 
-        // Se o parse inicial falhou, tentar um parse mais genérico
         if (!date || isNaN(date.getTime())) {
              date = new Date(dateString);
-             // Se ainda assim for inválida, retornar a string original
              if (isNaN(date.getTime())) {
                  console.warn(`Formato de data inválido ou não reconhecido: ${dateString}`);
                  return dateString;
              }
-             // Se foi parse genérico, usar métodos não-UTC para formatar
              const day = String(date.getDate()).padStart(2, '0');
              const month = String(date.getMonth() + 1).padStart(2, '0');
              const year = date.getFullYear();
              return `${day}/${month}/${year}`;
         }
 
-        // Formatar a data válida (que foi tratada como UTC) para DD/MM/YYYY
         const day = String(date.getUTCDate()).padStart(2, '0');
-        const month = String(date.getUTCMonth() + 1).padStart(2, '0'); // Meses são 0-indexados
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
         const year = date.getUTCFullYear();
 
         return `${day}/${month}/${year}`;
     } catch(e) {
       console.error(`Erro ao formatar data "${dateString}":`, e);
-      return dateString; // Retornar string original em caso de erro
+      return dateString;
     }
   }
 
 
   function getStatusClass(status) {
-    if (!status) return 'default'; // Cinza/Padrão
+    if (!status) return 'default';
 
     const statusLower = status.toLowerCase();
 
-    // Mapeamento de status para classes CSS (ajuste conforme seu CSS)
     const statusMap = {
         'pendente': 'pending',
         'aguardando verificação': 'pending',
         'aguardando verificacao': 'pending',
-        'em análise': 'pending', // Exemplo adicional
+        'em análise': 'pending',
         'verificado': 'verified',
-        'aprovado': 'verified', // Exemplo adicional
+        'aprovado': 'verified',
         'concluído': 'completed',
         'concluido': 'completed',
-        'finalizado': 'completed', // Exemplo adicional
+        'finalizado': 'completed',
         'ajustes': 'adjusting',
-        'em andamento': 'progress', // Renomeado de adjusting para progress? Ajustar.
+        'em andamento': 'progress',
         'reprovado': 'rejected',
-        'cancelado': 'cancelled', // Exemplo adicional
+        'cancelado': 'cancelled',
     };
 
-    // Procurar correspondência EXATA primeiro
     if (statusMap[statusLower]) {
         return statusMap[statusLower];
     }
 
-    // Procurar por correspondência parcial (mais flexível, mas pode dar falso positivo)
-    for (const key in statusMap) {
-        // Usar includes pode ser perigoso (ex: 'aprovado' inclui 'provado')
-        // Melhor fazer split e verificar palavras chave se necessário, ou manter mapeamento exato.
-        // Exemplo com includes (cuidado):
-        // if (statusLower.includes(key)) {
-        //     return statusMap[key];
-        // }
-    }
-
-
-    // Se não achou correspondência, retornar uma classe padrão
      console.warn(`Status não mapeado para classe CSS: "${status}". Usando 'default'.`);
-    return 'default'; // Classe padrão para status não mapeados
+    return 'default';
   }
 
 
   function showNotification(message, type = 'info') {
-    // Usar Utilities se disponível
     if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
       Utilities.showNotification(message, type);
       return;
     }
 
-    // Implementação de fallback (melhorada)
-    console.log(`[${type.toUpperCase()}] ${message}`); // Log no console sempre útil
+    console.log(`[${type.toUpperCase()}] ${message}`);
 
     let container = document.getElementById('notification-container-fallback');
     if (!container) {
         container = document.createElement('div');
         container.id = 'notification-container-fallback';
-        // Estilos básicos (ajuste conforme necessário)
         Object.assign(container.style, {
             position: 'fixed',
-            top: '20px', // Um pouco mais de espaço do topo
-            right: '20px', // Um pouco mais de espaço da direita
-            zIndex: '1055', // Acima de muitos elementos, mas talvez abaixo de loaders/modais
-            width: '350px', // Um pouco maior
+            top: '20px',
+            right: '20px',
+            zIndex: '1055',
+            width: '350px',
             maxWidth: '90%'
         });
         document.body.appendChild(container);
     }
 
-    // Criar elemento de notificação
     const notification = document.createElement('div');
-    // Usar classes genéricas e específicas do tipo para estilização via CSS
     notification.className = `notification-fallback notification-${type}`;
-    notification.setAttribute('role', 'alert'); // Melhor acessibilidade
+    notification.setAttribute('role', 'alert');
 
-    // Adicionar um botão de fechar
     const closeButton = document.createElement('button');
-    closeButton.innerHTML = '&times;'; // 'X' HTML entity
+    closeButton.innerHTML = '×';
     closeButton.setAttribute('aria-label', 'Fechar');
-    // Estilos básicos para o botão de fechar
     Object.assign(closeButton.style, {
         background: 'none',
         border: 'none',
-        color: 'inherit', // Herda a cor do texto da notificação
+        color: 'inherit',
         fontSize: '1.2em',
         position: 'absolute',
         top: '5px',
@@ -2067,83 +1888,68 @@ const Maintenance = (() => {
         lineHeight: '1'
     });
 
-    // Span para a mensagem
     const messageSpan = document.createElement('span');
     messageSpan.textContent = message;
 
     notification.appendChild(messageSpan);
     notification.appendChild(closeButton);
 
-
-    // Estilos básicos via JS (melhor usar CSS com as classes acima)
      Object.assign(notification.style, {
-        position: 'relative', // Para posicionar o botão de fechar
-        padding: '15px 40px 15px 20px', // Mais padding, espaço para botão fechar
+        position: 'relative',
+        padding: '15px 40px 15px 20px',
         marginBottom: '10px',
-        borderRadius: '4px', // Bootstrap-like
+        borderRadius: '4px',
         color: '#fff',
-        opacity: '0', // Começa transparente
+        opacity: '0',
         transition: 'opacity 0.3s ease-out, transform 0.3s ease-out',
-        transform: 'translateX(100%)', // Começa fora da tela
-        boxShadow: '0 4px 8px rgba(0,0,0,0.15)', // Sombra mais suave
+        transform: 'translateX(100%)',
+        boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
         wordWrap: 'break-word',
-        overflow: 'hidden' // Para garantir que conteúdo não vaze antes da animação
+        overflow: 'hidden'
      });
 
-     // Cores baseadas no tipo (usando variáveis CSS seria ideal)
      switch (type) {
-        case 'error': notification.style.backgroundColor = '#dc3545'; break; // Vermelho Bootstrap
-        case 'success': notification.style.backgroundColor = '#28a745'; break; // Verde Bootstrap
-        case 'warning': notification.style.backgroundColor = '#ffc107'; notification.style.color = '#212529'; break; // Amarelo Bootstrap (texto escuro)
-        default: notification.style.backgroundColor = '#0dcaf0'; break; // Info Bootstrap (Cyan)
+        case 'error': notification.style.backgroundColor = '#dc3545'; break;
+        case 'success': notification.style.backgroundColor = '#28a745'; break;
+        case 'warning': notification.style.backgroundColor = '#ffc107'; notification.style.color = '#212529'; break;
+        default: notification.style.backgroundColor = '#0dcaf0'; break;
      }
 
-
-    // Adicionar ao início do container (novas notificações aparecem em cima)
     container.insertBefore(notification, container.firstChild);
 
-     // Animar entrada
-     requestAnimationFrame(() => { // Garante que o elemento está no DOM antes de animar
-         notification.style.opacity = '0.95'; // Um pouco de transparência
+     requestAnimationFrame(() => {
+         notification.style.opacity = '0.95';
          notification.style.transform = 'translateX(0)';
      });
 
-
-    // Função para remover a notificação
     const removeNotification = () => {
         notification.style.opacity = '0';
-        notification.style.transform = 'translateX(110%)'; // Animar saída
-        // Esperar a transição terminar antes de remover o elemento
+        notification.style.transform = 'translateX(110%)';
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.remove();
-                // Opcional: remover o container se estiver vazio
                 if (container.children.length === 0 && container.parentNode) {
-                    // container.remove(); // Descomente se quiser remover o container vazio
+                    // container.remove(); // Opcional
                 }
             }
-        }, 300); // Tempo igual à duração da transição
+        }, 300);
     };
 
-    // Remover após alguns segundos
-    const removeTimeout = setTimeout(removeNotification, 6000); // Aumentar tempo visível
+    const removeTimeout = setTimeout(removeNotification, 6000);
 
-    // Fechar ao clicar no botão 'X'
      closeButton.onclick = () => {
-         clearTimeout(removeTimeout); // Cancela a remoção automática
+         clearTimeout(removeTimeout);
          removeNotification();
      };
   }
 
 
   function showLoading(show, message = 'Carregando...') {
-    // Usar Utilities se disponível
     if (typeof Utilities !== 'undefined' && Utilities.showLoading) {
       Utilities.showLoading(show, message);
       return;
     }
 
-    // Implementação básica de fallback (melhorada)
     const loaderId = 'global-loader-fallback';
     let loader = document.getElementById(loaderId);
 
@@ -2151,55 +1957,51 @@ const Maintenance = (() => {
         if (!loader) {
             loader = document.createElement('div');
             loader.id = loaderId;
-            // Estilos do overlay
              Object.assign(loader.style, {
                 position: 'fixed',
                 top: '0',
                 left: '0',
                 width: '100%',
                 height: '100%',
-                backgroundColor: 'rgba(40, 40, 40, 0.7)', // Fundo um pouco mais escuro
+                backgroundColor: 'rgba(40, 40, 40, 0.7)',
                 display: 'flex',
-                flexDirection: 'column', // Para colocar mensagem abaixo do spinner
+                flexDirection: 'column',
                 justifyContent: 'center',
                 alignItems: 'center',
-                zIndex: '1060', // Acima de outros elementos, incluindo notificações
+                zIndex: '1060',
                 color: 'white',
                 textAlign: 'center',
-                transition: 'opacity 0.2s ease-in-out', // Transição mais rápida
-                opacity: '0' // Começa invisível para transição
+                transition: 'opacity 0.2s ease-in-out',
+                opacity: '0'
              });
 
 
-            // Spinner (CSS puro, estilo diferente)
             const spinner = document.createElement('div');
-            spinner.className = 'loader-spinner-fallback'; // Use CSS para estilizar
+            spinner.className = 'loader-spinner-fallback';
              Object.assign(spinner.style, {
-                 border: '4px solid rgba(255, 255, 255, 0.3)', // Cinza claro transparente
-                 borderTop: '4px solid #ffffff', // Branco sólido
+                 border: '4px solid rgba(255, 255, 255, 0.3)',
+                 borderTop: '4px solid #ffffff',
                  borderRadius: '50%',
                  width: '40px',
                  height: '40px',
-                 animation: 'spinFallback 0.8s linear infinite', // Animação mais rápida
-                 marginBottom: '15px' // Espaço entre spinner e mensagem
+                 animation: 'spinFallback 0.8s linear infinite',
+                 marginBottom: '15px'
              });
 
 
-            // Mensagem
             const loaderMessageElement = document.createElement('p');
             loaderMessageElement.id = 'global-loader-message-fallback';
              Object.assign(loaderMessageElement.style, {
-                 fontSize: '1em', // Tamanho ligeiramente menor
+                 fontSize: '1em',
                  margin: '0',
-                 padding: '0 10px', // Evita que texto longo toque as bordas
-                 fontFamily: 'sans-serif' // Fonte padrão
+                 padding: '0 10px',
+                 fontFamily: 'sans-serif'
              });
 
             loader.appendChild(spinner);
             loader.appendChild(loaderMessageElement);
             document.body.appendChild(loader);
 
-            // Adicionar keyframes para a animação do spinner se não existir
             if (!document.getElementById('spin-fallback-style')) {
                 const style = document.createElement('style');
                 style.id = 'spin-fallback-style';
@@ -2208,38 +2010,31 @@ const Maintenance = (() => {
                         0% { transform: rotate(0deg); }
                         100% { transform: rotate(360deg); }
                     }
-                    .loader-spinner-fallback { /* Garante que a classe exista */ }
+                    .loader-spinner-fallback {}
                 `;
                 document.head.appendChild(style);
             }
 
-             // Forçar reflow para garantir a transição de opacidade
              void loader.offsetWidth;
-             loader.style.opacity = '1'; // Torna visível
+             loader.style.opacity = '1';
         }
-         // Atualizar a mensagem
         const messageElement = loader.querySelector('#global-loader-message-fallback');
         if (messageElement) messageElement.textContent = message;
-        loader.style.display = 'flex'; // Garante que esteja flexível (caso tenha sido escondido antes)
+        loader.style.display = 'flex';
     } else {
         if (loader) {
-            loader.style.opacity = '0'; // Inicia transição para esconder
-            // Remover após a transição
+            loader.style.opacity = '0';
              setTimeout(() => {
-                 // Verificar se ainda existe antes de tentar remover
                  const currentLoader = document.getElementById(loaderId);
                  if (currentLoader && currentLoader.parentNode) {
                      currentLoader.remove();
                  }
-             }, 200); // Tempo da transição de opacidade (0.2s)
+             }, 200);
         }
     }
   }
 
-   // --- Filtros Inteligentes (Funções da atualização 3) ---
-   // =======================================================================================
-   // == INÍCIO DA ATUALIZAÇÃO 3: createMaintenanceFilters, setupMaintenanceFilterListeners, addMaintenanceFilterStyles ==
-   // =======================================================================================
+   // --- Filtros Inteligentes ---
    function createMaintenanceFilters() {
         const filterContainer = document.getElementById('maintenance-filter-buttons');
         if (!filterContainer) {
@@ -2247,7 +2042,6 @@ const Maintenance = (() => {
              return;
         }
 
-        // Define os ícones como texto simples para evitar o erro com searchIcon
         const filterHTML = `
             <div class="smart-filter-container">
             <div class="filter-group">
@@ -2297,67 +2091,66 @@ const Maintenance = (() => {
         filterContainer.innerHTML = filterHTML;
 
         // Configurar event listeners para os botões
-        setupMaintenanceFilterListeners();
+        setupMaintenanceFilterListeners(); // <<< ESTA FUNÇÃO SERÁ SUBSTITUÍDA PELA ATUALIZAÇÃO 2
 
         // Adicionar estilos CSS inline se necessário
         addMaintenanceFilterStyles();
     }
 
 
+    // =======================================================================================
+    // == INÍCIO DA ATUALIZAÇÃO 2: setupMaintenanceFilterListeners ==
+    // =======================================================================================
     function setupMaintenanceFilterListeners() {
-        const applyBtn = document.getElementById('apply-maintenance-filter');
-        const resetBtn = document.getElementById('reset-maintenance-filter');
+      const applyBtn = document.getElementById('apply-maintenance-filter');
+      const resetBtn = document.getElementById('reset-maintenance-filter');
 
-        if (applyBtn) {
-            applyBtn.addEventListener('click', function() {
-                // Coleta os valores atuais dos filtros
-                const statusFilter = document.getElementById('maintenance-status-filter').value;
-                const typeFilter = document.getElementById('maintenance-type-filter').value;
-                const dateFrom = document.getElementById('maintenance-date-from').value;
-                const dateTo = document.getElementById('maintenance-date-to').value;
+      if (applyBtn) {
+        applyBtn.addEventListener('click', function() {
+          // Coleta os valores dos filtros
+          const statusFilter = document.getElementById('maintenance-status-filter').value;
+          const typeFilter = document.getElementById('maintenance-type-filter').value;
+          const dateFrom = document.getElementById('maintenance-date-from').value;
+          const dateTo = document.getElementById('maintenance-date-to').value;
 
-                // Chama a função para carregar a lista com os filtros selecionados
-                loadMaintenanceListWithFilters(statusFilter, typeFilter, dateFrom, dateTo);
+          // Carrega a lista filtrada
+          loadMaintenanceListWithFilters(statusFilter, typeFilter, dateFrom, dateTo);
 
-                // Feedback visual (sem usar searchIcon)
-                const originalText = applyBtn.textContent;
-                applyBtn.textContent = "✓ Aplicado";
-                applyBtn.disabled = true;
-                setTimeout(() => {
-                    applyBtn.textContent = originalText;
-                    applyBtn.disabled = false;
-                }, 2000);
-            });
-        } else {
-            console.warn("Botão #apply-maintenance-filter não encontrado para adicionar listener.");
-        }
+          // Feedback visual SEM usar searchIcon (que está causando o erro)
+          const originalText = applyBtn.textContent;
+          applyBtn.textContent = "✓ Aplicado";
+          applyBtn.disabled = true;
+          setTimeout(() => {
+            applyBtn.textContent = originalText;
+            applyBtn.disabled = false;
+          }, 1500); // Tempo de feedback reduzido para 1.5s
+        });
+      }
 
-        if (resetBtn) {
-            resetBtn.addEventListener('click', function() {
-                // Resetar valores dos campos de filtro
-                document.getElementById('maintenance-status-filter').value = 'all';
-                document.getElementById('maintenance-type-filter').value = 'all';
-                document.getElementById('maintenance-date-from').value = '';
-                document.getElementById('maintenance-date-to').value = '';
+      if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+          // Resetar campos
+          document.getElementById('maintenance-status-filter').value = 'all';
+          document.getElementById('maintenance-type-filter').value = 'all';
+          document.getElementById('maintenance-date-from').value = '';
+          document.getElementById('maintenance-date-to').value = '';
 
-                // Recarregar lista sem filtros
-                loadMaintenanceListWithoutFilters();
+          // Recarregar lista sem filtros
+          loadMaintenanceListWithoutFilters();
 
-                // Feedback visual (sem usar resetIcon)
-                const originalText = resetBtn.textContent;
-                resetBtn.textContent = "✓ Limpo";
-                resetBtn.disabled = true;
-                setTimeout(() => {
-                    resetBtn.textContent = originalText;
-                    resetBtn.disabled = false;
-                }, 1500);
-            });
-        } else {
-            console.warn("Botão #reset-maintenance-filter não encontrado para adicionar listener.");
-        }
+          // Feedback visual
+          const originalText = resetBtn.textContent;
+          resetBtn.textContent = "✓ Limpo";
+          resetBtn.disabled = true;
+          setTimeout(() => {
+            resetBtn.textContent = originalText;
+            resetBtn.disabled = false;
+          }, 1500);
+        });
+      }
 
-         // Opcional: Adicionar listener para 'Enter' nos campos de data para aplicar filtro
-         ['maintenance-date-from', 'maintenance-date-to'].forEach(id => {
+       // Opcional: Adicionar listener para 'Enter' nos campos de data para aplicar filtro
+       ['maintenance-date-from', 'maintenance-date-to'].forEach(id => {
             const input = document.getElementById(id);
             if(input) {
                 input.addEventListener('keypress', function(event) {
@@ -2369,6 +2162,10 @@ const Maintenance = (() => {
             }
         });
     }
+    // =======================================================================================
+    // == FIM DA ATUALIZAÇÃO 2 ==
+    // =======================================================================================
+
 
     // Adiciona estilos CSS para os filtros
     function addMaintenanceFilterStyles() {
@@ -2390,8 +2187,8 @@ const Maintenance = (() => {
                 align-items: center;
                 gap: 8px;
             }
-            .filter-label { /* Estilo adicionado para labels */
-                font-weight: 500; /* Um pouco mais de destaque */
+            .filter-label {
+                font-weight: 500;
                 font-size: 0.9em;
                 color: #495057;
             }
@@ -2399,34 +2196,34 @@ const Maintenance = (() => {
                 padding: 6px 12px;
                 border: 1px solid #ced4da;
                 border-radius: 4px;
-                background-color: #fff; /* Fundo branco */
+                background-color: #fff;
             }
-            .date-separator { /* Estilo para o 'até' */
+            .date-separator {
                 margin: 0 5px;
             }
             .filter-actions {
                 display: flex;
                 gap: 10px;
-                margin-left: auto; /* Empurra botões para a direita em telas maiores */
+                margin-left: auto;
             }
             .smart-filter-toggle {
                 padding: 6px 12px;
-                background: #0052cc; /* Azul primário */
+                background: #0052cc;
                 color: white;
                 border: none;
                 border-radius: 4px;
                 cursor: pointer;
-                transition: background-color 0.2s ease; /* Transição suave */
+                transition: background-color 0.2s ease;
             }
-            .smart-filter-toggle:hover:not(:disabled) { /* Efeito hover */
+            .smart-filter-toggle:hover:not(:disabled) {
                 background: #0041a3;
             }
-            .smart-filter-toggle:disabled { /* Estilo desabilitado */
+            .smart-filter-toggle:disabled {
                 background: #a0c7e8;
                 cursor: not-allowed;
             }
             .reset-button {
-                background: #6c757d; /* Cinza Bootstrap */
+                background: #6c757d;
             }
             .reset-button:hover:not(:disabled) {
                 background: #5a6268;
@@ -2434,11 +2231,11 @@ const Maintenance = (() => {
             .reset-button:disabled {
                 background: #adb5bd;
             }
-            @media (max-width: 992px) { /* Ajuste breakpoint se necessário */
+            @media (max-width: 992px) {
                  .filter-actions {
-                    margin-left: 0; /* Remove margem automática em telas menores */
-                    width: 100%; /* Ocupa largura total */
-                    justify-content: flex-start; /* Alinha botões à esquerda */
+                    margin-left: 0;
+                    width: 100%;
+                    justify-content: flex-start;
                  }
             }
             @media (max-width: 768px) {
@@ -2451,62 +2248,50 @@ const Maintenance = (() => {
                     align-items: stretch;
                 }
                 .filter-dropdown, .date-filter-group input[type="date"] {
-                    width: 100%; /* Ocupar largura total em telas pequenas */
+                    width: 100%;
                 }
                 .date-filter-group {
-                     gap: 5px; /* Reduz gap vertical entre data e 'até' */
+                     gap: 5px;
                  }
                  .date-separator {
-                     text-align: center; /* Centraliza o 'até' */
+                     text-align: center;
                      margin: 5px 0;
                  }
                 .filter-actions {
-                     flex-direction: column; /* Empilha os botões */
+                     flex-direction: column;
                      gap: 8px;
                  }
                 .smart-filter-toggle {
-                     width: 100%; /* Botões ocupam largura total */
+                     width: 100%;
                  }
             }
             `;
             document.head.appendChild(styleEl);
         }
     }
-   // =======================================================================================
-   // == FIM DA ATUALIZAÇÃO 3 ==
-   // =======================================================================================
 
 
   // API pública do módulo
   return {
     initialize,
     openMaintenanceForm,
-    loadMaintenanceList, // Função principal para carregar/recarregar
-    // Expor outras funções se necessário para depuração ou interação externa
-    // Ex: Se outro módulo precisar disparar a edição ou visualização
-     viewMaintenanceDetails,
-     editMaintenance,
-     verifyMaintenance,
-     // Funções de filtro podem ser úteis externamente?
-     // createMaintenanceFilters, // Exposto implicitamente via initialize
-     loadMaintenanceListWithFilters // Expor explicitamente se necessário
+    loadMaintenanceList,
+    viewMaintenanceDetails,
+    editMaintenance,
+    verifyMaintenance,
+    loadMaintenanceListWithFilters
   };
 })();
 
 // --- Inicialização ---
-// Garante que o DOM esteja pronto antes de inicializar
 function initializeMaintenanceModule() {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             console.log("DOM carregado. Inicializando Maintenance...");
-            // Garantir que dependências (API, Utilities) estejam prontas se forem assíncronas
-            // Se forem síncronas (scripts carregados antes), pode inicializar direto.
-            // Exemplo de verificação simples (assumindo que são globais):
             if (window.API && window.Utilities) {
                  Maintenance.initialize();
             } else {
                  console.error("Falha na inicialização: Dependências API ou Utilities não encontradas no DOMContentLoaded.");
-                 // Tentar novamente após um pequeno delay? Ou mostrar erro ao usuário.
                  setTimeout(() => {
                      if (window.API && window.Utilities) {
                           console.log("Tentando inicializar Maintenance após delay...");
@@ -2519,7 +2304,6 @@ function initializeMaintenanceModule() {
             }
         });
     } else {
-        // DOM já está pronto
         console.log("DOM já pronto. Inicializando Maintenance...");
         if (window.API && window.Utilities) {
             Maintenance.initialize();
