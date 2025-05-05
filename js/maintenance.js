@@ -1,3 +1,8 @@
+Combinado! Segui suas instruções e substituí a função `setupDynamicFieldListeners` no código original pela versão fornecida na sua atualização.
+
+Aqui está o código completo e atualizado:
+
+```javascript
 // Verificar dependências no início
 if (!window.API || !window.Utilities) {
   console.error("Erro CRÍTICO: Dependências API ou Utilities não carregadas antes de maintenance.js");
@@ -270,209 +275,174 @@ const Maintenance = (() => {
   }
 
   // =========================================================================
-  // == INÍCIO DA ATUALIZAÇÃO: setupDynamicFieldListeners e loadEquipmentListForced ==
+  // == INÍCIO DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO =======================
   // =========================================================================
 
-  // Solução de emergência para forçar a exibição dos campos
-  // Substitua a função setupDynamicFieldListeners por esta versão
+  // Substitua a função setupDynamicFieldListeners em maintenance.js
   function setupDynamicFieldListeners() {
-      console.log("### SOLUÇÃO DE EMERGÊNCIA: Configurando listeners de campos dinâmicos ###");
-      const equipmentTypeSelect = document.getElementById('equipment-type');
+    console.log("### SOLUÇÃO DE EMERGÊNCIA: Configurando listeners de campos dinâmicos ###");
+    const equipmentTypeSelect = document.getElementById('equipment-type');
 
-      if (equipmentTypeSelect) {
-          console.log("Encontrado select de tipo de equipamento, configurando listener...");
+    if (equipmentTypeSelect) {
+      console.log("Encontrado select de tipo de equipamento, configurando listener...");
 
-          // IMPORTANTE: Força exibição de todos os campos no início para depuração
-          const equipmentIdContainer = document.getElementById('equipment-id')?.closest('.form-group, .form-col');
-          const otherEquipmentField = document.getElementById('other-equipment-field');
+      // IMPORTANTE: Garantir que os campos existam antes de continuar
+      const equipmentIdContainer = document.getElementById('equipment-id')?.closest('.form-group, .form-col');
+      const otherEquipmentField = document.getElementById('other-equipment-field');
 
-          console.log("Estado inicial dos campos:");
-          console.log("- equipmentIdContainer display:", equipmentIdContainer ? window.getComputedStyle(equipmentIdContainer).display : "não encontrado");
-          console.log("- otherEquipmentField display:", otherEquipmentField ? window.getComputedStyle(otherEquipmentField).display : "não encontrado");
-
-          // Limpar listener existente para garantir que não haja duplicação
-          const newEquipmentTypeSelect = equipmentTypeSelect.cloneNode(true);
-          equipmentTypeSelect.parentNode.replaceChild(newEquipmentTypeSelect, equipmentTypeSelect);
-
-          // Adicionar novo listener com debug extensivo
-          newEquipmentTypeSelect.addEventListener('change', function(event) {
-              const selectedValue = this.value;
-              const selectedText = this.options[this.selectedIndex].text;
-              console.log(`!!! MUDANÇA DETECTADA: Tipo selecionado: "${selectedText}" (valor: "${selectedValue}")`);
-
-              // Obter referências aos elementos (com verificação robusta)
-              const equipmentIdSelect = document.getElementById('equipment-id');
-              const equipmentIdContainer = equipmentIdSelect?.closest('.form-group, .form-col');
-              const otherEquipmentField = document.getElementById('other-equipment-field');
-              const otherEquipmentInput = document.getElementById('other-equipment');
-
-              console.log("Referências obtidas:");
-              console.log("- equipmentIdSelect:", !!equipmentIdSelect);
-              console.log("- equipmentIdContainer:", !!equipmentIdContainer);
-              console.log("- otherEquipmentField:", !!otherEquipmentField);
-              console.log("- otherEquipmentInput:", !!otherEquipmentInput);
-
-              // ETAPA 1: Esconder TUDO primeiro
-              console.log("Escondendo todos os campos...");
-              if (equipmentIdContainer) {
-                  equipmentIdContainer.style.display = 'none';
-                  equipmentIdContainer.classList.add('d-none'); // Classe adicional caso seja usada
-              }
-
-              if (otherEquipmentField) {
-                  otherEquipmentField.style.display = 'none';
-                  otherEquipmentField.classList.add('d-none'); // Classe adicional caso seja usada
-              }
-
-              // Resetar campos
-              if (equipmentIdSelect) {
-                  equipmentIdSelect.innerHTML = '<option value="">Selecione o equipamento...</option>';
-                  equipmentIdSelect.removeAttribute('required');
-                  equipmentIdSelect.disabled = true;
-              }
-
-              if (otherEquipmentInput) {
-                  otherEquipmentInput.value = '';
-                  otherEquipmentInput.removeAttribute('required');
-              }
-
-              // Se não tiver seleção, não fazer mais nada
-              if (!selectedValue && !selectedText) {
-                  console.log("Nenhum tipo selecionado. Mantendo tudo escondido.");
-                  return;
-              }
-
-              // ETAPA 2: DECISÃO SOBRE QUAL CAMPO MOSTRAR
-              // Convertendo tudo para minúsculas para comparação case-insensitive
-              const valueLC = selectedValue.toLowerCase();
-              const textLC = selectedText.toLowerCase();
-
-              // Lógica simplificada de decisão
-              let showManualField = false;
-              let showEquipmentList = false;
-              let equipmentType = null;
-
-              // Verificando para campos manuais
-              if (
-                  valueLC === 'aspirador' ||
-                  textLC === 'aspirador' ||
-                  valueLC === 'poliguindaste' ||
-                  textLC === 'poliguindaste' ||
-                  valueLC === 'outro' ||
-                  textLC === 'outro'
-              ) {
-                  showManualField = true;
-                  console.log("DECISÃO: Mostrar campo manual");
-              }
-              // Verificando para lista de equipamentos
-              else if (
-                  valueLC === 'alta-pressao' ||
-                  textLC === 'alta pressão' ||
-                  valueLC.includes('alta') && valueLC.includes('press') ||
-                  valueLC === 'auto-vacuo-hiper-vacuo' ||
-                  textLC === 'auto vácuo / hiper vácuo' ||
-                  valueLC.includes('vacuo') ||
-                  textLC.includes('vácuo')
-              ) {
-                  showEquipmentList = true;
-                  console.log("DECISÃO: Mostrar lista de equipamentos");
-
-                  // Determinar tipo para carregar equipamentos corretos
-                  if (valueLC.includes('alta') || textLC.includes('alta')) {
-                      equipmentType = 'Alta Pressão';
-                  } else {
-                      equipmentType = 'Auto Vácuo / Hiper Vácuo';
-                  }
-              }
-              // Caso não identifique o tipo específico, verificar se existe no EQUIPMENT_IDS
-              else if (window.EQUIPMENT_IDS) {
-                  console.log("Verificando se tipo existe em EQUIPMENT_IDS...");
-                  if (EQUIPMENT_IDS[selectedText]) {
-                      showEquipmentList = true;
-                      equipmentType = selectedText;
-                      console.log(`Tipo '${selectedText}' encontrado em EQUIPMENT_IDS. Mostrando lista.`);
-                  } else {
-                      // Por padrão, mostrar campo manual para tipos desconhecidos
-                      showManualField = true;
-                      console.log(`Tipo '${selectedText}' não encontrado em EQUIPMENT_IDS. Mostrando campo manual.`);
-                  }
-              } else {
-                  // Se EQUIPMENT_IDS não estiver definido, mostrar campo manual por padrão
-                  showManualField = true;
-                  console.log("EQUIPMENT_IDS não está definido. Mostrando campo manual por padrão.");
-              }
-
-              // ETAPA 3: EXECUTAR A DECISÃO - mostrar o campo apropriado
-              if (showManualField && otherEquipmentField) {
-                  console.log("EXECUÇÃO: Mostrando campo manual...");
-                  // Remova TODAS as propriedades que possam estar escondendo o campo
-                  otherEquipmentField.style.display = 'block';
-                  otherEquipmentField.classList.remove('d-none', 'hidden', 'invisible');
-                  otherEquipmentField.setAttribute('style', 'display: block !important');
-
-                  if (otherEquipmentInput) {
-                      otherEquipmentInput.setAttribute('required', 'required');
-                      setTimeout(() => otherEquipmentInput.focus(), 100);
-                  }
-              }
-
-              if (showEquipmentList && equipmentIdContainer) {
-                  console.log("EXECUÇÃO: Mostrando lista de equipamentos...");
-                  // Remova TODAS as propriedades que possam estar escondendo o campo
-                  equipmentIdContainer.style.display = 'block';
-                  equipmentIdContainer.classList.remove('d-none', 'hidden', 'invisible');
-                  equipmentIdContainer.setAttribute('style', 'display: block !important');
-
-                  if (equipmentIdSelect) {
-                      equipmentIdSelect.setAttribute('required', 'required');
-
-                      console.log(`Carregando equipamentos para tipo: "${equipmentType}"`);
-                      try {
-                          // Versão forçada da função para carregar equipamentos
-                          loadEquipmentListForced(equipmentType, equipmentIdSelect);
-                      } catch (e) {
-                          console.error("Erro ao carregar equipamentos:", e);
-                      }
-                  }
-              }
-
-              // Verificar estado final
-              setTimeout(() => {
-                  console.log("ESTADO FINAL DOS CAMPOS:");
-                  if (equipmentIdContainer) {
-                      console.log("- equipmentIdContainer display:", window.getComputedStyle(equipmentIdContainer).display);
-                  }
-                  if (otherEquipmentField) {
-                      console.log("- otherEquipmentField display:", window.getComputedStyle(otherEquipmentField).display);
-                  }
-              }, 100);
-          });
-
-          console.log("Listener 'change' configurado para 'equipment-type' com sucesso.");
-      } else {
-          console.error("ERRO CRÍTICO: Select 'equipment-type' não encontrado no DOM!");
+      if (!equipmentIdContainer || !otherEquipmentField) {
+        console.error("Campos essenciais não encontrados:", {
+          equipmentIdContainer: !!equipmentIdContainer,
+          otherEquipmentField: !!otherEquipmentField
+        });
+        return;
       }
 
-      // Configurar outros listeners (manter os já existentes)
-      addSafeListener('problem-category-select', 'change', function(event) {
-          const selectedCategory = this.value;
-          console.log(`Categoria de problema alterada para: ${selectedCategory}`);
+      console.log("Estado inicial dos campos:");
+      console.log("- equipmentIdContainer display:", window.getComputedStyle(equipmentIdContainer).display);
+      console.log("- otherEquipmentField display:", window.getComputedStyle(otherEquipmentField).display);
 
-          // Mostrar/esconder campo de "outro" baseado na seleção
-          const otherCategoryField = document.getElementById('other-category-field');
-          const otherCategoryInput = document.getElementById('other-category');
+      // Inicialmente esconde ambos os campos (serão exibidos conforme a seleção)
+      equipmentIdContainer.style.display = 'none';
+      otherEquipmentField.style.display = 'none';
 
-          if (otherCategoryField && otherCategoryInput) {
-              if (selectedCategory === 'Outros') {
-                  otherCategoryField.style.display = 'block';
-                  otherCategoryInput.setAttribute('required', 'required');
-              } else {
-                  otherCategoryField.style.display = 'none';
-                  otherCategoryInput.removeAttribute('required');
-                  otherCategoryInput.value = '';
-              }
+      // Limpar listener existente para garantir que não haja duplicação
+      const newEquipmentTypeSelect = equipmentTypeSelect.cloneNode(true);
+      equipmentTypeSelect.parentNode.replaceChild(newEquipmentTypeSelect, equipmentTypeSelect);
+
+      // Adicionar novo listener com debug extensivo
+      newEquipmentTypeSelect.addEventListener('change', function(event) {
+        const selectedValue = this.value;
+        const selectedText = this.options[this.selectedIndex]?.textContent || '';
+        console.log(`!!! MUDANÇA DETECTADA: Tipo selecionado: "${selectedText}" (valor: "${selectedValue}")`);
+
+        // Obter referências aos elementos (com verificação robusta)
+        const equipmentIdSelect = document.getElementById('equipment-id');
+        const equipmentIdContainer = equipmentIdSelect?.closest('.form-group, .form-col');
+        const otherEquipmentField = document.getElementById('other-equipment-field');
+        const otherEquipmentInput = document.getElementById('other-equipment');
+
+        // Verificação de segurança - se algum elemento não for encontrado, exibe erro e não continua
+        if (!equipmentIdContainer || !otherEquipmentField || !equipmentIdSelect || !otherEquipmentInput) {
+          console.error("Elementos essenciais não encontrados para manipulação:", {
+            equipmentIdContainer: !!equipmentIdContainer,
+            otherEquipmentField: !!otherEquipmentField,
+            equipmentIdSelect: !!equipmentIdSelect,
+            otherEquipmentInput: !!otherEquipmentInput
+          });
+          return;
+        }
+
+        // Esconder todos os campos primeiro
+        equipmentIdContainer.style.display = 'none';
+        otherEquipmentField.style.display = 'none';
+
+        // Resetar os valores
+        equipmentIdSelect.innerHTML = '<option value="">Selecione o equipamento...</option>';
+        equipmentIdSelect.disabled = true;
+        equipmentIdSelect.removeAttribute('required');
+        otherEquipmentInput.value = '';
+        otherEquipmentInput.removeAttribute('required');
+
+        // Se não houver seleção, não fazer nada mais
+        if (!selectedValue && !selectedText) {
+          console.log("Nenhum tipo selecionado. Nada a fazer.");
+          return;
+        }
+
+        // Lógica simplificada: facilita a decisão de qual campo mostrar
+        const valueLC = selectedValue.toLowerCase();
+        const textLC = selectedText.toLowerCase();
+
+        // Verificar se deve mostrar campo manual
+        if (valueLC === 'aspirador' ||
+            textLC === 'aspirador' ||
+            valueLC === 'poliguindaste' ||
+            textLC === 'poliguindaste' ||
+            valueLC === 'outro' ||
+            textLC === 'outro') {
+
+          console.log("DECISÃO: Mostrar campo manual");
+          otherEquipmentField.style.display = 'block';
+          otherEquipmentInput.setAttribute('required', 'required');
+          setTimeout(() => otherEquipmentInput.focus(), 100);
+        }
+        // Verificar se deve mostrar lista de equipamentos
+        else if (valueLC === 'alta-pressao' ||
+                 textLC === 'alta pressão' ||
+                 valueLC.includes('alta') && valueLC.includes('press') ||
+                 valueLC === 'auto-vacuo-hiper-vacuo' ||
+                 textLC === 'auto vácuo / hiper vácuo' ||
+                 valueLC.includes('vacuo') ||
+                 textLC.includes('vácuo')) {
+
+          console.log("DECISÃO: Mostrar lista de equipamentos");
+          equipmentIdContainer.style.display = 'block';
+          equipmentIdSelect.setAttribute('required', 'required');
+
+          // Determinar qual lista de equipamentos carregar
+          let equipmentType = null;
+          if (valueLC.includes('alta') || textLC.includes('alta')) {
+            equipmentType = 'Alta Pressão';
+          } else {
+            equipmentType = 'Auto Vácuo / Hiper Vácuo';
           }
+
+          console.log(`Carregando equipamentos para: ${equipmentType}`);
+          loadEquipmentListForced(equipmentType, equipmentIdSelect);
+        }
+        // Opção adicional: verificar no objeto EQUIPMENT_IDS (se disponível)
+        else if (window.EQUIPMENT_IDS && EQUIPMENT_IDS[selectedText]) {
+          console.log(`Tipo '${selectedText}' encontrado em EQUIPMENT_IDS. Mostrando lista.`);
+          equipmentIdContainer.style.display = 'block';
+          equipmentIdSelect.setAttribute('required', 'required');
+          loadEquipmentListForced(selectedText, equipmentIdSelect);
+        }
+        // Padrão: mostrar entrada manual
+        else {
+          console.log(`Tipo desconhecido: '${selectedText}'. Mostrando campo manual.`);
+          otherEquipmentField.style.display = 'block';
+          otherEquipmentInput.setAttribute('required', 'required');
+          setTimeout(() => otherEquipmentInput.focus(), 100);
+        }
+
+        // Debug: verificação final dos estados
+        setTimeout(() => {
+          console.log("ESTADO FINAL DOS CAMPOS:");
+          console.log("- equipmentIdContainer display:", window.getComputedStyle(equipmentIdContainer).display);
+          console.log("- otherEquipmentField display:", window.getComputedStyle(otherEquipmentField).display);
+        }, 100);
       });
+
+      console.log("Listener 'change' configurado para 'equipment-type' com sucesso.");
+
+      // Configurar outros listeners (manter os já existentes - MOVIDO PARA FORA DO IF)
+    } else {
+      console.error("ERRO CRÍTICO: Select 'equipment-type' não encontrado no DOM!");
+      // Ainda tenta configurar o listener da categoria mesmo se o tipo falhar?
+      // É melhor manter dentro do IF ou mover para fora? Mover para fora parece razoável.
+    }
+
+    // Configurar listener da categoria de problema (movido para fora do IF de equipment-type)
+    addSafeListener('problem-category-select', 'change', function(event) {
+        const selectedCategory = this.value;
+        console.log(`Categoria de problema alterada para: ${selectedCategory}`);
+
+        // Mostrar/esconder campo de "outro" baseado na seleção
+        const otherCategoryField = document.getElementById('other-category-field');
+        const otherCategoryInput = document.getElementById('other-category');
+
+        if (otherCategoryField && otherCategoryInput) {
+            if (selectedCategory === 'Outros') {
+                otherCategoryField.style.display = 'block';
+                otherCategoryInput.setAttribute('required', 'required');
+            } else {
+                otherCategoryField.style.display = 'none';
+                otherCategoryInput.removeAttribute('required');
+                otherCategoryInput.value = '';
+            }
+        }
+    });
   }
 
   // Nova função para carregar equipamentos de forma forçada
@@ -534,7 +504,7 @@ const Maintenance = (() => {
   }
 
   // =======================================================================
-  // == FIM DA ATUALIZAÇÃO ==
+  // == FIM DA FUNÇÃO SUBSTITUÍDA ==
   // =======================================================================
 
 
@@ -2527,3 +2497,4 @@ function initializeMaintenanceModule() {
 }
 
 initializeMaintenanceModule();
+```
