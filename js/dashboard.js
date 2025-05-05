@@ -650,7 +650,7 @@ const Dashboard = (function() {
    * Renderiza gráfico de Frequência Média de Manutenções com tratamento de 'sem dados' 
    * e formatação correta dos dados
    */
-  function renderMaintenanceFrequencyChart(containerId, data) {
+    function renderMaintenanceFrequencyChart(containerId, data) {
     const canvas = document.getElementById(containerId);
     if (!canvas) {
       console.error(`Canvas #${containerId} não encontrado!`);
@@ -662,40 +662,39 @@ const Dashboard = (function() {
       return;
     }
   
-    // Destruir instância antiga do gráfico, se existir
+    // Destruir instância anterior, se existir
     const instanceKey = 'frequencyChart';
     if (chartInstances[instanceKey]) {
       try { 
         chartInstances[instanceKey].destroy(); 
       } catch (e) { 
-        console.warn("Erro menor ao destruir gráfico de frequência:", e); 
+        console.warn("Erro ao destruir gráfico anterior:", e); 
       }
       delete chartInstances[instanceKey];
     }
   
-    // Limpar conteúdo anterior do container
+    // Limpar o conteúdo atual
     parent.innerHTML = '';
   
-    // CORREÇÃO: Verifica corretamente se temos dados válidos
-    // Também aceita dados no formato de objeto {equipamento: dias} ou array
+    // Processar os dados corretamente
     let chartData = [];
     
     if (Array.isArray(data)) {
-      // Dados já estão em formato de array
+      // Se já é um array, filtra itens com count > 0
       chartData = data.filter(item => (item.count || 0) > 0);
     } else if (data && typeof data === 'object') {
-      // Dados são um objeto - converter para o formato esperado
+      // Se é um objeto, converte para o formato esperado
       chartData = Object.entries(data).map(([key, value]) => ({
         label: key,
         count: value
       })).filter(item => item.count > 0);
     }
   
-    // Verifica se temos dados após processamento
+    // Se não tiver dados válidos, mostra mensagem
     if (!chartData || chartData.length === 0) {
-      console.warn(`Não há dados válidos para o gráfico ${containerId}. Exibindo mensagem.`);
+      console.warn(`Não há dados para o gráfico ${containerId}`);
       
-      // Cria mensagem "sem dados" mais amigável
+      // Cria mensagem personalizada
       const noDataElement = document.createElement('div');
       noDataElement.className = 'no-data-message';
       noDataElement.style.cssText = `
@@ -711,19 +710,18 @@ const Dashboard = (function() {
       return;
     }
   
-    // Ordenar os dados para visualização (menor intervalo primeiro)
-    chartData.sort((a, b) => a.count - b.count);
-  
-    // Se houver dados, recria o canvas para o gráfico
-    console.log(`Renderizando gráfico ${containerId} com ${chartData.length} registros:`, chartData);
+    // Se tem dados, cria o canvas e renderiza o gráfico
     const newCanvas = document.createElement('canvas');
     newCanvas.id = containerId;
     newCanvas.style.height = '200px';
     parent.appendChild(newCanvas);
   
-    // Renderiza o gráfico com os dados processados
+    // Ordena os dados (menor intervalo primeiro)
+    chartData.sort((a, b) => a.count - b.count);
+  
+    // Renderiza o gráfico
     renderGenericChart(containerId, 'bar', chartData, {
-      indexAxis: 'y',  // Barras horizontais
+      indexAxis: 'y', // Barras horizontais
       plugins: {
         legend: { display: false },
         tooltip: { callbacks: { label: ctx => `Intervalo Médio: ${ctx.parsed.x} dias` } }
