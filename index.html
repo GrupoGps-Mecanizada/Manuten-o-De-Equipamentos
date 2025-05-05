@@ -9,13 +9,13 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
   <script src="js/advancedReports.js"></script>
-  
+
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
 
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/enhanced-style.css">
-  
+
   </head>
 
 <body>
@@ -1039,6 +1039,105 @@ if (document.readyState === 'loading') {
   console.log("DOM já estava carregado. Iniciando ScriptLoader.");
   ScriptLoader.init();
 }
+</script>
+
+<script>
+// PATCH DE EMERGÊNCIA - Adicione este script direto ao final do HTML, antes do </body>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("PATCH EMERGENCIAL APLICADO");
+
+    // Referências aos elementos principais
+    const typeSelect = document.getElementById('equipment-type');
+    const equipmentIdContainer = document.getElementById('equipment-id').closest('.form-col, .form-group');
+    const otherEquipmentField = document.getElementById('other-equipment-field');
+
+    // Verificar DOM antes de manipular
+    if (!typeSelect || !equipmentIdContainer || !otherEquipmentField) {
+        console.error("ERRO: Elementos críticos não encontrados!", {
+            typeSelect: !!typeSelect,
+            equipmentIdContainer: !!equipmentIdContainer,
+            otherEquipmentField: !!otherEquipmentField
+        });
+        alert("Erro ao carregar o formulário. Tente recarregar a página.");
+        return;
+    }
+
+    // LISTAS HARDCODED para carregar em caso de falha
+    const equipmentLists = {
+        "Alta Pressão": ["PUB-2G02","LUX-3201","FLX7617","EZS-8765","EZS-8764","EVK-0291","EOF-5C06",
+                          "EOF-5208","EGC-2989","EGC-2985","EGC-2983","EGC-2978","EAM-3262","EAM-3256",
+                          "EAM-3255","EAM-3253","EAM-3010","DSY-6475","DSY-6474","DSY-6472","CZC-0453"],
+        "Auto Vácuo / Hiper Vácuo": ["PUB-2F80","NFF-0235","HJS-1097","FSA-3D71","EGC-2993","EGC-2979",
+                                     "EAM-3257","EAM-3251","DYB-7210","DSY-6577","DSY-6473","CUB-0763",
+                                     "ANF-2676","FTW-4D99","FTD-6368","FMD-2200","FHD-9264","EZS-9753"]
+    };
+
+    // Função de manipulação direta
+    function handleTypeChange() {
+        const selectedValue = typeSelect.value;
+        const selectedText = typeSelect.options[typeSelect.selectedIndex].text;
+        console.log(`PATCH: Tipo selecionado: '${selectedText}' (valor: '${selectedValue}')`);
+
+        // Esconder todos os campos primeiro
+        equipmentIdContainer.style.display = 'none';
+        otherEquipmentField.style.display = 'none';
+
+        // Determinar qual campo mostrar
+        if (selectedText === 'Alta Pressão' || selectedText === 'Auto Vácuo / Hiper Vácuo' ||
+            selectedValue === 'alta-pressao' || selectedValue === 'auto-vacuo-hiper-vacuo') {
+            // Mostrar e preencher o dropdown de equipamentos
+            equipmentIdContainer.style.display = 'block';
+
+            const equipmentIdSelect = document.getElementById('equipment-id');
+            equipmentIdSelect.innerHTML = '<option value="">Carregando equipamentos...</option>';
+
+            // Usar lista hardcoded apropriada
+            let equipmentList = [];
+            if (selectedText === 'Alta Pressão' || selectedValue === 'alta-pressao') {
+                equipmentList = equipmentLists["Alta Pressão"];
+            } else {
+                equipmentList = equipmentLists["Auto Vácuo / Hiper Vácuo"];
+            }
+
+            // Preencher o select
+            equipmentIdSelect.innerHTML = '<option value="">Selecione o equipamento...</option>';
+            equipmentList.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item;
+                option.textContent = item;
+                equipmentIdSelect.appendChild(option);
+            });
+            equipmentIdSelect.disabled = false;
+            equipmentIdSelect.setAttribute('required', 'required');
+
+            console.log(`PATCH: Campo de equipamento mostrado com ${equipmentList.length} itens`);
+        }
+        else if (selectedText === 'Aspirador' || selectedText === 'Poliguindaste' || selectedText === 'Outro' ||
+                selectedValue === 'aspirador' || selectedValue === 'poliguindaste' || selectedValue === 'outro') {
+            // Mostrar campo de entrada manual
+            otherEquipmentField.style.display = 'block';
+            const otherEquipmentInput = document.getElementById('other-equipment');
+            if (otherEquipmentInput) {
+                otherEquipmentInput.setAttribute('required', 'required');
+                otherEquipmentInput.focus();
+            }
+            console.log("PATCH: Campo de entrada manual mostrado");
+        }
+    }
+
+    // Remover listeners existentes e adicionar novo
+    const newTypeSelect = typeSelect.cloneNode(true);
+    typeSelect.parentNode.replaceChild(newTypeSelect, typeSelect);
+
+    // Adicionar novo listener e executar imediatamente para configurar o estado inicial
+    newTypeSelect.addEventListener('change', handleTypeChange);
+    console.log("PATCH: Novo listener adicionado ao select de tipo de equipamento");
+
+    // Se já tiver um valor selecionado, executar o handler agora
+    if (newTypeSelect.value) {
+        setTimeout(handleTypeChange, 100);
+    }
+});
 </script>
 </body>
 </html>
