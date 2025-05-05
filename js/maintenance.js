@@ -11,9 +11,9 @@ const Maintenance = (() => {
   const EQUIPMENT_IDS = {
     'Alta Pressão': ["PUB-2G02","LUX-3201","FLX7617","EZS-8765","EZS-8764","EVK-0291","EOF-5C06","EOF-5208","EGC-2989","EGC-2985","EGC-2983","EGC-2978","EAM-3262","EAM-3256","EAM-3255","EAM-3253","EAM-3010","DSY-6475","DSY-6474","DSY-6472","CZC-0453"],
     'Auto Vácuo / Hiper Vácuo': ["PUB-2F80","NFF-0235","HJS-1097","FSA-3D71","EGC-2993","EGC-2979","EAM-3257","EAM-3251","DYB-7210","DSY-6577","DSY-6473","CUB-0763","ANF-2676","FTW-4D99","FTD-6368","FMD-2200","FHD-9264","EZS-9753"],
-    'Aspirador': [], // Array vazio, usuário insere ID manualmente
-    'Poliguindaste': [], // Array vazio, usuário insere ID manualmente
-    'Outro': [] // Array vazio, usuário insere o tipo manualmente
+    // 'Aspirador': [], // Removido daqui, será tratado pelo listener
+    // 'Poliguindaste': [], // Removido daqui, será tratado pelo listener
+    // 'Outro': [] // Removido daqui, será tratado pelo listener
   };
 
   // Lista de categorias de problemas padrão
@@ -33,7 +33,7 @@ const Maintenance = (() => {
     console.log("Maintenance.initialize() chamado.");
 
     // Adicionar filtros inteligentes (Deve ser chamado ANTES de carregar a lista inicial se os filtros devem estar presentes desde o início)
-    createMaintenanceFilters();
+    createMaintenanceFilters(); // Função atualizada será chamada aqui
 
     // Carregar dados iniciais para os dropdowns
     loadInitialData();
@@ -153,7 +153,7 @@ const Maintenance = (() => {
     setupCloseModalListeners();
 
     // Eventos para campos dinâmicos
-    setupDynamicFieldListeners();
+    setupDynamicFieldListeners(); // Função será substituída pela atualização
 
     // Form submit
     setupFormSubmitListener();
@@ -269,126 +269,81 @@ const Maintenance = (() => {
     });
   }
 
+  // =========================================================================
+  // == INÍCIO DA ATUALIZAÇÃO 2: setupDynamicFieldListeners e loadEquipmentsForType ==
+  // =========================================================================
   function setupDynamicFieldListeners() {
+    const equipmentTypeSelect = document.getElementById('equipment-type');
+    if (equipmentTypeSelect) {
+      equipmentTypeSelect.addEventListener('change', function() {
+        const selectedType = this.value; // Usa o valor (slug) ex: 'alta-pressao', 'aspirador'
+        const equipmentIdContainer = document.getElementById('equipment-id').closest('.form-group, .form-col');
+        const otherEquipmentField = document.getElementById('other-equipment-field'); // Container do campo texto
 
-     // *** CÓDIGO SUBSTITUÍDO/ADICIONADO CONFORME Atualizações.txt (Item 4.2) ***
-     const equipmentTypeSelect = document.getElementById('equipment-type');
-     if (equipmentTypeSelect) {
-        equipmentTypeSelect.addEventListener('change', function() {
-            const selectedType = this.value; // Usa o valor (slug)
-            const selectedTypeText = this.selectedOptions[0]?.textContent || selectedType; // Pega o texto para logs/API
-            console.log(`Tipo de equipamento alterado para: ${selectedTypeText} (valor: ${selectedType})`); // Log
-            const equipmentIdElement = document.getElementById('equipment-id');
-            const otherEquipmentField = document.getElementById('other-equipment-field'); // Container do campo texto
-            const otherEquipmentInput = document.getElementById('other-equipment'); // O input em si
+        // Primeiro, resetamos tudo para estado inicial/escondido
+        if (equipmentIdContainer) equipmentIdContainer.style.display = 'none';
+        if (otherEquipmentField) otherEquipmentField.style.display = 'none';
 
-            // Garantir que os elementos existem antes de manipulá-los
-            if (!equipmentIdElement || !otherEquipmentField || !otherEquipmentInput) {
-                console.error("Elementos de seleção de equipamento não encontrados!", {
-                    equipmentIdElement: !!equipmentIdElement,
-                    otherEquipmentField: !!otherEquipmentField,
-                    otherEquipmentInput: !!otherEquipmentInput
-                });
-                return;
+        // Limpamos o select de equipamentos
+        const equipmentIdSelect = document.getElementById('equipment-id');
+        if (equipmentIdSelect) {
+          equipmentIdSelect.innerHTML = '<option value="">Selecione o equipamento...</option>';
+          equipmentIdSelect.disabled = true;
+          equipmentIdSelect.removeAttribute('required');
+        }
+
+        // Resetamos o campo de texto
+        const otherEquipmentInput = document.getElementById('other-equipment');
+        if (otherEquipmentInput) {
+          otherEquipmentInput.value = '';
+          otherEquipmentInput.removeAttribute('required');
+        }
+
+        // Agora decidimos qual campo mostrar baseado no tipo selecionado
+        if (selectedType) {
+          if (selectedType === 'aspirador' || selectedType === 'poliguindaste' || selectedType === 'outro') {
+            // Mostra campo de entrada manual
+            console.log(`Tipo '${selectedType}' selecionado. Mostrando campo de texto.`);
+            if (otherEquipmentField) {
+              otherEquipmentField.style.display = 'block'; // Mostrar o container do campo texto
+              if (otherEquipmentInput) otherEquipmentInput.setAttribute('required', 'required'); // Marcar como obrigatório
             }
+            if (equipmentIdSelect) equipmentIdSelect.removeAttribute('required'); // Remover obrigatório do select
+            if (equipmentIdSelect) equipmentIdSelect.disabled = true; // Manter select desabilitado
+            if (equipmentIdContainer) equipmentIdContainer.style.display = 'none'; // Garantir que select está escondido
 
-             // Obter os containers (.form-col ou .form-group) para controlar visibilidade
-            const equipmentIdContainer = equipmentIdElement.closest('.form-col, .form-group');
+          } else {
+            // Mostra campo de seleção de ID/Placa (para tipos como 'alta-pressao', 'auto-vacuo-hiper-vacuo', etc.)
+            console.log(`Tipo '${selectedType}' selecionado. Carregando equipamentos.`);
+            if (equipmentIdContainer) {
+              equipmentIdContainer.style.display = 'block'; // Mostrar o select
+              if (equipmentIdSelect) {
+                equipmentIdSelect.setAttribute('required', 'required'); // Marcar select como obrigatório
+                equipmentIdSelect.disabled = false; // Habilitar (será desabilitado durante a carga)
 
-            // Limpar a seleção atual e valor do campo texto
-            equipmentIdElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
-            otherEquipmentInput.value = '';
-            equipmentIdElement.disabled = true; // Começa desabilitado
-
-            // Resetar visibilidade e required
-            if(equipmentIdContainer) equipmentIdContainer.style.display = 'none';
-            otherEquipmentField.style.display = 'none';
-            equipmentIdElement.removeAttribute('required');
-            otherEquipmentInput.removeAttribute('required');
-
-
-            if (selectedType === 'aspirador' || selectedType === 'poliguindaste' || selectedType === 'outro') {
-                // Mostra campo de texto
-                console.log(`Tipo '${selectedTypeText}' selecionado. Mostrando campo de texto.`);
-                if(equipmentIdContainer) equipmentIdContainer.style.display = 'none';
-                otherEquipmentField.style.display = 'block'; // Mostrar o container do campo texto
-                otherEquipmentInput.setAttribute('required', 'required'); // Marcar como obrigatório
-                equipmentIdElement.removeAttribute('required'); // Remover obrigatório do select
-                equipmentIdElement.disabled = true; // Manter select desabilitado
-            } else if (selectedType) {
-                // Carregar equipamentos do tipo selecionado via API
-                console.log(`Tipo '${selectedTypeText}' selecionado. Carregando equipamentos via API.`);
-                if(equipmentIdContainer) equipmentIdContainer.style.display = 'block'; // Mostrar o select
-                otherEquipmentField.style.display = 'none'; // Esconder o campo texto
-                otherEquipmentInput.removeAttribute('required'); // Remover obrigatório do texto
-                equipmentIdElement.setAttribute('required', 'required'); // Marcar select como obrigatório
-                equipmentIdElement.disabled = true; // Desabilitar enquanto carrega
-
-                // Verificar se a função API.getEquipmentsByType existe
-                if (window.API && typeof API.getEquipmentsByType === 'function') {
-                    // Passar o TIPO DE EQUIPAMENTO (o texto) para a API, se for o esperado pela API
-                    // Ou passar o SLUG (selectedType) se a API esperar isso. Ajuste conforme a API.
-                    // Assumindo que a API espera o Texto:
-                    const apiTypeParam = selectedTypeText;
-                    // Se a API esperar o slug: const apiTypeParam = selectedType;
-
-                    API.getEquipmentsByType(apiTypeParam)
-                    .then(response => {
-                        equipmentIdElement.disabled = false; // Habilitar após carregar
-                        if (response.success && Array.isArray(response.equipment)) {
-                           console.log("Equipamentos carregados:", response.equipment);
-                           // Limpar novamente antes de adicionar, garantindo
-                           equipmentIdElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
-                           if (response.equipment.length === 0) {
-                                const option = document.createElement('option');
-                                option.value = "";
-                                option.textContent = "Nenhum equipamento encontrado";
-                                option.disabled = true;
-                                equipmentIdElement.appendChild(option);
-                                equipmentIdElement.disabled = true; // Desabilitar se não houver opções
-                           } else {
-                               response.equipment.forEach(item => {
-                                    const option = document.createElement('option');
-                                    // Assumindo que 'item' tem 'id'/'placaOuId' e 'name'/'descricao'
-                                    const itemId = item.id || item.placaOuId || 'ID_N/A';
-                                    const itemName = item.name || item.descricao || `Equipamento ${itemId}`;
-                                    option.value = itemId; // Usar um identificador único
-                                    option.textContent = `${itemName} (${itemId})`;
-                                    equipmentIdElement.appendChild(option);
-                                });
-                           }
-                        } else {
-                             console.error('API retornou sucesso=false ou formato inválido:', response);
-                             equipmentIdElement.innerHTML = '<option value="" disabled>Erro ao carregar</option>';
-                             equipmentIdElement.disabled = true;
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Erro ao chamar API.getEquipmentsByType:', error);
-                        equipmentIdElement.innerHTML = '<option value="" disabled>Erro na requisição</option>';
-                        equipmentIdElement.disabled = true;
-                    });
-                } else {
-                    console.error('Função API.getEquipmentsByType não encontrada!');
-                    equipmentIdElement.innerHTML = '<option value="" disabled>Erro interno (API)</option>';
-                    equipmentIdElement.disabled = true;
-                }
-            } else {
-                // Reset se nada selecionado ("Selecione o tipo...")
-                console.log("Nenhum tipo selecionado. Resetando campos.");
-                if(equipmentIdContainer) equipmentIdContainer.style.display = 'none'; // Esconder select por padrão
-                otherEquipmentField.style.display = 'none'; // Esconder campo texto
-                otherEquipmentInput.removeAttribute('required');
-                equipmentIdElement.removeAttribute('required');
-                equipmentIdElement.disabled = true; // Desabilitar até que um tipo seja escolhido
+                // Carrega os equipamentos do tipo selecionado (usando o valor/slug como chave)
+                loadEquipmentsForType(selectedType, equipmentIdSelect);
+              }
             }
-        });
-     } else {
-         console.error("Elemento #equipment-type não encontrado para adicionar listener!");
-     }
+             if (otherEquipmentField) otherEquipmentField.style.display = 'none'; // Esconder o campo texto
+             if (otherEquipmentInput) otherEquipmentInput.removeAttribute('required'); // Remover obrigatório do texto
+          }
+        } else {
+             // Reset se nada selecionado ("Selecione o tipo...")
+             console.log("Nenhum tipo selecionado. Resetando campos.");
+             if(equipmentIdContainer) equipmentIdContainer.style.display = 'none'; // Esconder select por padrão
+             if (otherEquipmentField) otherEquipmentField.style.display = 'none'; // Esconder campo texto
+             if(otherEquipmentInput) otherEquipmentInput.removeAttribute('required');
+             if(equipmentIdSelect) equipmentIdSelect.removeAttribute('required');
+             if(equipmentIdSelect) equipmentIdSelect.disabled = true; // Desabilitar até que um tipo seja escolhido
+        }
+      });
+    } else {
+      console.error("Elemento #equipment-type não encontrado para adicionar listener!");
+    }
 
-    // Listener original para categoria de problema (mantido)
-    addSafeListener('problem-category-select', 'change', function(event) {
+     // Listener original para categoria de problema (mantido)
+     addSafeListener('problem-category-select', 'change', function(event) {
       const selectedCategory = this.value;
       console.log(`Categoria de problema alterada para: ${selectedCategory}`);
 
@@ -408,6 +363,123 @@ const Maintenance = (() => {
       }
     });
   }
+
+  // Nova função para carregar equipamentos sem duplicações
+  function loadEquipmentsForType(type, selectElement) {
+    if (!selectElement) return;
+
+    // Mostra indicador de carregamento no select
+    selectElement.disabled = true;
+    selectElement.innerHTML = '<option value="">Carregando equipamentos...</option>';
+
+    // Mapeia o slug de volta para a chave original do objeto EQUIPMENT_IDS, se necessário
+    // (Neste caso, a chave do objeto já corresponde ao texto dos tipos não-manuais,
+    // e usamos o slug para os tipos manuais. A API pode precisar do texto original.)
+    let apiTypeParam = type; // Por padrão, usa o slug
+    // Se a API esperar o texto original (ex: "Alta Pressão"), precisamos mapear de volta
+    const equipmentTypeSelect = document.getElementById('equipment-type');
+    if(equipmentTypeSelect) {
+        const selectedOption = Array.from(equipmentTypeSelect.options).find(opt => opt.value === type);
+        if(selectedOption) {
+            apiTypeParam = selectedOption.textContent; // Usa o texto da opção (ex: "Alta Pressão") para a API
+        }
+    }
+    console.log(`Chamando loadEquipmentsForType com tipo (slug): ${type}, parâmetro API (texto): ${apiTypeParam}`);
+
+    // Tenta carregar da lista local primeiro (EQUIPMENT_IDS)
+    // Procura pela chave original (texto, ex: "Alta Pressão")
+    if (EQUIPMENT_IDS && EQUIPMENT_IDS[apiTypeParam]) {
+        console.log(`Carregando da lista local EQUIPMENT_IDS para '${apiTypeParam}'`);
+        // Remove duplicatas usando Set
+        const uniqueEquipments = [...new Set(EQUIPMENT_IDS[apiTypeParam])];
+
+        // Limpa o select
+        selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
+
+        // Adiciona as opções únicas ordenadas
+        if (uniqueEquipments.length > 0) {
+            uniqueEquipments.sort().forEach(item => {
+                const option = document.createElement('option');
+                option.value = item; // O valor é a própria placa/ID
+                option.textContent = item; // O texto também
+                selectElement.appendChild(option);
+            });
+             selectElement.disabled = false;
+        } else {
+             selectElement.innerHTML += '<option value="" disabled>Nenhum equipamento na lista local</option>';
+             selectElement.disabled = true; // Desabilitar se vazio
+        }
+        return;
+    }
+
+    // Caso não tenhamos lista local para esse tipo, tentamos via API
+    console.log(`Tipo '${apiTypeParam}' não encontrado em EQUIPMENT_IDS. Tentando via API.`);
+    if (window.API && typeof API.getEquipmentsByType === 'function') {
+      // Passa o TEXTO do tipo para a API (ajuste se a API esperar o slug)
+      API.getEquipmentsByType(apiTypeParam)
+        .then(response => {
+          selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
+
+          if (response.success && Array.isArray(response.equipment)) {
+             console.log("Equipamentos carregados da API:", response.equipment);
+            // Filtra duplicatas antes de adicionar
+            const uniqueItems = new Map();
+
+            response.equipment.forEach(item => {
+              // Prioriza 'placaOuId', depois 'id', senão vazio
+              const id = item.placaOuId || item.id || '';
+              if (id && !uniqueItems.has(id)) {
+                uniqueItems.set(id, item); // Guarda o item inteiro para ter nome/descrição
+              }
+            });
+
+            // Adiciona os itens únicos ao select
+            if (uniqueItems.size > 0) {
+              // Ordenar pelo ID/Placa antes de adicionar
+              const sortedItems = Array.from(uniqueItems.values()).sort((a, b) => {
+                  const idA = a.placaOuId || a.id || '';
+                  const idB = b.placaOuId || b.id || '';
+                  return idA.localeCompare(idB);
+              });
+
+              sortedItems.forEach(item => {
+                const option = document.createElement('option');
+                const itemId = item.placaOuId || item.id; // Já sabemos que existe e é único
+                // Usar nome/descrição se disponível, senão o próprio ID
+                const itemName = item.name || item.descricao || itemId;
+
+                option.value = itemId;
+                // Mostrar nome e ID para clareza, a menos que sejam iguais
+                option.textContent = (itemName && itemName !== itemId) ? `${itemName} (${itemId})` : itemId;
+                selectElement.appendChild(option);
+              });
+              selectElement.disabled = false;
+            } else {
+              selectElement.innerHTML += '<option value="" disabled>Nenhum equipamento encontrado via API</option>';
+              selectElement.disabled = true; // Desabilitar se API não retornou nada
+            }
+          } else {
+            console.error('API retornou sucesso=false ou formato inválido:', response);
+            selectElement.innerHTML += '<option value="" disabled>Erro ao carregar equipamentos</option>';
+            selectElement.disabled = true;
+          }
+        })
+        .catch(error => {
+          console.error('Erro ao carregar equipamentos via API:', error);
+          selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
+          selectElement.innerHTML += '<option value="" disabled>Erro na requisição API</option>';
+          selectElement.disabled = true;
+        });
+    } else {
+      console.warn('Lista local não encontrada e API.getEquipmentsByType não disponível.');
+      selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
+      selectElement.innerHTML += '<option value="" disabled>Não foi possível carregar</option>';
+      selectElement.disabled = true;
+    }
+  }
+  // =======================================================================
+  // == FIM DA ATUALIZAÇÃO 2 ==
+  // =======================================================================
 
 
   function setupFormSubmitListener() {
@@ -557,61 +629,92 @@ const Maintenance = (() => {
     console.log("Populando formulário para edição:", data);
 
     // Normalizar o tipo de equipamento para encontrar o 'value' (slug)
-    const equipmentTypeValue = data.tipoEquipamento?.toLowerCase().replace(/ /g, '-').replace(/\//g, '-');
+    // Considera 'equipamentoOutro' se existir, senão usa 'tipoEquipamento'
+    let equipmentTypeValueOrText = data.tipoEquipamento;
+    let useOtherField = false;
 
-    // Tenta definir o tipo de equipamento pelo 'value' normalizado
-    if (!setSelectValue('equipment-type', equipmentTypeValue)) {
-         // Fallback: Tenta definir pelo TEXTO se o valor não funcionou
-         setSelectValue('equipment-type', data.tipoEquipamento);
+    // Verifica se é um tipo que usa o campo 'outro'
+    const manualTypes = ['aspirador', 'poliguindaste', 'outro'];
+    const originalTypeSlug = data.tipoEquipamento?.toLowerCase().replace(/ /g, '-').replace(/\//g, '-');
+
+    if (manualTypes.includes(originalTypeSlug)) {
+        equipmentTypeValueOrText = originalTypeSlug; // Usar o slug ('aspirador', 'poliguindaste', 'outro')
+        useOtherField = true;
+    } else {
+        // Tenta encontrar pelo texto original primeiro (ex: "Alta Pressão")
+        // Se não achar, tenta pelo slug (ex: "alta-pressao")
+         const equipSelect = document.getElementById('equipment-type');
+         const optionByText = Array.from(equipSelect.options).find(opt => opt.textContent === data.tipoEquipamento);
+         if (optionByText) {
+            equipmentTypeValueOrText = optionByText.value; // Usa o slug correspondente ao texto
+         } else {
+             equipmentTypeValueOrText = originalTypeSlug; // Usa o slug como fallback
+         }
     }
+
+
+    console.log(`Tentando definir tipo para '${equipmentTypeValueOrText}' (Slug/Valor). É tipo manual: ${useOtherField}`);
+    setSelectValue('equipment-type', equipmentTypeValueOrText);
 
 
     // A seleção do tipo dispara o evento 'change' (devido ao setSelectValue)
     // que por sua vez mostra/esconde os campos corretos e carrega opções se necessário.
-    // Precisamos esperar um pouco para que essas operações (mostrar/esconder síncrono, API assíncrona) terminem
-    // antes de definir o valor do ID/Outro.
+    // Esperar um pouco para que essas operações terminem
     setTimeout(() => {
-      const currentSelectedTypeValue = document.getElementById('equipment-type').value; // Pega o valor atual após o setSelectValue
-      console.log("Após timeout, tipo selecionado (valor):", currentSelectedTypeValue);
+      const currentSelectedTypeValue = document.getElementById('equipment-type').value; // Pega o valor atual (slug)
+      console.log("Após timeout, tipo selecionado (valor/slug):", currentSelectedTypeValue);
 
-      // Usa o VALOR (slug) para a lógica
+      // Popula o campo ID/Outro baseado no tipo que ESTÁ selecionado AGORA
       if (currentSelectedTypeValue === 'aspirador' || currentSelectedTypeValue === 'poliguindaste' || currentSelectedTypeValue === 'outro') {
         console.log("Populando other-equipment com:", data.placaOuId || data.equipamentoOutro);
-        setInputValue('other-equipment', data.placaOuId || data.equipamentoOutro); // Usar placaOuId ou o campo específico se existir
+        setInputValue('other-equipment', data.placaOuId || data.equipamentoOutro);
       } else if (currentSelectedTypeValue) {
-         // Esperar um pouco mais se for carregamento de API para garantir que as opções foram adicionadas
+         // Esperar um pouco mais se for carregamento de API
          setTimeout(() => {
             console.log("Populando equipment-id com:", data.placaOuId);
-            setSelectValue('equipment-id', data.placaOuId); // Tenta selecionar o ID/Placa
-         }, 250); // Delay um pouco maior para garantir que as opções da API tenham sido adicionadas e o select esteja habilitado
+            if (!setSelectValue('equipment-id', data.placaOuId)) {
+                console.warn(`Falha ao selecionar ${data.placaOuId} no select #equipment-id. Pode não ter sido carregado ou não existe.`);
+                // Opcional: Adicionar a opção manualmente se não existir?
+                const equipIdSelect = document.getElementById('equipment-id');
+                const exists = Array.from(equipIdSelect.options).some(opt => opt.value === data.placaOuId);
+                if (!exists && data.placaOuId) {
+                    console.log(`Adicionando opção ausente: ${data.placaOuId}`);
+                    const option = document.createElement('option');
+                    option.value = data.placaOuId;
+                    option.textContent = data.placaOuId; // Usar nome/descrição se disponível em `data`
+                    option.selected = true;
+                    equipIdSelect.appendChild(option);
+                    equipIdSelect.disabled = false; // Garantir que esteja habilitado
+                }
+            }
+         }, 300); // Delay um pouco maior para API
       }
 
       // Preencher o restante dos campos da etapa 1 (após o primeiro timeout)
       setInputValue('technician-name', data.responsavel);
       setInputValue('maintenance-date', formatDateForInput(data.dataRegistro));
       setSelectValue('area', data.area);
-      setInputValue('office', data.localOficina); // Assumindo que é 'localOficina' no objeto data
-      setSelectValue('maintenance-type-select', data.tipoManutencao); // Ajustar ID se necessário ('maintenance-type' ou 'maintenance-type-select')
-      setCheckboxValue('is-critical', data.eCritico); // Assumindo que é 'eCritico' no objeto data
+      setInputValue('office', data.localOficina);
+      setSelectValue('maintenance-type-select', data.tipoManutencao);
+      setCheckboxValue('is-critical', data.eCritico);
 
-      // Etapa 2 (pré-popular para quando o usuário navegar)
+      // Etapa 2 (pré-popular)
       setSelectValue('problem-category-select', data.categoriaProblema);
-      // Disparar change para mostrar/esconder 'other-category'
       const categorySelect = document.getElementById('problem-category-select');
-      if(categorySelect) categorySelect.dispatchEvent(new Event('change'));
+      if(categorySelect) categorySelect.dispatchEvent(new Event('change')); // Dispara change
 
-      setTimeout(() => { // Delay para garantir que other-category esteja visível se necessário
-          if (data.categoriaProblema === 'Outros') { // Usar 'Outros' conforme DEFAULT_PROBLEM_CATEGORIES
-              setInputValue('other-category', data.categoriaProblemaOutro); // Campo para categoria 'outro'
+      setTimeout(() => { // Delay para other-category
+          if (data.categoriaProblema === 'Outros') {
+              setInputValue('other-category', data.categoriaProblemaOutro);
           }
-          setInputValue('problem-description', data.detalhesproblema); // Assumindo que é 'detalhesproblema'
-          setInputValue('additional-notes', data.observacoes); // Assumindo que é 'observacoes'
+          setInputValue('problem-description', data.detalhesproblema);
+          setInputValue('additional-notes', data.observacoes);
       }, 50);
 
 
       console.log("Formulário populado para edição.");
 
-    }, 150); // Delay inicial para permitir que o DOM atualize após 'change' em equipment-type
+    }, 200); // Aumentado delay inicial para 200ms
   }
 
 
@@ -658,7 +761,10 @@ const Maintenance = (() => {
           return false;
       }
     } else {
-       console.warn(`Elemento #${id} não encontrado ou valor inválido/nulo: ${value}`);
+       // Não logar warning se o valor for null/undefined de propósito
+       if (value !== undefined && value !== null) {
+           console.warn(`Elemento #${id} não encontrado ou valor inválido: ${value}`);
+       }
        return false;
     }
   }
@@ -765,22 +871,7 @@ const Maintenance = (() => {
     }
 
     // Garantir que campos condicionais estejam no estado resetado (evento 'change' acima deve cuidar disso)
-    const equipmentIdSelect = document.getElementById('equipment-id');
-    const equipmentIdContainer = equipmentIdSelect?.closest('.form-col, .form-group');
-    if (equipmentIdSelect) {
-        equipmentIdSelect.innerHTML = '<option value="">Selecione o equipamento...</option>';
-        equipmentIdSelect.disabled = true;
-        equipmentIdSelect.removeAttribute('required');
-    }
-    if(equipmentIdContainer) equipmentIdContainer.style.display = 'none'; // Esconder por padrão após reset
-
-    const otherEquipmentField = document.getElementById('other-equipment-field');
-    const otherEquipmentInput = document.getElementById('other-equipment');
-    if (otherEquipmentField) otherEquipmentField.style.display = 'none';
-    if (otherEquipmentInput) {
-        otherEquipmentInput.value = '';
-        otherEquipmentInput.removeAttribute('required');
-    }
+    // Não precisa resetar aqui explicitamente pois o 'change' do tipo já faz isso.
 
     const problemCategorySelect = document.getElementById('problem-category-select');
     if(problemCategorySelect) {
@@ -788,14 +879,6 @@ const Maintenance = (() => {
         // Disparar change para resetar campo dependente
          problemCategorySelect.dispatchEvent(new Event('change'));
     }
-
-    const otherCategoryField = document.getElementById('other-category-field');
-    const otherCategoryInput = document.getElementById('other-category');
-     if (otherCategoryField) otherCategoryField.style.display = 'none';
-     if(otherCategoryInput) {
-         otherCategoryInput.value = '';
-         otherCategoryInput.removeAttribute('required');
-     }
 
     // Definir data atual novamente
     setCurrentDate();
@@ -1016,23 +1099,23 @@ const Maintenance = (() => {
     if (equipTypeValue === 'aspirador' || equipTypeValue === 'poliguindaste' || equipTypeValue === 'outro') {
         const otherInput = document.getElementById('other-equipment');
         if(otherInput && otherInput.closest('#other-equipment-field')?.style.display !== 'none') {
-           formData.placaOuId = otherInput.value;
-           // Se for 'Outro', a descrição digitada VIRA o tipo de equipamento e também é salva em 'equipamentoOutro'
+           formData.placaOuId = otherInput.value.trim(); // Salva o valor digitado
+           formData.equipamentoOutro = null; // Por padrão
+
+           // Se o tipo FOR 'outro', usar a descrição digitada como tipo E salvar em equipamentoOutro
            if(equipTypeValue === 'outro') {
-              formData.tipoEquipamento = otherInput.value || 'Outro (não especificado)'; // Sobrescreve tipoEquipamento com a descrição
-              formData.equipamentoOutro = otherInput.value; // Campo específico para 'outro'
-              // PlacaOuId já foi definido acima com otherInput.value
+              formData.tipoEquipamento = otherInput.value.trim() || 'Outro (não especificado)'; // Sobrescreve tipoEquipamento
+              formData.equipamentoOutro = otherInput.value.trim(); // Campo específico para 'outro'
+              // placaOuId já foi definido acima
            }
         } else {
             formData.placaOuId = ''; // Campo não visível/aplicável
-            if (equipTypeValue === 'outro') {
-                formData.equipamentoOutro = '';
-            }
+            formData.equipamentoOutro = null;
         }
     } else if (equipTypeValue) {
         const idSelect = document.getElementById('equipment-id');
          if(idSelect && idSelect.closest('.form-col, .form-group')?.style.display !== 'none') {
-            formData.placaOuId = idSelect.value;
+            formData.placaOuId = idSelect.value; // Salva o ID/Placa selecionado
             formData.equipamentoOutro = null; // Garantir que não haja valor de 'outro'
          } else {
             formData.placaOuId = ''; // Campo não visível/aplicável
@@ -1062,7 +1145,7 @@ const Maintenance = (() => {
 
     // Se categoria for "Outros", salvar categoria específica
     if (formData.categoriaProblema === 'Outros') { // Usa 'Outros'
-      formData.categoriaProblemaOutro = document.getElementById('other-category').value;
+      formData.categoriaProblemaOutro = document.getElementById('other-category').value.trim();
        // Opcional: usar a descrição como a categoria principal? Decisão de negócio.
        // Ex: formData.categoriaProblema = formData.categoriaProblemaOutro || 'Outros';
     } else {
@@ -1084,14 +1167,13 @@ const Maintenance = (() => {
     let equipmentSummary = '-';
     // Usar os dados JÁ COLETADOS em formData
     if (formData.tipoEquipamento) {
-        // Se o tipo original era 'outro', usamos o que foi digitado
-        // Se não, usamos o tipo selecionado e a placa/id se houver
-        if (formData.equipamentoOutro) { // Verifica se o campo 'outro' foi preenchido
-             equipmentSummary = formData.equipamentoOutro; // Mostra a descrição digitada para 'outro'
+        // Se tipoEquipamento foi sobrescrito por ser 'outro', ele já contém a descrição
+        if (formData.equipamentoOutro) {
+             equipmentSummary = formData.tipoEquipamento; // Mostra a descrição digitada (que virou o tipo)
         } else if (formData.placaOuId) {
-             equipmentSummary = `${formData.tipoEquipamento} (${formData.placaOuId})`;
+             equipmentSummary = `${formData.tipoEquipamento} (${formData.placaOuId})`; // Tipo (Placa/ID)
         } else {
-             equipmentSummary = formData.tipoEquipamento; // Caso só tenha o tipo (ex: selecionou tipo mas não ID ou não era aplicável)
+             equipmentSummary = formData.tipoEquipamento; // Apenas o tipo
         }
     }
 
@@ -1142,7 +1224,7 @@ const Maintenance = (() => {
       placaOuId: formData.placaOuId,
       // O campo 'equipamentoOutro' pode não ser necessário se a API só usa 'tipoEquipamento' e 'placaOuId'
       // Mas enviar pode ser útil para referência. Verifique a necessidade da API.
-      equipamentoOutro: formData.equipamentoOutro,
+      equipamentoOutro: formData.equipamentoOutro, // Será null a menos que o tipo original fosse 'outro'
       responsavel: formData.responsavel,
       dataRegistro: formData.dataRegistro, // Formato YYYY-MM-DD
       area: formData.area,
@@ -1364,6 +1446,7 @@ const Maintenance = (() => {
 
 
  // *** FUNÇÃO SUBSTITUÍDA CONFORME Atualizações.txt (Item 3.1 e 5 - são idênticas no exemplo) ***
+ // Esta função não foi alterada pelas atualizações 2 ou 3, mantendo a versão original.
  function renderMaintenanceTable(maintenances) {
     const tbody = document.getElementById('maintenance-tbody');
     if (!tbody) {
@@ -2153,7 +2236,10 @@ const Maintenance = (() => {
     }
   }
 
-   // --- Filtros Inteligentes (Funções da atualização 3.2) ---
+   // --- Filtros Inteligentes (Funções da atualização 3) ---
+   // =======================================================================================
+   // == INÍCIO DA ATUALIZAÇÃO 3: createMaintenanceFilters, setupMaintenanceFilterListeners, addMaintenanceFilterStyles ==
+   // =======================================================================================
    function createMaintenanceFilters() {
         const filterContainer = document.getElementById('maintenance-filter-buttons');
         if (!filterContainer) {
@@ -2161,65 +2247,60 @@ const Maintenance = (() => {
              return;
         }
 
-        // Usar classes Font Awesome se disponíveis, senão omitir ou usar texto/emoji
-        const filterIcon = '<i class="fas fa-filter filter-icon"></i>';
-        const typeIcon = '<i class="fas fa-tools filter-icon"></i>';
-        const calendarIcon = '<i class="fas fa-calendar filter-icon"></i>';
-        const searchIcon = '<i class="fas fa-search"></i>';
-        const resetIcon = '<i class="fas fa-undo"></i>';
-        const checkIcon = '<i class="fas fa-check"></i>';
-
-
-        filterContainer.innerHTML = `
+        // Define os ícones como texto simples para evitar o erro com searchIcon
+        const filterHTML = `
             <div class="smart-filter-container">
-                <div class="filter-group">
-                    <label for="maintenance-status-filter" class="filter-label">${filterIcon} Status:</label>
-                    <select id="maintenance-status-filter" class="filter-dropdown">
-                        <option value="all">Todos os Status</option>
-                        <option value="Pendente">Pendentes</option>
-                        <option value="Aguardando Verificação">Aguardando Verificação</option>
-                        <option value="Verificado">Verificados</option>
-                        <option value="Aprovado">Aprovados</option>
-                        <option value="Concluído">Concluídos</option>
-                        <option value="Ajustes">Ajustes</option>
-                        <option value="Reprovado">Reprovados</option>
-                        <option value="Cancelado">Cancelados</option>
-                        <!-- Adicionar outros status conforme necessário -->
-                    </select>
-                </div>
+            <div class="filter-group">
+                <label for="maintenance-status-filter" class="filter-label">Status:</label>
+                <select id="maintenance-status-filter" class="filter-dropdown">
+                <option value="all">Todos os Status</option>
+                <option value="Pendente">Pendentes</option>
+                <option value="Aguardando Verificação">Aguardando Verificação</option>
+                <option value="Verificado">Verificados</option>
+                <option value="Aprovado">Aprovados</option>
+                <option value="Concluído">Concluídos</option>
+                <option value="Ajustes">Ajustes</option>
+                <option value="Reprovado">Reprovados</option>
+                <option value="Cancelado">Cancelados</option>
+                </select>
+            </div>
 
-                <div class="filter-group">
-                    <label for="maintenance-type-filter" class="filter-label">${typeIcon} Tipo:</label>
-                    <select id="maintenance-type-filter" class="filter-dropdown">
-                        <option value="all">Todos os Tipos</option>
-                        <option value="Preventiva">Preventiva</option>
-                        <option value="Corretiva">Corretiva</option>
-                        <option value="Emergencial">Emergencial</option>
-                        <option value="Melhoria">Melhoria</option>
-                         <!-- Adicionar outros tipos conforme necessário -->
-                    </select>
-                </div>
+            <div class="filter-group">
+                <label for="maintenance-type-filter" class="filter-label">Tipo:</label>
+                <select id="maintenance-type-filter" class="filter-dropdown">
+                <option value="all">Todos os Tipos</option>
+                <option value="Preventiva">Preventiva</option>
+                <option value="Corretiva">Corretiva</option>
+                <option value="Emergencial">Emergencial</option>
+                <option value="Melhoria">Melhoria</option>
+                </select>
+            </div>
 
-                <div class="date-filter-group">
-                    <label for="maintenance-date-from" class="filter-label">${calendarIcon} Período:</label>
-                    <input type="date" id="maintenance-date-from" class="filter-dropdown" title="Data de início">
-                    <span class="filter-label date-separator">até</span>
-                    <input type="date" id="maintenance-date-to" class="filter-dropdown" title="Data de fim">
-                </div>
+            <div class="date-filter-group">
+                <label for="maintenance-date-from" class="filter-label">Período:</label>
+                <input type="date" id="maintenance-date-from" class="filter-dropdown" title="Data de início">
+                <span class="filter-label date-separator">até</span>
+                <input type="date" id="maintenance-date-to" class="filter-dropdown" title="Data de fim">
+            </div>
 
-                <div class="filter-actions">
-                    <button id="apply-maintenance-filter" class="smart-filter-toggle">
-                        ${searchIcon} Filtrar
-                    </button>
-                    <button id="reset-maintenance-filter" class="smart-filter-toggle reset-button">
-                        ${resetIcon} Limpar
-                    </button>
-                </div>
+            <div class="filter-actions">
+                <button id="apply-maintenance-filter" class="smart-filter-toggle">
+                Filtrar
+                </button>
+                <button id="reset-maintenance-filter" class="smart-filter-toggle reset-button">
+                Limpar
+                </button>
+            </div>
             </div>
         `;
 
-        // Configurar event listeners para os novos elementos
+        filterContainer.innerHTML = filterHTML;
+
+        // Configurar event listeners para os botões
         setupMaintenanceFilterListeners();
+
+        // Adicionar estilos CSS inline se necessário
+        addMaintenanceFilterStyles();
     }
 
 
@@ -2238,45 +2319,45 @@ const Maintenance = (() => {
                 // Chama a função para carregar a lista com os filtros selecionados
                 loadMaintenanceListWithFilters(statusFilter, typeFilter, dateFrom, dateTo);
 
-                // Feedback visual (opcional)
-                const originalText = `${searchIcon || ''} Filtrar`;
-                applyBtn.innerHTML = `${checkIcon || ''} Aplicado`;
-                applyBtn.disabled = true; // Desabilita enquanto carrega/aplica
+                // Feedback visual (sem usar searchIcon)
+                const originalText = applyBtn.textContent;
+                applyBtn.textContent = "✓ Aplicado";
+                applyBtn.disabled = true;
                 setTimeout(() => {
-                    applyBtn.innerHTML = originalText;
+                    applyBtn.textContent = originalText;
                     applyBtn.disabled = false;
                 }, 2000);
             });
         } else {
-             console.warn("Botão #apply-maintenance-filter não encontrado para adicionar listener.");
+            console.warn("Botão #apply-maintenance-filter não encontrado para adicionar listener.");
         }
 
         if (resetBtn) {
             resetBtn.addEventListener('click', function() {
-                // Resetar valores dos campos de filtro no DOM
+                // Resetar valores dos campos de filtro
                 document.getElementById('maintenance-status-filter').value = 'all';
                 document.getElementById('maintenance-type-filter').value = 'all';
                 document.getElementById('maintenance-date-from').value = '';
                 document.getElementById('maintenance-date-to').value = '';
 
-                // Recarregar lista sem filtros (chama a função que carrega a lista completa)
-                loadMaintenanceListWithoutFilters(); // Chama a função sem filtros
+                // Recarregar lista sem filtros
+                loadMaintenanceListWithoutFilters();
 
-                // Feedback visual (opcional)
-                const originalText = `${resetIcon || ''} Limpar`;
-                resetBtn.innerHTML = `${checkIcon || ''} Limpo`;
-                 resetBtn.disabled = true;
+                // Feedback visual (sem usar resetIcon)
+                const originalText = resetBtn.textContent;
+                resetBtn.textContent = "✓ Limpo";
+                resetBtn.disabled = true;
                 setTimeout(() => {
-                    resetBtn.innerHTML = originalText;
+                    resetBtn.textContent = originalText;
                     resetBtn.disabled = false;
                 }, 1500);
             });
         } else {
-             console.warn("Botão #reset-maintenance-filter não encontrado para adicionar listener.");
+            console.warn("Botão #reset-maintenance-filter não encontrado para adicionar listener.");
         }
 
-        // Opcional: Adicionar listener para 'Enter' nos campos de data para aplicar filtro
-        ['maintenance-date-from', 'maintenance-date-to'].forEach(id => {
+         // Opcional: Adicionar listener para 'Enter' nos campos de data para aplicar filtro
+         ['maintenance-date-from', 'maintenance-date-to'].forEach(id => {
             const input = document.getElementById(id);
             if(input) {
                 input.addEventListener('keypress', function(event) {
@@ -2287,10 +2368,113 @@ const Maintenance = (() => {
                 });
             }
         });
-         // Opcional: Adicionar listener para 'change' nos selects para aplicar filtro automaticamente?
-         // (Pode ser irritante se o usuário quiser mudar múltiplos filtros)
-         // ['maintenance-status-filter', 'maintenance-type-filter'].forEach(id => { ... });
     }
+
+    // Adiciona estilos CSS para os filtros
+    function addMaintenanceFilterStyles() {
+        if (!document.getElementById('maintenance-filter-styles')) {
+            const styleEl = document.createElement('style');
+            styleEl.id = 'maintenance-filter-styles';
+            styleEl.textContent = `
+            .smart-filter-container {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 15px;
+                background: #f8f9fa;
+                padding: 15px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+            }
+            .filter-group, .date-filter-group {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .filter-label { /* Estilo adicionado para labels */
+                font-weight: 500; /* Um pouco mais de destaque */
+                font-size: 0.9em;
+                color: #495057;
+            }
+            .filter-dropdown {
+                padding: 6px 12px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: #fff; /* Fundo branco */
+            }
+            .date-separator { /* Estilo para o 'até' */
+                margin: 0 5px;
+            }
+            .filter-actions {
+                display: flex;
+                gap: 10px;
+                margin-left: auto; /* Empurra botões para a direita em telas maiores */
+            }
+            .smart-filter-toggle {
+                padding: 6px 12px;
+                background: #0052cc; /* Azul primário */
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                transition: background-color 0.2s ease; /* Transição suave */
+            }
+            .smart-filter-toggle:hover:not(:disabled) { /* Efeito hover */
+                background: #0041a3;
+            }
+            .smart-filter-toggle:disabled { /* Estilo desabilitado */
+                background: #a0c7e8;
+                cursor: not-allowed;
+            }
+            .reset-button {
+                background: #6c757d; /* Cinza Bootstrap */
+            }
+            .reset-button:hover:not(:disabled) {
+                background: #5a6268;
+            }
+            .reset-button:disabled {
+                background: #adb5bd;
+            }
+            @media (max-width: 992px) { /* Ajuste breakpoint se necessário */
+                 .filter-actions {
+                    margin-left: 0; /* Remove margem automática em telas menores */
+                    width: 100%; /* Ocupa largura total */
+                    justify-content: flex-start; /* Alinha botões à esquerda */
+                 }
+            }
+            @media (max-width: 768px) {
+                .smart-filter-container {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+                .filter-group, .date-filter-group {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+                .filter-dropdown, .date-filter-group input[type="date"] {
+                    width: 100%; /* Ocupar largura total em telas pequenas */
+                }
+                .date-filter-group {
+                     gap: 5px; /* Reduz gap vertical entre data e 'até' */
+                 }
+                 .date-separator {
+                     text-align: center; /* Centraliza o 'até' */
+                     margin: 5px 0;
+                 }
+                .filter-actions {
+                     flex-direction: column; /* Empilha os botões */
+                     gap: 8px;
+                 }
+                .smart-filter-toggle {
+                     width: 100%; /* Botões ocupam largura total */
+                 }
+            }
+            `;
+            document.head.appendChild(styleEl);
+        }
+    }
+   // =======================================================================================
+   // == FIM DA ATUALIZAÇÃO 3 ==
+   // =======================================================================================
 
 
   // API pública do módulo
@@ -2304,8 +2488,8 @@ const Maintenance = (() => {
      editMaintenance,
      verifyMaintenance,
      // Funções de filtro podem ser úteis externamente?
-     // createMaintenanceFilters,
-     // loadMaintenanceListWithFilters
+     // createMaintenanceFilters, // Exposto implicitamente via initialize
+     loadMaintenanceListWithFilters // Expor explicitamente se necessário
   };
 })();
 
