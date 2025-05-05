@@ -922,34 +922,58 @@ const Dashboard = (function() {
      // alert("Erro no Dashboard: " + message);
   }
 
-   /** Verifica se containers dos gráficos existem */
-   function checkAndCreateChartContainers() {
-       const requiredCanvasIds = [
-           'maintenance-status-chart', 'problem-categories-chart', 'monthly-trend-chart',
-           'area-distribution-chart', 'critical-vs-regular-chart', 'verification-results-chart',
-           'maintenance-frequency-chart' // ,'maintenance-type-chart' // Opcional
-       ];
-       const dashboardGrid = document.querySelector('#tab-dashboard .dashboard-grid'); // Container principal dos gráficos
-       if (!dashboardGrid) {
-           console.error("Container .dashboard-grid não encontrado! Não é possível verificar/criar canvases.");
-           return;
-       }
+   // --- INÍCIO DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO ---
+   // Substitua a função checkAndCreateChartContainers em dashboard.js
+    function checkAndCreateChartContainers() {
+      const requiredCanvasIds = [
+        'maintenance-status-chart', 'problem-categories-chart', 'monthly-trend-chart',
+        'area-distribution-chart', 'critical-vs-regular-chart', 'verification-results-chart',
+        'maintenance-frequency-chart'
+      ];
+      
+      // Primeiro, verificar se o container existe, senão criar
+      let dashboardGrid = document.querySelector('#tab-dashboard .dashboard-grid');
+      if (!dashboardGrid) {
+        console.log("Container .dashboard-grid não encontrado. Criando...");
+        dashboardGrid = document.createElement('div');
+        dashboardGrid.className = 'dashboard-grid';
+        dashboardGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin: 1.5rem 0;';
+        
+        // Adicionar ao tab-dashboard
+        const dashboardTab = document.getElementById('tab-dashboard');
+        if (dashboardTab) {
+          // Inserir após a seção "summary-cards" se existir, ou no início
+          const summaryCards = dashboardTab.querySelector('.summary-cards');
+          if (summaryCards) {
+            summaryCards.after(dashboardGrid);
+          } else {
+            dashboardTab.appendChild(dashboardGrid);
+          }
+        } else {
+          console.error("Elemento #tab-dashboard também não encontrado. Não é possível criar container de gráficos.");
+          return;
+        }
+      }
 
-       requiredCanvasIds.forEach(id => {
-           if (!document.getElementById(id)) {
-               console.warn(`Canvas #${id} não encontrado. Tentando criar...`);
-               // Cria um container div e o canvas dentro dele
-               const chartContainer = document.createElement('div');
-               chartContainer.className = 'chart-container'; // Adiciona classe para estilização
-               const canvas = document.createElement('canvas');
-               canvas.id = id;
-               // Definir altura/aspect ratio aqui se necessário
-               canvas.style.height = '200px'; // Altura padrão
-               chartContainer.appendChild(canvas); // Adiciona canvas ao container
-               dashboardGrid.appendChild(chartContainer); // Adiciona container ao grid
-           }
-       });
-   }
+      // Agora verificar e criar os canvases
+      requiredCanvasIds.forEach(id => {
+        if (!document.getElementById(id)) {
+          console.log(`Canvas #${id} não encontrado. Criando...`);
+          const chartContainer = document.createElement('div');
+          chartContainer.className = 'chart-container'; 
+          chartContainer.style.cssText = 'position: relative; min-height: 250px; width: 100%; margin-bottom: 1rem;';
+          
+          const canvas = document.createElement('canvas');
+          canvas.id = id;
+          canvas.style.height = '200px';
+          
+          chartContainer.appendChild(canvas);
+          dashboardGrid.appendChild(chartContainer);
+        }
+      });
+    }
+   // --- FIM DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO ---
+
 
    /** Função utilitária para merge profundo de objetos (para opções de gráfico) */
    function deepMerge(target, source) {
