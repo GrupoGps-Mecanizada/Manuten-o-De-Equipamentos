@@ -12,6 +12,20 @@ if (typeof window.Utilities === 'undefined') {
     console.log("Objeto global Utilities já existe.");
 }
 
+// Adicionar ao utilities.js
+Utilities.elementoExiste = function(seletor) {
+    return document.querySelector(seletor) !== null;
+};
+
+Utilities.garantirElemento = function(seletor, mensagemErro) {
+    const elemento = document.querySelector(seletor);
+    if (!elemento) {
+        console.warn(mensagemErro || `Elemento ${seletor} não encontrado!`);
+        return null;
+    }
+    return elemento;
+};
+
 /**
  * Formata uma string de data em diversos formatos para o formato DD/MM/YYYY.
  * Tenta reconhecer formatos ISO (com T), YYYY-MM-DD, DD/MM/YYYY e faz fallback
@@ -304,6 +318,11 @@ function createNotificationContainer() {
 // --- Exposição das funções no objeto global Utilities ---
 
 // Verifica se as funções já não foram definidas para evitar sobrescrever acidentalmente
+// Nota: As novas funções elementoExiste e garantirElemento foram adicionadas diretamente
+// ao objeto Utilities no início do arquivo, conforme a instrução.
+// Se preferir o padrão de definir e depois adicionar aqui com verificação,
+// as definições acima deveriam ser funções normais e adicionadas aqui como abaixo.
+
 if (!window.Utilities.formatDate) {
     window.Utilities.formatDate = formatDate;
 } else {
