@@ -3,32 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>GrupoGPS Mecanizada - Sistema de Controle de Manutenção</title>
+  <title>GrupoGPS Mecanizada - Sistema de Dupla Checagem de Manutenção</title>
 
-  <link rel="icon" href="data:,"> <!-- Favicon simples para evitar erro 404 -->
+  <link rel="icon" href="data:,">
 
-  <!-- Bibliotecas Externas (CDN) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-  
-  <!-- Arquivos JS (Alguns carregados via ScriptLoader abaixo) -->
-  <!-- advancedReports.js é carregado aqui, os outros via ScriptLoader -->
-  <script src="js/advancedReports.js"></script> 
+  <script src="js/advancedReports.js"></script>
 
-  <!-- Estilos CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/enhanced-style.css">
 
-</head>
+  </head>
+
 <body>
   <div class="container">
-    <!-- Cabeçalho -->
     <div class="header">
       <div class="company-logo">Grupo GPS</div>
       <h1>Sistema de Controle de Manutenção</h1>
     </div>
 
-    <!-- Abas de Navegação -->
     <div class="tabs">
       <div class="tab active" data-tab="dashboard">Dashboard</div>
       <div class="tab" data-tab="maintenance">Manutenções</div>
@@ -36,84 +32,150 @@
       <div class="tab" data-tab="reports">Relatórios</div>
     </div>
 
-    <!-- Conteúdo da Aba Dashboard -->
     <div class="tab-content active" id="tab-dashboard">
       <div class="dashboard-header">
         <h2>Visão Geral</h2>
-        <!-- Controles do Dashboard (Período, Refresh) serão adicionados aqui pelo dashboard.js -->
-      </div>
+        </div>
 
       <div class="summary-cards">
         <div class="card">
-          <div class="card-title"><i class="icon fas fa-clipboard-list"></i> Total de Manutenções</div>
-          <div class="card-value" id="total-maintenance">0</div>
-          <div class="card-footer"><span>Período selecionado</span></div>
+          <div class="card-title">
+            <i class="icon fas fa-clipboard-list"></i> Total de Manutenções
+          </div>
+          <div class="card-value" id="total-maintenance">0</div> <div class="card-footer">
+            <span>Período selecionado</span>
+          </div>
         </div>
+
         <div class="card">
-          <div class="card-title"><i class="icon fas fa-clock"></i> Aguardando Verificação</div>
-          <div class="card-value" id="pending-verification">0</div>
-          <div class="card-footer"><span>Precisa de atenção</span></div>
+          <div class="card-title">
+            <i class="icon fas fa-clock"></i> Aguardando Verificação
+          </div>
+          <div class="card-value" id="pending-verification">0</div> <div class="card-footer">
+            <span>Precisa de atenção</span>
+          </div>
         </div>
+
         <div class="card">
-          <div class="card-title"><i class="icon fas fa-check-circle"></i> Verificações Concluídas</div>
-          <div class="card-value" id="completed-verifications">0</div>
-          <div class="card-footer"><span>Período atual</span></div>
+          <div class="card-title">
+            <i class="icon fas fa-check-circle"></i> Verificações Concluídas
+          </div>
+          <div class="card-value" id="completed-verifications">0</div> <div class="card-footer">
+            <span>Período atual</span>
+            </div>
         </div>
+
         <div class="card">
-          <div class="card-title"><i class="icon fas fa-exclamation-triangle"></i> Manutenções Críticas</div>
-          <div class="card-value" id="critical-maintenance">0</div>
-          <div class="card-footer"><span>Atenção necessária</span></div>
+          <div class="card-title">
+            <i class="icon fas fa-exclamation-triangle"></i> Manutenções Críticas
+          </div>
+          <div class="card-value" id="critical-maintenance">0</div> <div class="card-footer">
+            <span>Atenção necessária</span>
+          </div>
         </div>
       </div>
 
-      <!-- Container Principal para Gráficos do Dashboard -->
-      <div class="dashboard-grid">
-         <!-- Gráficos serão renderizados aqui pelo dashboard.js -->
-         <!-- Exemplos de placeholders que o JS pode usar: -->
-         <div class="section chart-section" id="chart-maintenance-type-container">
-             <h3 class="section-title">Manutenções por Tipo</h3>
-             <div class="chart-container"><canvas id="maintenance-type-chart"></canvas></div>
-         </div>
-         <div class="section chart-section" id="chart-maintenance-status-container">
-             <h3 class="section-title">Status das Manutenções</h3>
-             <div class="chart-container"><canvas id="maintenance-status-chart"></canvas></div>
-         </div>
-         <div class="section chart-section" id="chart-area-distribution-container">
-             <h4 class="section-title">Local de Manutenção</h4>
-             <div class="chart-container"><canvas id="area-distribution-chart"></canvas></div>
-         </div>
-         <div class="section chart-section" id="chart-problem-categories-container">
-             <h4 class="section-title">Categorias de Problemas</h4>
-             <div class="chart-container"><canvas id="problem-categories-chart"></canvas></div>
-         </div>
-         <div class="section chart-section" id="chart-monthly-trend-container">
-             <h4 class="section-title">Tendência Mensal</h4>
-             <div class="chart-container"><canvas id="monthly-trend-chart"></canvas></div>
-         </div>
-         <div class="section chart-section" id="chart-critical-vs-regular-container">
-             <h4 class="section-title">Manutenções Críticas vs Regulares</h4>
-             <div class="chart-container"><canvas id="critical-vs-regular-chart"></canvas></div>
-         </div>
-         <div class="section chart-section" id="chart-verification-results-container">
-             <h4 class="section-title">Resultados das Verificações</h4>
-             <div class="chart-container"><canvas id="verification-results-chart"></canvas></div>
-         </div>
-         <div class="section chart-section" id="chart-maintenance-frequency-container">
-             <h4 class="section-title">Intervalo entre Manutenções</h4>
-             <div class="chart-container"><canvas id="maintenance-frequency-chart"></canvas></div>
-         </div>
+      <div class="grid-container">
+        <div class="section">
+          <h3 class="section-title">
+            Manutenções por Tipo
+            </h3>
+          <div class="chart-container">
+            <canvas id="maintenance-type-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">
+            Status das Manutenções
+            </h3>
+          <div class="chart-container">
+            <canvas id="maintenance-status-chart"></canvas>
+          </div>
+        </div>
       </div>
 
       <div class="section">
-        <h3 class="section-title">Equipamentos com Mais Manutenções</h3>
+        <h3 class="section-title">Análises Avançadas</h3>
+
+        <div class="grid-container">
+          <div class="section sub-section">
+            <h4 class="section-title">
+              Local de Manutenção
+              </h4>
+            <div class="chart-container">
+              <canvas id="area-distribution-chart"></canvas>
+            </div>
+          </div>
+
+          <div class="section sub-section">
+            <h4 class="section-title">
+              Categorias de Problemas
+              </h4>
+            <div class="chart-container">
+              <canvas id="problem-categories-chart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-container">
+          <div class="section sub-section">
+            <h4 class="section-title">
+              Tendência Mensal
+             </h4>
+            <div class="chart-container">
+              <canvas id="monthly-trend-chart"></canvas>
+            </div>
+          </div>
+
+          <div class="section sub-section">
+            <h4 class="section-title">
+              Manutenções Críticas vs Regulares
+              </h4>
+            <div class="chart-container">
+              <canvas id="critical-vs-regular-chart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-container">
+          <div class="section sub-section">
+            <h4 class="section-title">
+              Resultados das Verificações
+              </h4>
+            <div class="chart-container">
+              <canvas id="verification-results-chart"></canvas>
+            </div>
+          </div>
+
+          <div class="section sub-section">
+            <h4 class="section-title">
+              Intervalo entre Manutenções
+              </h4>
+            <div class="chart-container">
+              <canvas id="maintenance-frequency-chart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3 class="section-title">
+          Equipamentos com Mais Manutenções
+          </h3>
         <div class="table-responsive">
           <table id="equipment-ranking-table">
             <thead>
               <tr>
-                <th>Equipamento</th> <th>Tipo</th> <th>Total Manutenções</th> <th>Última Manutenção</th> <th>Status</th>
+                <th>Equipamento</th>
+                <th>Tipo</th>
+                <th>Total Manutenções</th>
+                <th>Última Manutenção</th>
+                <th>Status</th>
               </tr>
             </thead>
-            <tbody id="equipment-ranking-tbody"></tbody>
+            <tbody id="equipment-ranking-tbody">
+              </tbody>
           </table>
         </div>
       </div>
@@ -124,427 +186,469 @@
           <table id="recent-maintenance-table">
             <thead>
               <tr>
-                <th>ID</th> <th>Equipamento</th> <th>Tipo</th> <th>Data Registro</th> <th>Responsável</th> <th>Status</th> <th>Ações</th>
+                <th>ID</th>
+                <th>Equipamento</th>
+                <th>Tipo</th>
+                <th>Data Registro</th>
+                <th>Responsável</th>
+                <th>Status</th>
+                <th>Ações</th>
               </tr>
             </thead>
-            <tbody id="recent-maintenance-tbody"></tbody>
+            <tbody id="recent-maintenance-tbody">
+              </tbody>
           </table>
         </div>
       </div>
     </div>
 
-    <!-- Conteúdo da Aba Manutenções -->
     <div class="tab-content" id="tab-maintenance">
-      <div class="section">
-        <div class="search-container">
-          <input type="text" class="search-input" id="maintenance-search" placeholder="Buscar por ID, equipamento, responsável...">
-        </div>
+        <div class="section">
+           <div class="search-container">
+             <input type="text" class="search-input" id="maintenance-search" placeholder="Buscar por ID, equipamento, responsável...">
+           </div>
 
-        <!-- Container para Filtros de Manutenção -->
-        <div class="filter-container" id="maintenance-filter-buttons">
-          <!-- Filtros serão injetados aqui pelo maintenance.js -->
-        </div>
+           <div class="filter-container" id="maintenance-filter-buttons"> </div>
 
-        <h3 class="section-title">
-          Lista de Manutenções
-          <div class="section-actions">
-            <button class="btn-icon" id="refresh-maintenance-list" title="Atualizar">↻</button>
-            <!-- Botão "+" para Nova Manutenção será adicionado fixo no canto -->
-          </div>
-        </h3>
+           <h3 class="section-title">
+             Lista de Manutenções
+             <div class="section-actions">
+               <button class="btn-icon" id="refresh-maintenance-list" title="Atualizar">↻</button>
+             </div>
+           </h3>
 
-        <div class="table-responsive">
-          <table id="maintenance-table">
-            <thead>
-              <tr>
-                <th>ID</th> <th>Equipamento</th> <th>Tipo</th> <th>Data Registro</th> <th>Responsável</th> <th>Área</th> <th>Local/Oficina</th> <th>Problema</th> <th>Status</th> <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody id="maintenance-tbody">
-              <!-- Linhas da tabela serão preenchidas pelo maintenance.js -->
-            </tbody>
-          </table>
-        </div>
-        <div class="pagination-controls" id="maintenance-pagination">
-          <!-- Controles de paginação (se houver) -->
-        </div>
-      </div>
+           <div class="table-responsive">
+             <table id="maintenance-table">
+               <thead>
+                 <tr>
+                   <th>ID</th>
+                   <th>Equipamento</th>
+                   <th>Tipo</th>
+                   <th>Data Registro</th>
+                   <th>Responsável</th>
+                   <th>Área</th>
+                   <th>Local/Oficina</th>
+                   <th>Problema</th>
+                   <th>Status</th>
+                   <th>Ações</th>
+                 </tr>
+               </thead>
+               <tbody id="maintenance-tbody">
+                 </tbody>
+             </table>
+           </div>
+           <div class="pagination-controls" id="maintenance-pagination">
+              </div>
+         </div>
     </div>
 
-    <!-- Conteúdo da Aba Verificações -->
     <div class="tab-content" id="tab-verification">
-      <div class="section">
-        <div class="search-container">
-          <input type="text" class="search-input" id="verification-search" placeholder="Buscar por ID, equipamento, responsável...">
-        </div>
-
-        <!-- Container para Filtros de Verificação -->
-        <div class="filter-container" id="verification-filter-buttons">
-          <!-- Filtros podem ser adicionados aqui pelo verification.js -->
-        </div>
-
-        <h3 class="section-title">
-          Verificações Pendentes
-          <div class="section-actions">
-            <button class="btn-icon" id="refresh-verification-list" title="Atualizar">↻</button>
+       <div class="section">
+          <div class="search-container">
+            <input type="text" class="search-input" id="verification-search" placeholder="Buscar por ID, equipamento, responsável...">
           </div>
-        </h3>
 
-        <div class="table-responsive">
-          <table id="verification-table">
-            <thead>
-              <tr>
-                <th>ID</th> <th>Equipamento</th> <th>Tipo</th> <th>Data Manutenção</th> <th>Responsável</th> <th>Área</th> <th>Local/Oficina</th> <th>Status</th> <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody id="verification-tbody">
-              <!-- Linhas da tabela serão preenchidas pelo verification.js -->
-            </tbody>
-          </table>
+          <div class="filter-container" id="verification-filter-buttons">
+             </div>
+
+          <h3 class="section-title">
+            Verificações Pendentes
+            <div class="section-actions">
+              <button class="btn-icon" id="refresh-verification-list" title="Atualizar">↻</button>
+            </div>
+          </h3>
+
+          <div class="table-responsive">
+            <table id="verification-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Equipamento</th>
+                  <th>Tipo</th>
+                  <th>Data Manutenção</th>
+                  <th>Responsável</th>
+                  <th>Área</th>
+                  <th>Local/Oficina</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="verification-tbody">
+                </tbody>
+            </table>
+          </div>
+           <div class="pagination-controls" id="verification-pagination">
+              </div>
         </div>
-        <div class="pagination-controls" id="verification-pagination">
-          <!-- Controles de paginação (se houver) -->
-        </div>
-      </div>
     </div>
 
-    <!-- Conteúdo da Aba Relatórios -->
     <div class="tab-content" id="tab-reports">
-      <div class="section">
-        <h3 class="section-title">Relatórios por Período</h3>
-        <div class="form-row">
-          <div class="form-col">
-            <div class="form-group">
-              <label for="report-start-date">Data Inicial</label>
-              <input type="date" class="form-control" id="report-start-date">
+       <div class="section">
+         <h3 class="section-title">Relatórios por Período</h3>
+         <div class="form-row">
+           <div class="form-col">
+             <div class="form-group">
+               <label for="report-start-date">Data Inicial</label>
+               <input type="date" class="form-control" id="report-start-date">
+             </div>
+           </div>
+           <div class="form-col">
+             <div class="form-group">
+               <label for="report-end-date">Data Final</label>
+               <input type="date" class="form-control" id="report-end-date">
+             </div>
+           </div>
+           <div class="form-col" style="display: flex; align-items: flex-end;">
+             <button class="btn" id="generate-report">Gerar Relatório</button>
+           </div>
+         </div>
+       </div>
+
+       <div id="report-content" style="display: none;">
+         <div class="section">
+           <h3 class="section-title">Resumo do Período</h3>
+           <div class="summary-cards">
+             <div class="card">
+               <div class="card-title">Total de Manutenções</div>
+               <div class="card-value" id="report-total">0</div>
+             </div>
+             <div class="card">
+               <div class="card-title">Concluídas</div>
+               <div class="card-value" id="report-completed">0</div>
+             </div>
+             <div class="card">
+               <div class="card-title">Pendentes</div>
+               <div class="card-value" id="report-pending">0</div>
+             </div>
+             <div class="card">
+               <div class="card-title">Verificadas</div>
+               <div class="card-value" id="report-verified">0</div>
+             </div>
+           </div>
+         </div>
+
+         <div class="section">
+           <h3 class="section-title">Análise por Categoria de Problema</h3>
+           <div class="chart-container">
+             <canvas id="report-problem-chart"></canvas>
+           </div>
+         </div>
+
+         <div class="grid-container">
+           <div class="section">
+             <h3 class="section-title">Distribuição por Área</h3>
+             <div class="chart-container">
+               <canvas id="report-area-chart"></canvas>
+             </div>
+           </div>
+
+           <div class="section">
+             <h3 class="section-title">Manutenções por Mês</h3>
+             <div class="chart-container">
+               <canvas id="report-monthly-chart"></canvas>
+             </div>
+           </div>
+         </div>
+
+         <div class="section">
+           <h3 class="section-title">Exportar Dados</h3>
+           <div class="btn-action-group">
+             <button class="btn" id="export-excel">Exportar para Excel</button>
+             <button class="btn" id="export-pdf">Exportar para PDF</button>
+             <button class="btn" id="print-report">Imprimir Relatório</button>
+           </div>
+         </div>
+       </div>
+     </div>
+
+    <div class="form-overlay" id="maintenance-form-overlay">
+      <div class="form-container">
+          <div class="form-header">
+            <h2 class="form-title">Registrar Nova Manutenção</h2>
+            <button class="form-close" id="close-maintenance-form">×</button>
+          </div>
+
+          <div class="form-steps">
+            <div class="form-step active" data-step="1">
+              <div class="step-number">1</div>
+              <div class="step-label">Informações</div>
+            </div>
+            <div class="form-step" data-step="2">
+              <div class="step-number">2</div>
+              <div class="step-label">Problema</div>
+            </div>
+            <div class="form-step" data-step="3">
+              <div class="step-number">3</div>
+              <div class="step-label">Confirmar</div>
             </div>
           </div>
-          <div class="form-col">
-            <div class="form-group">
-              <label for="report-end-date">Data Final</label>
-              <input type="date" class="form-control" id="report-end-date">
-            </div>
-          </div>
-          <div class="form-col" style="display: flex; align-items: flex-end;">
-            <button class="btn" id="generate-report">Gerar Relatório</button>
-          </div>
-        </div>
-      </div>
 
-      <!-- Conteúdo do Relatório Gerado -->
-      <div id="report-content" style="display: none;">
-        <div class="section">
-          <h3 class="section-title">Resumo do Período</h3>
-          <div class="summary-cards">
-            <div class="card"><div class="card-title">Total</div><div class="card-value" id="report-total">0</div></div>
-            <div class="card"><div class="card-title">Concluídas</div><div class="card-value" id="report-completed">0</div></div>
-            <div class="card"><div class="card-title">Pendentes</div><div class="card-value" id="report-pending">0</div></div>
-            <div class="card"><div class="card-title">Verificadas</div><div class="card-value" id="report-verified">0</div></div>
-          </div>
-        </div>
-        <div class="section"><h3 class="section-title">Análise por Categoria</h3><div class="chart-container"><canvas id="report-problem-chart"></canvas></div></div>
-        <div class="grid-container">
-          <div class="section"><h3 class="section-title">Distribuição por Área</h3><div class="chart-container"><canvas id="report-area-chart"></canvas></div></div>
-          <div class="section"><h3 class="section-title">Manutenções por Mês</h3><div class="chart-container"><canvas id="report-monthly-chart"></canvas></div></div>
-        </div>
-        <div class="section">
-          <h3 class="section-title">Exportar Dados</h3>
-          <div class="btn-action-group">
-            <button class="btn" id="export-excel">Exportar para Excel</button>
-            <button class="btn" id="export-pdf">Exportar para PDF</button>
-            <button class="btn" id="print-report">Imprimir Relatório</button>
-          </div>
-        </div>
-      </div>
-    </div> <!-- Fim #tab-reports -->
-
-    <!-- ======================= MODAIS ======================= -->
-
-    <!-- Modal Formulário de Manutenção -->
-    <div class="form-overlay" id="maintenance-form-overlay" style="display: none;"> <!-- Inicia escondido -->
-      <div class="form-container" id="maintenance-form-modal"> <!-- Adicionado ID para referência -->
-        <div class="form-header">
-          <h2 class="form-title">Registrar Nova Manutenção</h2>
-          <button class="form-close" id="close-maintenance-form" title="Fechar">×</button>
-        </div>
-
-        <!-- Indicadores de Etapa -->
-        <div class="form-steps">
-          <div class="form-step active" data-step="1"><div class="step-number">1</div><div class="step-label">Informações</div></div>
-          <div class="form-step" data-step="2"><div class="step-number">2</div><div class="step-label">Problema</div></div>
-          <div class="form-step" data-step="3"><div class="step-number">3</div><div class="step-label">Confirmar</div></div>
-        </div>
-
-        <form id="maintenance-form">
-          <!-- Conteúdo Etapa 1 -->
-          <div class="form-step-content" id="step-1-content">
-            <div class="form-row">
-              <div class="form-col">
-                <div class="form-group">
-                  <label for="equipment-type">Tipo de Equipamento <span class="form-required">*</span></label>
-                  <select class="form-control" id="equipment-type" name="equipment-type" required>
-                    <option value="">Selecione o tipo...</option>
-                    <!-- Opções preenchidas pelo maintenance.js -->
-                  </select>
+          <form id="maintenance-form">
+            <div class="form-step-content" id="step-1-content">
+              <div class="form-row">
+                <div class="form-col">
+                  <div class="form-group">
+                    <label for="equipment-type">Tipo de Equipamento <span class="form-required">*</span></label>
+                    <select class="form-control" id="equipment-type" name="equipment-type" required>
+                      <option value="">Selecione o tipo...</option>
+                      </select>
+                  </div>
                 </div>
-              </div>
-              <div class="form-col"> <!-- Container do select de ID -->
-                <div class="form-group">
-                  <label for="equipment-id">Placa ou ID <span class="form-required">*</span></label>
-                  <select class="form-control" id="equipment-id" name="equipment-id" disabled> <!-- Começa desabilitado -->
-                    <option value="">Selecione o equipamento...</option>
-                    <!-- Opções preenchidas pelo maintenance.js -->
-                  </select>
-                </div>
-              </div>
-            </div>
-            <!-- Campo para equipamento 'Outro' (inicialmente escondido) -->
-            <div class="form-group" id="other-equipment-field" style="display:none;">
-              <label for="other-equipment">Especifique o Equipamento <span class="form-required">*</span></label>
-              <input type="text" class="form-control" id="other-equipment" name="other-equipment">
-            </div>
-            <div class="form-row">
-              <div class="form-col">
-                <div class="form-group">
-                  <label for="technician-name">Responsável pelo Relatório <span class="form-required">*</span></label>
-                  <input type="text" class="form-control" id="technician-name" name="technician-name" required>
-                </div>
-              </div>
-              <div class="form-col">
-                <div class="form-group">
-                  <label for="maintenance-date">Data da Manutenção <span class="form-required">*</span></label>
-                  <input type="date" class="form-control" id="maintenance-date" name="maintenance-date" required>
-                </div>
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-col">
-                <div class="form-group">
-                  <label for="area">Área <span class="form-required">*</span></label>
-                  <select class="form-control" id="area" name="area" required>
-                    <option value="">Selecione...</option>
-                    <option value="Área Interna Usiminas">Área Interna Usiminas</option>
-                    <option value="Área Externa Usiminas">Área Externa Usiminas</option>
-                    <!-- Adicionar mais opções se necessário -->
-                  </select>
-                </div>
-              </div>
-              <div class="form-col">
-                <div class="form-group" id="office-field">
-                  <label for="office">Local/Oficina <span class="form-required">*</span></label>
-                  <input type="text" class="form-control" id="office" name="office" required>
-                </div>
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-col">
-                <div class="form-group">
-                  <label for="maintenance-type-select">Tipo de Manutenção <span class="form-required">*</span></label>
-                  <select class="form-control" id="maintenance-type-select" name="maintenance-type-select" required>
-                    <option value="">Selecione o tipo...</option>
-                    <option value="Preventiva">Preventiva</option>
-                    <option value="Corretiva">Corretiva</option>
-                    <option value="Emergencial">Emergencial</option>
-                    <option value="Melhoria">Melhoria</option>
-                    <!-- Adicionar mais opções se necessário -->
-                  </select>
-                </div>
-              </div>
-              <div class="form-col">
-                <div class="form-group">
-                  <div class="form-check" style="padding-top: 30px;">
-                    <input type="checkbox" id="is-critical" name="is-critical">
-                    <label for="is-critical">Manutenção Crítica</label>
+                <div class="form-col">
+                  <div class="form-group">
+                    <label for="equipment-id">Placa ou ID <span class="form-required">*</span></label>
+                    <select class="form-control" id="equipment-id" name="equipment-id" required>
+                      <option value="">Selecione o equipamento...</option>
+                      </select>
                   </div>
                 </div>
               </div>
-            </div>
-            <div class="form-navigation">
-              <button type="button" class="btn btn-secondary" id="cancel-maintenance">Cancelar</button>
-              <button type="button" class="btn btn-primary" id="next-to-step-2">Próximo <i class="fas fa-arrow-right"></i></button>
-            </div>
-          </div>
 
-          <!-- Conteúdo Etapa 2 -->
-          <div class="form-step-content" id="step-2-content" style="display: none;">
-            <div class="form-group">
-              <!-- Label corrigida para apontar para o ID do select -->
-              <label for="problem-category-select">Categoria do Problema <span class="form-required">*</span></label>
-              <select class="form-control" id="problem-category-select" name="problem-category-select" required>
-                 <option value="">Selecione a categoria...</option>
-                 <!-- Opções preenchidas pelo maintenance.js -->
-              </select>
-            </div>
-            <!-- Campo para categoria 'Outros' (inicialmente escondido) -->
-            <div class="form-group" id="other-category-field" style="display:none;">
-              <label for="other-category">Especifique a Categoria <span class="form-required">*</span></label>
-              <input type="text" class="form-control" id="other-category" name="other-category">
-            </div>
-            <div class="form-group">
-              <label for="problem-description">Detalhes do Problema <span class="form-required">*</span></label>
-              <textarea class="form-control" id="problem-description" name="problem-description" rows="4" required></textarea>
-            </div>
-            <div class="form-group">
-              <label for="additional-notes">Observações Adicionais</label>
-              <textarea class="form-control" id="additional-notes" name="additional-notes" rows="3"></textarea>
-            </div>
-            <div class="form-navigation">
-              <button type="button" class="btn btn-secondary" id="back-to-step-1"><i class="fas fa-arrow-left"></i> Voltar</button>
-              <button type="button" class="btn btn-primary" id="next-to-step-3">Próximo <i class="fas fa-arrow-right"></i></button>
-            </div>
-          </div>
+              <div class="form-group" id="other-equipment-field" style="display:none;">
+                <label for="other-equipment">Especifique Equipamento <span class="form-required">*</span></label>
+                <input type="text" class="form-control" id="other-equipment" name="other-equipment">
+              </div>
 
-          <!-- Conteúdo Etapa 3 -->
-          <div class="form-step-content" id="step-3-content" style="display: none;">
-            <div class="form-group">
-              <h3>Resumo da Manutenção</h3>
-              <div class="summary-content">
-                <div class="summary-row"><div class="summary-label">Equipamento:</div><div class="summary-value" id="summary-equipment">-</div></div>
-                <div class="summary-row"><div class="summary-label">Responsável:</div><div class="summary-value" id="summary-technician">-</div></div>
-                <div class="summary-row"><div class="summary-label">Data:</div><div class="summary-value" id="summary-date">-</div></div>
-                <div class="summary-row"><div class="summary-label">Local:</div><div class="summary-value" id="summary-location">-</div></div>
-                <div class="summary-row"><div class="summary-label">Tipo:</div><div class="summary-value" id="summary-type">-</div></div>
-                <div class="summary-row"><div class="summary-label">É Crítica:</div><div class="summary-value" id="summary-critical">-</div></div>
-                <div class="summary-row"><div class="summary-label">Categoria:</div><div class="summary-value" id="summary-category">-</div></div>
-                <div class="summary-row"><div class="summary-label">Problema:</div><div class="summary-value" id="summary-problem">-</div></div>
-                <div class="summary-row"><div class="summary-label">Observações:</div><div class="summary-value" id="summary-notes">-</div></div>
+              <div class="form-row">
+                <div class="form-col">
+                  <div class="form-group">
+                    <label for="technician-name">Responsável pelo Relatório <span class="form-required">*</span></label>
+                    <input type="text" class="form-control" id="technician-name" name="technician-name" required>
+                  </div>
+                </div>
+                <div class="form-col">
+                  <div class="form-group">
+                    <label for="maintenance-date">Data da Manutenção <span class="form-required">*</span></label>
+                    <input type="date" class="form-control" id="maintenance-date" name="maintenance-date" required>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-col">
+                  <div class="form-group">
+                    <label for="area">Área <span class="form-required">*</span></label>
+                    <select class="form-control" id="area" name="area" required>
+                      <option value="">Selecione...</option>
+                      <option value="Área Interna Usiminas">Área Interna Usiminas</option>
+                      <option value="Área Externa Usiminas">Área Externa Usiminas</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-col">
+                  <div class="form-group" id="office-field">
+                    <label for="office">Local/Oficina <span class="form-required">*</span></label>
+                    <input type="text" class="form-control" id="office" name="office" required>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-col">
+                  <div class="form-group">
+                    <label for="maintenance-type-select">Tipo de Manutenção <span class="form-required">*</span></label> <select class="form-control" id="maintenance-type-select" name="maintenance-type-select" required>
+                      <option value="">Selecione o tipo...</option>
+                      <option value="Preventiva">Preventiva</option>
+                      <option value="Corretiva">Corretiva</option>
+                      <option value="Emergencial">Emergencial</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-col">
+                  <div class="form-group">
+                    <div class="form-check" style="padding-top: 30px;">
+                      <input type="checkbox" id="is-critical" name="is-critical">
+                      <label for="is-critical">Manutenção Crítica (requer atenção imediata)</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-navigation">
+                <button type="button" class="btn" id="cancel-maintenance">Cancelar</button>
+                <button type="button" class="btn btn-success" id="next-to-step-2">Próximo</button>
               </div>
             </div>
-            <div class="form-navigation">
-              <button type="button" class="btn btn-secondary" id="back-to-step-2"><i class="fas fa-arrow-left"></i> Voltar</button>
-              <button type="submit" class="btn btn-success" id="submit-maintenance"><i class="fas fa-check"></i> Finalizar Registro</button>
-            </div>
-          </div>
-        </form>
-      </div> <!-- Fim .form-container -->
-    </div> <!-- Fim #maintenance-form-overlay -->
 
-    <!-- Modal Formulário de Verificação -->
-    <div class="form-overlay" id="verification-form-overlay" style="display: none;">
+            <div class="form-step-content" id="step-2-content" style="display: none;">
+              <div class="form-group">
+                <label for="problem-category">Categoria do Problema <span class="form-required">*</span></label>
+                <select class="form-control" id="problem-category-select" name="problem-category-select" required> <option value="">Selecione a categoria...</option>
+                  </select>
+              </div>
+
+              <div class="form-group" id="other-category-field" style="display:none;">
+                <label for="other-category">Especifique Categoria <span class="form-required">*</span></label>
+                <input type="text" class="form-control" id="other-category" name="other-category">
+              </div>
+
+              <div class="form-group">
+                <label for="problem-description">Detalhes do Problema <span class="form-required">*</span></label>
+                <textarea class="form-control" id="problem-description" name="problem-description" rows="4" required></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="additional-notes">Observações Adicionais</label>
+                <textarea class="form-control" id="additional-notes" name="additional-notes" rows="3"></textarea>
+              </div>
+
+              <div class="form-navigation">
+                <button type="button" class="btn" id="back-to-step-1">Voltar</button>
+                <button type="button" class="btn btn-success" id="next-to-step-3">Próximo</button>
+              </div>
+            </div>
+
+            <div class="form-step-content" id="step-3-content" style="display: none;">
+              <div class="form-group">
+                <h3>Resumo da Manutenção</h3>
+                <div class="summary-content">
+                  <div class="summary-row">
+                    <div class="summary-label">Equipamento:</div>
+                    <div class="summary-value" id="summary-equipment"></div>
+                  </div>
+                  <div class="summary-row">
+                    <div class="summary-label">Responsável:</div>
+                    <div class="summary-value" id="summary-technician"></div>
+                  </div>
+                  <div class="summary-row">
+                    <div class="summary-label">Data:</div>
+                    <div class="summary-value" id="summary-date"></div>
+                  </div>
+                  <div class="summary-row">
+                    <div class="summary-label">Local:</div>
+                    <div class="summary-value" id="summary-location"></div>
+                  </div>
+                  <div class="summary-row">
+                    <div class="summary-label">Tipo:</div>
+                    <div class="summary-value" id="summary-type"></div>
+                  </div>
+                  <div class="summary-row">
+                    <div class="summary-label">É Crítica:</div>
+                    <div class="summary-value" id="summary-critical"></div>
+                  </div>
+                  <div class="summary-row">
+                    <div class="summary-label">Categoria de Problema:</div>
+                    <div class="summary-value" id="summary-category"></div>
+                  </div>
+                  <div class="summary-row">
+                    <div class="summary-label">Detalhes do Problema:</div>
+                    <div class="summary-value" id="summary-problem"></div>
+                  </div>
+                  <div class="summary-row">
+                    <div class="summary-label">Observações:</div>
+                    <div class="summary-value" id="summary-notes"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-navigation">
+                <button type="button" class="btn" id="back-to-step-2">Voltar</button>
+                <button type="submit" class="btn btn-success" id="submit-maintenance">Finalizar Registro</button>
+              </div>
+            </div>
+          </form>
+        </div>
+    </div>
+
+    <div class="form-overlay" id="verification-form-overlay">
       <div class="form-container">
-        <div class="form-header">
-          <h2 class="form-title">Verificação de Manutenção</h2>
-          <button class="form-close" id="close-verification-form" title="Fechar">×</button>
-        </div>
-        <form id="verification-form">
-          <div class="form-group"><label for="verification-id">ID Manutenção</label><input type="text" class="form-control" id="verification-id" name="verification-id" readonly></div>
-          <div class="form-row">
-            <div class="form-col"><div class="form-group"><label for="verification-equipment">Equipamento</label><input type="text" class="form-control" id="verification-equipment" readonly></div></div>
-            <div class="form-col"><div class="form-group"><label for="verification-type">Tipo Manutenção</label><input type="text" class="form-control" id="verification-type" readonly></div></div>
+          <div class="form-header">
+            <h2 class="form-title">Verificação de Manutenção</h2>
+            <button class="form-close" id="close-verification-form">×</button>
           </div>
-          <div class="form-group">
-            <label for="verifier-name">Nome do Verificador <span class="form-required">*</span></label>
-            <input type="text" class="form-control" id="verifier-name" name="verifier-name" required>
-          </div>
-          <div class="form-group">
-            <label>Resultado <span class="form-required">*</span></label>
-            <div class="radio-group-container"> <!-- Container para validação visual dos radios -->
-                <div class="form-check"><input type="radio" id="verification-approved" name="verification-result" value="Aprovado" required><label for="verification-approved">Aprovado</label></div>
-                <div class="form-check"><input type="radio" id="verification-adjustments" name="verification-result" value="Ajustes" required><label for="verification-adjustments">Necessita Ajustes</label></div>
-                <div class="form-check"><input type="radio" id="verification-rejected" name="verification-result" value="Reprovado" required><label for="verification-rejected">Reprovado</label></div>
+
+          <form id="verification-form">
+            <div class="form-group">
+              <label for="verification-id">ID da Manutenção</label>
+              <input type="text" class="form-control" id="verification-id" name="verification-id" readonly>
             </div>
-          </div>
-          <div class="form-group">
-            <label for="verification-comments">Comentários <span id="verification-comments-required" class="form-required" style="display:none;">*</span></label> <!-- '*' aparece condicionalmente -->
-            <textarea class="form-control" id="verification-comments" name="verification-comments" rows="4"></textarea> <!-- Required é adicionado/removido via JS -->
-          </div>
-          <div class="form-navigation">
-            <button type="button" class="btn btn-secondary" id="cancel-verification">Cancelar</button>
-            <button type="submit" class="btn btn-success" id="submit-verification"><i class="fas fa-check"></i> Finalizar Verificação</button>
-          </div>
-        </form>
-      </div>
+
+            <div class="form-row">
+              <div class="form-col">
+                <div class="form-group">
+                  <label for="verification-equipment">Equipamento</label>
+                  <input type="text" class="form-control" id="verification-equipment" readonly>
+                </div>
+              </div>
+              <div class="form-col">
+                <div class="form-group">
+                  <label for="verification-type">Tipo de Manutenção</label>
+                  <input type="text" class="form-control" id="verification-type" readonly>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="verifier-name">Nome do Verificador <span class="form-required">*</span></label>
+              <input type="text" class="form-control" id="verifier-name" name="verifier-name" required>
+            </div>
+
+            <div class="form-group">
+              <label>Resultado da Verificação <span class="form-required">*</span></label>
+              <div class="form-check">
+                <input type="radio" id="verification-approved" name="verification-result" value="Aprovado" required>
+                <label for="verification-approved">Aprovado - Manutenção Correta</label>
+              </div>
+              <div class="form-check">
+                <input type="radio" id="verification-adjustments" name="verification-result" value="Ajustes" required>
+                <label for="verification-adjustments">Necessita Ajustes Menores</label>
+              </div>
+              <div class="form-check">
+                <input type="radio" id="verification-rejected" name="verification-result" value="Reprovado" required>
+                <label for="verification-rejected">Reprovado - Precisa de Nova Manutenção</label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="verification-comments">Comentários da Verificação <span class="form-required">*</span></label>
+              <textarea class="form-control" id="verification-comments" name="verification-comments" rows="4" required></textarea>
+            </div>
+
+            <div class="form-navigation">
+              <button type="button" class="btn" id="cancel-verification">Cancelar</button>
+              <button type="submit" class="btn btn-success" id="submit-verification">Finalizar Verificação</button>
+            </div>
+          </form>
+        </div>
     </div>
 
-    <!-- Modal Detalhes da Manutenção (Fallback) -->
-    <div class="form-overlay" id="detail-overlay" style="display: none;">
-      <div class="modal-content-fallback"> <!-- Usando classe diferente para estilização específica se necessário -->
-        <div class="form-header">
+    <div class="form-overlay" id="detail-overlay">
+      <div class="form-container">
+          <div class="form-header">
             <h2 class="form-title">Detalhes da Manutenção</h2>
-            <button class="form-close close-modal-btn" title="Fechar">×</button> <!-- Classe genérica para fechar -->
-        </div>
-        <div class="maintenance-detail" id="maintenance-detail-content">
-          <!-- Conteúdo dos detalhes será inserido aqui pelo JS -->
-          <p>Carregando detalhes...</p>
-        </div>
-        <div class="modal-actions"> <!-- Container para botões de ação -->
-          <!-- Botões (Fechar, Editar, Verificar) serão adicionados aqui pelo JS -->
-          <button class="btn btn-secondary close-modal-btn">Fechar</button>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Modal Formulário de Verificação (FALLBACK - caso verification.js falhe) -->
-    <div class="form-overlay" id="verification-form-overlay-fallback" style="display: none;">
-        <div class="form-container">
-            <div class="form-header">
-                <h2 class="form-title">Verificação de Manutenção (Fallback)</h2>
-                <button class="form-close" id="close-verification-form-fallback">×</button>
+            <button class="form-close" id="close-detail">×</button>
+          </div>
+
+          <div class="maintenance-detail" id="maintenance-detail-content">
             </div>
-            <form id="verification-form-fallback">
-                <div class="form-group">
-                    <label>ID Manutenção:</label>
-                    <input type="text" class="form-control" id="verification-id-fallback" readonly>
-                </div>
-                <div class="form-group">
-                    <label>Equipamento:</label>
-                    <input type="text" class="form-control" id="verification-equipment-fallback" readonly>
-                </div>
-                 <div class="form-group">
-                    <label>Tipo Manutenção:</label>
-                    <input type="text" class="form-control" id="verification-type-fallback" readonly>
-                </div>
-                 <div class="form-group">
-                    <label>Problema Registrado:</label>
-                    <div id="verification-problem-display-fallback" style="padding: 8px; border: 1px solid #eee; background-color: #f9f9f9; border-radius: 4px; min-height: 40px;">-</div>
-                </div>
-                <div class="form-group" id="verifier-name-fallback-group"> <!-- Grupo para esconder se UserSession existir -->
-                    <label for="verifier-name-fallback">Seu Nome <span class="form-required">*</span></label>
-                    <input type="text" class="form-control" id="verifier-name-fallback" required>
-                </div>
-                <div class="form-group">
-                    <label>Resultado <span class="form-required">*</span></label>
-                    <div class="radio-group-container">
-                        <div class="form-check"><input type="radio" id="vrf-approved" name="verification-result-fallback" value="Aprovado" required><label for="vrf-approved">Aprovado</label></div>
-                        <div class="form-check"><input type="radio" id="vrf-adjustments" name="verification-result-fallback" value="Ajustes" required><label for="vrf-adjustments">Ajustes</label></div>
-                        <div class="form-check"><input type="radio" id="vrf-rejected" name="verification-result-fallback" value="Reprovado" required><label for="vrf-rejected">Reprovado</label></div>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="verification-comments-fallback">Comentários <span class="form-required">* (se Ajustes ou Reprovado)</span></label>
-                    <textarea class="form-control" id="verification-comments-fallback" rows="4"></textarea>
-                </div>
-                <div class="form-navigation">
-                    <button type="button" class="btn btn-secondary" id="cancel-verification-fallback">Cancelar</button>
-                    <button type="button" class="btn btn-success" id="submit-verification-btn-fallback">Registrar Verificação</button>
-                </div>
-            </form>
+
+          <div class="form-navigation">
+            <button class="btn" id="close-detail-btn">Fechar</button>
+            <button class="btn btn-success" id="verify-maintenance-btn">Verificar Manutenção</button>
+          </div>
         </div>
     </div>
 
-    <!-- Container para Notificações (usado pelo fallback do Utilities) -->
     <div id="notification-container"></div>
 
-    <!-- Botão Flutuante para Nova Manutenção -->
-    <button class="btn-new" id="new-maintenance" title="Registrar Nova Manutenção">+</button>
+    <div class="btn-new" id="new-maintenance">+</div>
 
-    <!-- Rodapé -->
     <div class="footer">
-      <p>Sistema de Controle de Manutenção © 2024 | Última atualização: <span id="last-update">Carregando...</span></p>
+      <p>Sistema de Dupla Checagem de Manutenção © 2025 | Última atualização: <span id="last-update">Carregando...</span></p>
       <p class="developer-credit">Desenvolvido por Warlison Abreu</p>
     </div>
-  </div> <!-- Fim .container -->
+  </div>
 
-  <!-- Indicador de Loading Global (usado pelo fallback do Utilities) -->
-  <div id="global-loader-fallback" style="display: none;">
-    <div class="loader-spinner-fallback"></div>
-    <div id="global-loader-message-fallback">Carregando...</div>
+  <div id="global-loader" style="display: none;">
+    <div class="loader-spinner"></div>
+    <div id="global-loader-message">Carregando...</div>
   </div>
 
 <script>
-// Configurações do sistema (mantido do seu exemplo)
+// Configurações do sistema
+// Substitua a configuração do scriptConfig no index.html
 const scriptConfig = {
-  baseUrl: '', // Base URL se os scripts não estiverem na raiz
+  baseUrl: '',
   scripts: [
     {name: 'api', path: 'js/api.js', required: true},
     {name: 'utilities', path: 'js/utilities.js', required: true},
@@ -552,273 +656,384 @@ const scriptConfig = {
     {name: 'maintenance', path: 'js/maintenance.js', depends: ['api', 'utilities']},
     {name: 'verification', path: 'js/verification.js', depends: ['api', 'utilities']},
     {name: 'reports', path: 'js/reports.js', depends: ['api', 'utilities']},
-    // Main agora depende explicitamente dos outros módulos para garantir a ordem correta de inicialização
-    {name: 'main', path: 'js/main.js', depends: ['api', 'utilities', 'dashboard', 'maintenance', 'verification', 'reports']} 
+    {name: 'main', path: 'js/main.js', depends: ['api', 'utilities']}
   ],
-  maxRetries: 3,  // Mantido (ou ajuste conforme necessidade)
-  timeout: 15000  // Mantido (ou ajuste conforme necessidade)
+  maxRetries: 5,  // Aumentado o número de tentativas
+  timeout: 20000  // Aumentado o timeout para 20 segundos
 };
 
-// --- ScriptLoader AJUSTADO ---
+// Sistema de carregamento de scripts com retentativas
 const ScriptLoader = {
   loadedScripts: {},
   pendingScripts: {},
-  failedScripts: {},
 
   init: function() {
-    console.log("ScriptLoader: Iniciando carregamento...");
+    console.log("Iniciando carregamento das dependências...");
+    // Primeiro carregar as dependências essenciais
     this.loadCoreScriptsSequentially();
   },
 
   loadCoreScriptsSequentially: function() {
+    // Identificar scripts essenciais
     const coreScripts = scriptConfig.scripts.filter(s => s.required);
-    console.log("ScriptLoader: Carregando scripts essenciais:", coreScripts.map(s=>s.name));
-    this.loadScriptSequential(coreScripts, 0, true, () => {
-      console.log("ScriptLoader: Carga de scripts essenciais concluída (ou falhou). Verificando...");
-      setTimeout(() => { // Delay para garantir execução
-        const apiOk = this.checkScriptLoaded('api');
-        const utilsOk = this.checkScriptLoaded('utilities');
-        if (!apiOk || !utilsOk) {
-          console.error("ScriptLoader: FALHA CRÍTICA AO CARREGAR API ou UTILITIES. Abortando.");
-          this.showErrorMessage("Falha ao carregar componentes essenciais (API/Utilities). A aplicação não pode continuar.");
-          const loader = document.getElementById('global-loading-indicator');
-          if (loader) loader.style.display = 'none';
-          return;
+
+    console.log("Carregando scripts essenciais sequencialmente...");
+    // Carregar primeiro script
+    if (coreScripts.length > 0) {
+      this.loadScriptSequential(coreScripts, 0, () => {
+        console.log("Scripts essenciais carregados. Verificando flags...");
+
+        // Verificar flags após carregar todos os scripts essenciais
+        setTimeout(() => {
+          // Verificar se as flags estão definidas
+          const apiLoaded = (window.API !== undefined) && window.API_LOADED;
+          const utilitiesLoaded = (window.Utilities !== undefined) && window.UTILITIES_LOADED;
+
+          if (!apiLoaded) {
+            console.warn("API não foi carregada corretamente!");
+          }
+          if (!utilitiesLoaded) {
+            console.warn("Utilities não foram carregadas corretamente!");
+          }
+
+          // Continuar mesmo com problemas (o sistema tentará recuperar)
+          this.loadRemainingScripts();
+        }, 100); // Pequeno timeout para garantir que flags sejam definidas
+      });
+    } else {
+      this.loadRemainingScripts();
+    }
+  },
+
+  loadScriptSequential: function(scripts, index, onComplete) {
+    if (index >= scripts.length) {
+      if (typeof onComplete === 'function') {
+        onComplete();
+      }
+      return;
+    }
+
+    const script = scripts[index];
+    console.log(`Carregando script essencial: ${script.name}`);
+
+    this.loadScript(script.name, script.path)
+      .then(() => {
+        // Verifica se o script foi realmente carregado
+        const scriptLoaded = this.checkScriptLoaded(script.name);
+        if (!scriptLoaded) {
+          console.warn(`Script ${script.name} não foi carregado corretamente.`);
         }
-        console.log("ScriptLoader: Scripts essenciais OK. Carregando restantes...");
-        this.loadRemainingScripts();
-      }, 150);
-    });
+
+        // Um pequeno intervalo para garantir que o script seja processado
+        setTimeout(() => {
+          this.loadScriptSequential(scripts, index + 1, onComplete);
+        }, 100);
+      })
+      .catch(error => {
+        console.error(`Erro ao carregar script essencial ${script.name}:`, error);
+        // Continua mesmo com erro (menos crítico, o sistema tentará recuperar)
+        setTimeout(() => {
+          this.loadScriptSequential(scripts, index + 1, onComplete);
+        }, 100);
+      });
+  },
+
+  // Substitua a função checkScriptLoaded no index.html
+  checkScriptLoaded: function(name) {
+    // Verifica se o script foi carregado corretamente
+    if (name === 'api') {
+      return window.API !== undefined && window.API_LOADED === true;
+    } else if (name === 'utilities') {
+      return window.Utilities !== undefined && window.UTILITIES_LOADED === true;
+    }
+    return this.loadedScripts[name] === true;
   },
 
   loadRemainingScripts: function() {
+    // Filtrar scripts que não são essenciais
     const remainingScripts = scriptConfig.scripts.filter(s => !s.required);
-    console.log("ScriptLoader: Carregando scripts restantes:", remainingScripts.map(s=>s.name));
-    this.loadScriptSequential(remainingScripts, 0, false, () => {
-      console.log("ScriptLoader: Carga de scripts restantes concluída (com possíveis falhas não críticas).");
+
+    // Carregar scripts sequencialmente para garantir dependências
+    console.log("Carregando scripts restantes...");
+    this.loadScriptsSequentially(remainingScripts, 0, () => {
+      console.log("Todos os scripts (essenciais e restantes) foram carregados.");
       this.initializeSystem();
     });
   },
 
-  loadScriptSequential: function(scripts, index, isCore, onComplete) {
+  loadScriptsSequentially: function(scripts, index, onComplete) {
     if (index >= scripts.length) {
-      if (typeof onComplete === 'function') onComplete();
+      if (typeof onComplete === 'function') {
+        onComplete();
+      }
       return;
     }
+
     const script = scripts[index];
-    const scriptName = script.name;
 
-    // Pular se já falhou persistentemente
-    if (this.failedScripts[scriptName]) {
-         console.warn(`ScriptLoader: Pulando '${scriptName}' pois falhou anteriormente.`);
-         setTimeout(() => this.loadScriptSequential(scripts, index + 1, isCore, onComplete), 10);
-         return;
-    }
-
-    console.log(`ScriptLoader: Processando ${isCore ? 'essencial' : 'restante'} [${index+1}/${scripts.length}]: ${scriptName}`);
-
-    // Verificar dependências
+    // Verificar dependências antes de tentar carregar
     if (script.depends && script.depends.length > 0) {
-      const dependenciesMet = script.depends.every(dep => {
-        const loaded = this.checkScriptLoaded(dep);
-        if (!loaded) console.warn(`ScriptLoader: Dependência '${dep}' para '${scriptName}' ainda não pronta.`);
-        return loaded;
+      const allDependenciesLoaded = script.depends.every(dep => {
+        // Verifica explicitamente cada dependência
+        if (dep === 'api' && !window.API) {
+          console.warn("Dependência API não está disponível para " + script.name);
+          return false;
+        }
+        if (dep === 'utilities' && !window.Utilities) {
+          console.warn("Dependência Utilities não está disponível para " + script.name);
+          return false;
+        }
+        return this.loadedScripts[dep];
       });
-      if (!dependenciesMet) {
-        console.warn(`ScriptLoader: Adiantando carregamento de '${scriptName}' (dependências pendentes). Nova tentativa em 300ms.`);
-        setTimeout(() => this.loadScriptSequential(scripts, index, isCore, onComplete), 300);
+
+      if (!allDependenciesLoaded) {
+        console.warn(`Dependências para ${script.name} não estão carregadas. Adiando carregamento.`);
+        // Adiar o carregamento e tentar novamente mais tarde
+        setTimeout(() => {
+          this.loadScriptsSequentially(scripts, index, onComplete);
+        }, 300);
         return;
       }
-       console.log(`ScriptLoader: Dependências para '${scriptName}' OK.`);
     }
 
-    // Carregar o script
-    this.loadScript(scriptName, script.path)
+    this.loadScript(script.name, script.path)
       .then(() => {
-        console.log(`ScriptLoader: Sucesso ao carregar '${scriptName}'. Próximo...`);
-        setTimeout(() => this.loadScriptSequential(scripts, index + 1, isCore, onComplete), 50); // Pequeno delay
+        this.loadScriptsSequentially(scripts, index + 1, onComplete);
       })
-      .catch(error => {
-        console.error(`ScriptLoader: Erro FINAL ao carregar '${scriptName}':`, error.message);
-        this.failedScripts[scriptName] = true; // Marca como falha definitiva
-        if (isCore) {
-          console.error(`ScriptLoader: FALHA AO CARREGAR SCRIPT ESSENCIAL '${scriptName}'. Processo interrompido.`);
-          this.showErrorMessage(`Falha crítica ao carregar o componente essencial '${scriptName}'.`);
-          // Não chama onComplete para parar
-        } else {
-          console.warn(`ScriptLoader: Continuando carregamento apesar da falha em '${scriptName}'.`);
-          setTimeout(() => this.loadScriptSequential(scripts, index + 1, isCore, onComplete), 50); // Continua
-        }
+      .catch((error) => {
+        console.error(`Erro ao carregar script ${script.name}:`, error);
+        // Continua carregando os outros scripts
+        this.loadScriptsSequentially(scripts, index + 1, onComplete);
       });
   },
 
   loadScript: function(name, path, retryCount = 0) {
-    // ---- Verifica se já carregado ou pendente ----
+    // Se o script já foi carregado, retorne imediatamente.
     if (this.loadedScripts[name]) {
-         console.log(`ScriptLoader: Script '${name}' já marcado como carregado.`);
-         return Promise.resolve();
+      return Promise.resolve();
     }
+
+    // Se o script já está sendo carregado (pendente), retorne a promise existente.
     if (this.pendingScripts[name]) {
-         console.log(`ScriptLoader: Script '${name}' já está pendente, aguardando promise existente.`);
-         return this.pendingScripts[name];
+      return this.pendingScripts[name];
     }
-    // ---- Fim Verificações Iniciais ----
 
     const url = scriptConfig.baseUrl + path;
-    console.log(`ScriptLoader: Iniciando carregamento [Tentativa ${retryCount + 1}/${scriptConfig.maxRetries + 1}] de: ${name} (${url})`);
+    console.log(`Iniciando carregamento de: ${name} (${url})`);
 
+    // Criar nova promise para carregar o script
     const promise = new Promise((resolve, reject) => {
       const scriptElement = document.createElement('script');
-      scriptElement.src = `${url}?v=${new Date().getTime()}`; // Cache busting
-      scriptElement.async = true; // Carregar assíncrono
+      scriptElement.src = url;
+      scriptElement.async = true;
+
       let timeoutId = null;
 
-      const cleanup = (isSuccess = false) => {
-        console.log(`ScriptLoader: Cleanup para '${name}' (Sucesso: ${isSuccess})`);
+      // Função para limpar recursos
+      const cleanup = () => {
         clearTimeout(timeoutId);
         scriptElement.onload = null;
         scriptElement.onerror = null;
-         delete this.pendingScripts[name]; // Crucial: remover da lista de pendentes
-         // Remover o elemento script APENAS se falhou para evitar redeclaração
-         if (!isSuccess && scriptElement.parentNode) {
-              console.log(`ScriptLoader: Removendo elemento script falho para '${name}'`);
-              scriptElement.remove();
-         }
       };
 
+      // Configurar timeout
       timeoutId = setTimeout(() => {
-        console.error(`ScriptLoader: Timeout carregando ${name} (Tentativa ${retryCount + 1})`);
+        console.error(`Timeout ao carregar ${name} (${url}) após ${scriptConfig.timeout}ms`);
+        scriptElement.remove();
+        delete this.pendingScripts[name];
+
         if (retryCount < scriptConfig.maxRetries) {
-            cleanup(false); // Limpa sem marcar como carregado
-            console.log(`ScriptLoader: Retentativa de timeout para '${name}'...`);
-            setTimeout(() => this.loadScript(name, path, retryCount + 1).then(resolve).catch(reject), 300 * (retryCount + 1));
+          console.log(`Tentando carregar ${name} novamente (tentativa ${retryCount + 1}/${scriptConfig.maxRetries})...`);
+          this.loadScript(name, path, retryCount + 1)
+            .then(resolve)
+            .catch(reject);
         } else {
-            cleanup(false);
-            reject(new Error(`Timeout: Falha ao carregar ${name} após ${scriptConfig.maxRetries + 1} tentativas.`));
+          cleanup();
+          reject(new Error(`Falha ao carregar ${name} após ${scriptConfig.maxRetries} tentativas (timeout)`));
         }
       }, scriptConfig.timeout);
 
+      // Evento de sucesso
       scriptElement.onload = () => {
-        // **AJUSTE CRÍTICO:** Marcar como carregado PRIMEIRO, depois verificar.
-        console.log(`ScriptLoader: Script ${name} DOWNLOAD concluído (onload acionado).`);
-        this.loadedScripts[name] = true; // << MARCA COMO CARREGADO AQUI!
-        delete this.pendingScripts[name]; // << REMOVE DE PENDENTE AQUI!
-        clearTimeout(timeoutId); // Limpa timeout
-
-         // A verificação agora é mais um LOG de confirmação do que um gatilho de falha
-         const loadedCorrectly = this.checkScriptLoaded(name);
-         if (!loadedCorrectly) {
-             console.warn(`ScriptLoader: Verificação pós-load para '${name}' falhou (Objeto global/flag não encontrado como esperado), mas o script foi baixado.`);
-             // Não rejeita mais a promise aqui, pois o script foi baixado e executado.
-         } else {
-             console.log(`ScriptLoader: Verificação pós-load para '${name}' OK.`);
-         }
-         
-         // Limpar handlers e resolver a promise
-         scriptElement.onload = null; 
-         scriptElement.onerror = null;
-         resolve(); 
+        console.log(`Script ${name} (${path}) carregado com sucesso.`);
+        cleanup();
+        this.loadedScripts[name] = true;
+        delete this.pendingScripts[name];
+        resolve();
       };
 
+      // Evento de erro
       scriptElement.onerror = (event) => {
-        console.error(`ScriptLoader: Erro de rede/sintaxe carregando ${name} (Tentativa ${retryCount + 1})`, event);
+        console.error(`Erro ao carregar ${name} (${url})`, event);
+        scriptElement.remove();
+        delete this.pendingScripts[name];
+
         if (retryCount < scriptConfig.maxRetries) {
-          cleanup(false);
-          console.log(`ScriptLoader: Retentativa de erro para '${name}'...`);
-          setTimeout(() => this.loadScript(name, path, retryCount + 1).then(resolve).catch(reject), 500 * (retryCount + 1));
+          console.log(`Tentando carregar ${name} novamente (tentativa ${retryCount + 1}/${scriptConfig.maxRetries})...`);
+          setTimeout(() => {
+            this.loadScript(name, path, retryCount + 1)
+              .then(resolve)
+              .catch(reject);
+          }, 500 * (retryCount + 1));
         } else {
-          cleanup(false);
-          reject(new Error(`Erro de carregamento: Falha ao carregar ${name} após ${scriptConfig.maxRetries + 1} tentativas.`));
+          cleanup();
+          reject(new Error(`Falha ao carregar ${name} (${url}) após ${scriptConfig.maxRetries} tentativas`));
         }
       };
 
+      // Adicionar ao body para iniciar o carregamento
       document.body.appendChild(scriptElement);
     });
 
-    this.pendingScripts[name] = promise; // Adiciona à lista de pendentes
+    // Armazena a promise enquanto o script está carregando
+    this.pendingScripts[name] = promise;
     return promise;
   },
 
-  // Função de verificação (mantida, mas seu resultado é mais informativo agora)
- checkScriptLoaded: function(name) {
-    // Verifica se o objeto global principal do módulo existe
-    // Ou se flags específicas foram definidas por scripts mais antigos
-    switch(name) {
-        case 'api': return typeof window.API !== 'undefined' && window.API_LOADED === true;
-        case 'utilities': return typeof window.Utilities !== 'undefined' && window.UTILITIES_LOADED === true;
-        case 'dashboard': return typeof window.Dashboard !== 'undefined';
-        case 'maintenance': return typeof window.Maintenance !== 'undefined';
-        case 'verification': return typeof window.Verification !== 'undefined';
-        case 'reports': return typeof window.Reports !== 'undefined';
-        case 'main': return typeof window.initializeApp === 'function';
-        // Adicione verificações para outros módulos se necessário
-        default:
-            // Fallback: Verifica se foi marcado como carregado pelo onload
-            const loaded = this.loadedScripts[name] === true;
-            if (!loaded) console.warn(`ScriptLoader: Verificação genérica falhou para '${name}'.`);
-            return loaded;
-    }
-},
-
   initializeSystem: function() {
-    console.log("ScriptLoader: Tentando inicializar o sistema via initializeApp...");
-    const loaderIndicator = document.getElementById('global-loading-indicator');
-    if (loaderIndicator) loaderIndicator.style.display = 'flex';
+    console.log("Tentando inicializar o sistema...");
+    const loader = document.getElementById('global-loader');
+    if (loader) loader.style.display = 'flex';
 
-    // Usar requestAnimationFrame ou pequeno timeout para garantir que o DOM esteja pronto
-    requestAnimationFrame(() => {
-        setTimeout(() => { // Delay adicional opcional
-            try {
-                if (typeof initializeApp === 'function') {
-                    initializeApp();
-                    console.log("ScriptLoader: initializeApp() chamada com sucesso.");
-                } else {
-                    console.error("ScriptLoader: Função global 'initializeApp' NÃO ENCONTRADA. A aplicação principal não pode iniciar.");
-                    this.showErrorMessage("Falha ao encontrar o ponto de entrada principal da aplicação (initializeApp).");
-                }
-            } catch (error) {
-                console.error("ScriptLoader: Erro GERAL durante a chamada de initializeApp:", error);
-                this.showErrorMessage("Ocorreu um erro inesperado ao iniciar a aplicação.");
-            } finally {
-                setTimeout(() => {
-                   if (loaderIndicator) loaderIndicator.style.display = 'none';
-                }, 300); // Esconde loader
-            }
-        }, 50); // Pequeno delay
-    });
+    try {
+      // Tenta chamar a função global de inicialização
+      if (typeof window.initializeApp === 'function') {
+        window.initializeApp();
+        console.log("Sistema inicializado via window.initializeApp().");
+      } else if (typeof initializeApp === 'function') { // Fallback
+        initializeApp();
+        console.log("Sistema inicializado via initializeApp().");
+      } else {
+        console.error("Função de inicialização 'initializeApp' não encontrada. A aplicação pode não funcionar corretamente.");
+        // Tentar inicializar componentes individuais como fallback
+        this.initializeComponentsFallback();
+      }
+    } catch (error) {
+      console.error("Erro GERAL durante a inicialização do sistema:", error);
+      this.showErrorMessage();
+    } finally {
+      setTimeout(() => {
+        if (loader) loader.style.display = 'none';
+      }, 200);
+    }
   },
 
-  // showErrorMessage (mantida do seu exemplo, sem alterações necessárias aqui)
-  showErrorMessage: function(customMessage = "Erro ao carregar componentes essenciais.") {
-     if (document.getElementById('script-load-error-message')) return;
-     const errorDiv = document.createElement('div');
-     errorDiv.id = 'script-load-error-message';
-     errorDiv.style.cssText = `position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: #ffebe6; color: #bf2600; padding: 25px; border: 1px solid #ffbdad; border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,0.15); z-index: 10000; max-width: 90%; width: 450px; text-align: center; font-family: sans-serif;`;
-     errorDiv.innerHTML = `
-       <h2 style="color: #bf2600; margin-top: 0; margin-bottom: 15px; font-size: 1.3em;">Erro no Sistema</h2>
-       <p style="margin-bottom: 20px; line-height: 1.5; font-size: 0.95em;">${customMessage}</p>
-       <ul style="text-align: left; margin: 0 auto 20px auto; padding-left: 20px; max-width: 300px; font-size: 0.9em;">
-         <li style="margin-bottom: 8px;">Atualize a página (F5 ou Ctrl+R).</li>
-         <li style="margin-bottom: 8px;">Limpe o cache do navegador.</li>
-         <li>Verifique sua conexão com a internet.</li>
-       </ul>
-       <button id="retry-load-btn" style="background-color: #de350b; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: 600; font-size: 1em; transition: background-color 0.2s ease;">Recarregar Página</button>
-       <p style="margin-top: 20px; font-size: 0.8em; color: #5e6c84;">Se o problema persistir, contate o suporte.</p>`;
-     document.body.appendChild(errorDiv);
-     const retryButton = document.getElementById('retry-load-btn');
-     if(retryButton) {
-       retryButton.addEventListener('click', () => location.reload());
-       retryButton.onmouseover = () => retryButton.style.backgroundColor = '#bf2600';
-       retryButton.onmouseout = () => retryButton.style.backgroundColor = '#de350b';
-     }
-     const loader = document.getElementById('global-loading-indicator');
-     if (loader) loader.style.display = 'none';
-   }
+  initializeComponentsFallback: function() {
+    console.warn("Tentando inicializar componentes individuais como fallback...");
+    let initializedSomething = false;
+
+    // Tenta inicializar componentes comuns
+    if (typeof Dashboard !== 'undefined' && typeof Dashboard.initialize === 'function') {
+      try {
+        Dashboard.initialize();
+        console.log("Dashboard inicializado (fallback).");
+        initializedSomething = true;
+      } catch (e) { console.error("Erro ao inicializar Dashboard (fallback):", e); }
+    }
+
+    if (typeof Maintenance !== 'undefined' && typeof Maintenance.initialize === 'function') {
+      try {
+        Maintenance.initialize();
+        console.log("Maintenance inicializado (fallback).");
+        initializedSomething = true;
+      } catch (e) { console.error("Erro ao inicializar Maintenance (fallback):", e); }
+    }
+
+    if (typeof Verification !== 'undefined' && typeof Verification.initialize === 'function') {
+      try {
+        Verification.initialize();
+        console.log("Verification inicializado (fallback).");
+        initializedSomething = true;
+      } catch (e) { console.error("Erro ao inicializar Verification (fallback):", e); }
+    }
+
+    if (typeof Reports !== 'undefined' && typeof Reports.initialize === 'function') {
+      try {
+        Reports.initialize();
+        console.log("Reports inicializado (fallback).");
+        initializedSomething = true;
+      } catch (e) { console.error("Erro ao inicializar Reports (fallback):", e); }
+    }
+
+    if (!initializedSomething) {
+      console.error("Nenhum componente pôde ser inicializado via fallback.");
+      this.showErrorMessage();
+    }
+  },
+
+  showErrorMessage: function() {
+    // Garante que não haja múltiplas mensagens de erro
+    if (document.getElementById('script-load-error-message')) {
+      return;
+    }
+
+    // Criar mensagem de erro visível
+    const errorDiv = document.createElement('div');
+    errorDiv.id = 'script-load-error-message';
+    errorDiv.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: #ffebe6;
+      color: #bf2600;
+      padding: 25px;
+      border: 1px solid #ffbdad;
+      border-radius: 8px;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+      z-index: 10000;
+      max-width: 90%;
+      width: 450px;
+      text-align: center;
+      font-family: sans-serif;
+    `;
+
+    errorDiv.innerHTML = `
+      <h2 style="color: #bf2600; margin-top: 0; margin-bottom: 15px; font-size: 1.3em;">Erro ao Carregar o Sistema</h2>
+      <p style="margin-bottom: 20px; line-height: 1.5; font-size: 0.95em;">Ocorreu um problema ao carregar alguns componentes essenciais da aplicação. Por favor, tente as seguintes ações:</p>
+      <ul style="text-align: left; margin: 0 auto 20px auto; padding-left: 20px; max-width: 300px; font-size: 0.9em;">
+        <li style="margin-bottom: 8px;">Atualize a página (F5 ou Ctrl+R).</li>
+        <li style="margin-bottom: 8px;">Limpe o cache do seu navegador.</li>
+        <li style="margin-bottom: 8px;">Verifique sua conexão com a internet.</li>
+        <li>Tente usar um navegador diferente (Chrome, Firefox, Edge).</li>
+      </ul>
+      <button id="retry-load-btn" style="
+        background-color: #de350b;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 1em;
+        transition: background-color 0.2s ease;
+      ">Tentar Carregar Novamente</button>
+      <p style="margin-top: 20px; font-size: 0.8em; color: #5e6c84;">
+        Se o problema persistir após tentar as soluções acima, por favor, contate o suporte técnico.
+      </p>
+    `;
+
+    document.body.appendChild(errorDiv);
+
+    // Adicionar evento ao botão para recarregar a página
+    const retryButton = document.getElementById('retry-load-btn');
+    if(retryButton) {
+      retryButton.addEventListener('click', function() {
+        errorDiv.remove();
+        location.reload();
+      });
+      retryButton.onmouseover = () => retryButton.style.backgroundColor = '#bf2600';
+      retryButton.onmouseout = () => retryButton.style.backgroundColor = '#de350b';
+    }
+
+    const loader = document.getElementById('global-loader');
+    if (loader) loader.style.display = 'none';
+  }
 };
 
-// Iniciar carregamento
+// Iniciar carregamento quando o DOM estiver pronto
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', function() {
     console.log("DOM carregado. Iniciando ScriptLoader.");
     ScriptLoader.init();
   });
@@ -828,7 +1043,119 @@ if (document.readyState === 'loading') {
 }
 </script>
 
-  <!-- ======================= NÃO HÁ MAIS SCRIPTS ABAIXO ======================= -->
+<script>
+// PATCH DE EMERGÊNCIA - Adicione este script direto ao final do HTML, antes do </body>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("PATCH EMERGENCIAL APLICADO");
+
+    // Referências aos elementos principais
+    const typeSelect = document.getElementById('equipment-type');
+    const equipmentIdContainer = document.getElementById('equipment-id').closest('.form-col, .form-group');
+    const otherEquipmentField = document.getElementById('other-equipment-field');
+
+    // Verificar DOM antes de manipular
+    if (!typeSelect || !equipmentIdContainer || !otherEquipmentField) {
+        console.error("ERRO: Elementos críticos não encontrados!", {
+            typeSelect: !!typeSelect,
+            equipmentIdContainer: !!equipmentIdContainer,
+            otherEquipmentField: !!otherEquipmentField
+        });
+        alert("Erro ao carregar o formulário. Tente recarregar a página.");
+        return;
+    }
+
+    // LISTAS HARDCODED para carregar em caso de falha
+    const equipmentLists = {
+        "Alta Pressão": ["PUB-2G02","LUX-3201","FLX7617","EZS-8765","EZS-8764","EVK-0291","EOF-5C06",
+                          "EOF-5208","EGC-2989","EGC-2985","EGC-2983","EGC-2978","EAM-3262","EAM-3256",
+                          "EAM-3255","EAM-3253","EAM-3010","DSY-6475","DSY-6474","DSY-6472","CZC-0453"],
+        "Auto Vácuo / Hiper Vácuo": ["PUB-2F80","NFF-0235","HJS-1097","FSA-3D71","EGC-2993","EGC-2979",
+                                     "EAM-3257","EAM-3251","DYB-7210","DSY-6577","DSY-6473","CUB-0763",
+                                     "ANF-2676","FTW-4D99","FTD-6368","FMD-2200","FHD-9264","EZS-9753"]
+    };
+
+    // Função de manipulação direta
+    function handleTypeChange() {
+        const selectedValue = typeSelect.value;
+        const selectedText = typeSelect.options[typeSelect.selectedIndex].text;
+        console.log(`PATCH: Tipo selecionado: '${selectedText}' (valor: '${selectedValue}')`);
+
+        // Esconder todos os campos primeiro
+        equipmentIdContainer.style.display = 'none';
+        otherEquipmentField.style.display = 'none';
+
+        // Determinar qual campo mostrar
+        if (selectedText === 'Alta Pressão' || selectedText === 'Auto Vácuo / Hiper Vácuo' ||
+            selectedValue === 'alta-pressao' || selectedValue === 'auto-vacuo-hiper-vacuo') {
+            // Mostrar e preencher o dropdown de equipamentos
+            equipmentIdContainer.style.display = 'block';
+
+            const equipmentIdSelect = document.getElementById('equipment-id');
+            equipmentIdSelect.innerHTML = '<option value="">Carregando equipamentos...</option>';
+
+            // Usar lista hardcoded apropriada
+            let equipmentList = [];
+            if (selectedText === 'Alta Pressão' || selectedValue === 'alta-pressao') {
+                equipmentList = equipmentLists["Alta Pressão"];
+            } else {
+                equipmentList = equipmentLists["Auto Vácuo / Hiper Vácuo"];
+            }
+
+            // Preencher o select
+            equipmentIdSelect.innerHTML = '<option value="">Selecione o equipamento...</option>';
+            equipmentList.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item;
+                option.textContent = item;
+                equipmentIdSelect.appendChild(option);
+            });
+            equipmentIdSelect.disabled = false;
+            equipmentIdSelect.setAttribute('required', 'required');
+
+            console.log(`PATCH: Campo de equipamento mostrado com ${equipmentList.length} itens`);
+        }
+        else if (selectedText === 'Aspirador' || selectedText === 'Poliguindaste' || selectedText === 'Outro' ||
+                selectedValue === 'aspirador' || selectedValue === 'poliguindaste' || selectedValue === 'outro') {
+            // Mostrar campo de entrada manual
+            otherEquipmentField.style.display = 'block';
+            const otherEquipmentInput = document.getElementById('other-equipment');
+            if (otherEquipmentInput) {
+                otherEquipmentInput.setAttribute('required', 'required');
+                otherEquipmentInput.focus();
+            }
+            console.log("PATCH: Campo de entrada manual mostrado");
+        }
+    }
+
+    // Remover listeners existentes e adicionar novo
+    const newTypeSelect = typeSelect.cloneNode(true);
+    typeSelect.parentNode.replaceChild(newTypeSelect, typeSelect);
+
+    // Adicionar novo listener e executar imediatamente para configurar o estado inicial
+    newTypeSelect.addEventListener('change', handleTypeChange);
+    console.log("PATCH: Novo listener adicionado ao select de tipo de equipamento");
+
+    // Se já tiver um valor selecionado, executar o handler agora
+    if (newTypeSelect.value) {
+        setTimeout(handleTypeChange, 100);
+    }
+});
+</script>
+
+<!-- Adicionar loader global -->
+<div id="global-loading-indicator" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.8); z-index: 2000; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+  <div class="loader-spinner" style="width: 50px; height: 50px; border: 5px solid rgba(0, 82, 204, 0.2); border-radius: 50%; border-top-color: #0052cc; animation: spin 1s ease-in-out infinite;"></div>
+  <div id="global-loader-message" style="margin-top: 15px; color: #172b4d; font-weight: 500;">Carregando...</div>
+</div>
+
+<style>
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+</style>
+
+<!-- Adicionar container para gráficos do dashboard -->
+<div class="dashboard-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin: 1.5rem 0;"></div>
 
 </body>
 </html>
