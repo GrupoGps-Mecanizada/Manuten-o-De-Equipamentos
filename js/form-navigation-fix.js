@@ -1,5 +1,5 @@
-// Arquivo form-navigation-fix.js corrigido
-// Versão: 1.0.1
+// Arquivo form-navigation-fix.js melhorado
+// Versão: 1.0.2
 // Data: 05/05/2025
 
 console.log('🚀 Iniciando correção de navegação do formulário');
@@ -14,6 +14,10 @@ if (document.readyState === 'loading') {
 // Variável de controle para evitar múltiplas inicializações
 let formFixInitialized = false;
 
+// Contador de tentativas para evitar loop infinito
+let modalSearchAttempts = 0;
+const MAX_MODAL_SEARCH_ATTEMPTS = 5;
+
 // Função principal
 function initFormNavigationFix() {
     if (formFixInitialized) return;
@@ -22,8 +26,8 @@ function initFormNavigationFix() {
     // Configurar observer para detectar quando o botão de nova manutenção é clicado
     setupNewMaintenanceButtonObserver();
     
-    // Tentar aplicar correções se o modal já estiver aberto
-    fixFormNavigation();
+    // Configurar um MutationObserver para detectar quando o modal é adicionado ao DOM
+    setupModalObserver();
 }
 
 // Observer para o botão de nova manutenção
@@ -35,39 +39,105 @@ function setupNewMaintenanceButtonObserver() {
         
         newMaintenanceBtn.addEventListener('click', () => {
             console.log('🔎 Botão nova manutenção clicado, aguardando abertura do modal...');
-            // Aguardar a abertura do modal
-            setTimeout(fixFormNavigation, 300);
+            // Resetar contador de tentativas e tentar aplicar correções
+            modalSearchAttempts = 0;
+            setTimeout(findAndFixModal, 300);
         });
     } else {
         // Tentar novamente depois se o botão não for encontrado
         console.log('⚠️ Botão de nova manutenção não encontrado, tentando novamente mais tarde');
-        setTimeout(setupNewMaintenanceButtonObserver, 500);
+        setTimeout(setupNewMaintenanceButtonObserver, 1000);
+    }
+}
+
+// Configurar MutationObserver para detectar quando o modal é adicionado ao DOM
+function setupModalObserver() {
+    const bodyObserver = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                for (let i = 0; i < mutation.addedNodes.length; i++) {
+                    const node = mutation.addedNodes[i];
+                    if (node.nodeType === 1) { // ELEMENT_NODE
+                        if (
+                            node.classList && 
+                            (node.classList.contains('modal') || 
+                             node.classList.contains('maintenance-form-container'))
+                        ) {
+                            console.log('🔍 Modal detectado via MutationObserver', node);
+                            fixFormNavigation(node);
+                            return;
+                        }
+                        
+                        // Verifique também dentro do nó adicionado
+                        const modalInside = node.querySelector('.modal, .maintenance-form-container, #maintenance-modal');
+                        if (modalInside) {
+                            console.log('🔍 Modal encontrado dentro de um nó adicionado', modalInside);
+                            fixFormNavigation(modalInside);
+                            return;
+                        }
+                    }
+                }
+            }
+        });
+    });
+    
+    // Observar todo o body para capturar qualquer modal que for adicionado
+    bodyObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+    
+    console.log('👁️ Observer configurado para detectar modais adicionados ao DOM');
+}
+
+// Função para encontrar e corrigir o modal, com limitador de tentativas
+function findAndFixModal() {
+    if (modalSearchAttempts >= MAX_MODAL_SEARCH_ATTEMPTS) {
+        console.log('⚠️ Número máximo de tentativas excedido. Interrompendo busca do modal.');
+        return;
+    }
+    
+    modalSearchAttempts++;
+    console.log(`🔍 Tentativa ${modalSearchAttempts}/${MAX_MODAL_SEARCH_ATTEMPTS} de encontrar o modal...`);
+    
+    // Procurar pelos possíveis IDs/classes do modal
+    const modal = document.querySelector('#maintenance-modal, .maintenance-form-container, .modal.show, .modal.fade.show');
+    
+    if (modal) {
+        console.log('✅ Modal encontrado!', modal);
+        fixFormNavigation(modal);
+    } else {
+        console.log('⚠️ Modal não encontrado! Tentando novamente em breve...');
+        setTimeout(findAndFixModal, 1000);
     }
 }
 
 // Aplicar correções à navegação do formulário
-function fixFormNavigation() {
-    console.log('🔧 Aplicando correções à navegação do formulário');
-    
-    // Encontrar o modal de manutenção
-    const maintenanceModal = document.querySelector('#maintenance-modal') || 
-                            document.querySelector('.maintenance-form-container');
-    
-    if (!maintenanceModal) {
-        console.log('⚠️ Modal não encontrado! Tentando novamente em breve...');
-        // Tentar novamente após um curto período
-        setTimeout(fixFormNavigation, 500);
+function fixFormNavigation(modal) {
+    if (!modal) {
+        console.log('❌ Modal não fornecido para fixFormNavigation()');
         return;
     }
     
+    console.log('🔧 Aplicando correções à navegação do formulário para', modal);
+    
+    // Verificar se o modal já foi processado
+    if (modal.dataset.navigationFixed === 'true') {
+        console.log('ℹ️ Navegação do formulário já configurada para este modal');
+        return;
+    }
+    
+    // Marcar o modal como processado
+    modal.dataset.navigationFixed = 'true';
+    
     // Corrigir botões de navegação entre etapas
-    fixStepNavigationButtons(maintenanceModal);
+    fixStepNavigationButtons(modal);
     
     // Configurar validação de campos antes de avançar
-    setupFieldValidation(maintenanceModal);
+    setupFieldValidation(modal);
     
     // Corrigir comportamento do botão de cancelar/fechar
-    fixCancelButton(maintenanceModal);
+    fixCancelButton(modal);
     
     console.log('✅ Correções de navegação do formulário aplicadas com sucesso');
 }
@@ -82,6 +152,8 @@ function fixStepNavigationButtons(modal) {
         console.log('ℹ️ Formulário não tem múltiplas etapas ou botões de navegação');
         return;
     }
+    
+    console.log(`📊 Formulário com ${steps.length} etapas e ${nextButtons.length} botões 'próximo'`);
     
     // Remover listeners existentes para evitar duplicação
     nextButtons.forEach(btn => {
@@ -312,7 +384,8 @@ function resetAndCloseModal(modal) {
 // Exportar funções úteis
 window.FormNavigationFix = {
     fixNavigation: fixFormNavigation,
-    validateStep: validateCurrentStep
+    validateStep: validateCurrentStep,
+    findModal: findAndFixModal
 };
 
 console.log('🏁 Script de correção de navegação do formulário carregado com sucesso');
