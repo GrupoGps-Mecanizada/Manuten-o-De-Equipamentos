@@ -646,35 +646,58 @@ const Dashboard = (function() {
   }
 
   // --- FUNÇÃO SUBSTITUÍDA ---
-  /** Renderiza gráfico de Frequência Média de Manutenções com tratamento de 'sem dados' */
+  /** 
+   * Renderiza gráfico de Frequência Média de Manutenções com tratamento de 'sem dados' 
+   * e formatação correta dos dados
+   */
   function renderMaintenanceFrequencyChart(containerId, data) {
-    const canvas = document.getElementById(containerId); // Agora usa containerId como ID do canvas
+    const canvas = document.getElementById(containerId);
     if (!canvas) {
-        console.error(`Canvas #${containerId} não encontrado!`);
-        return;
+      console.error(`Canvas #${containerId} não encontrado!`);
+      return;
     }
     const parent = canvas.parentElement;
     if (!parent) {
-        console.error(`Elemento pai do canvas #${containerId} não encontrado!`);
-        return;
+      console.error(`Elemento pai do canvas #${containerId} não encontrado!`);
+      return;
     }
-
+  
     // Destruir instância antiga do gráfico, se existir
-    const instanceKey = 'frequencyChart'; // Usa a chave definida na chamada
+    const instanceKey = 'frequencyChart';
     if (chartInstances[instanceKey]) {
-        try { chartInstances[instanceKey].destroy(); } catch (e) { console.warn("Erro menor ao destruir gráfico de frequência:", e); }
-        delete chartInstances[instanceKey];
+      try { 
+        chartInstances[instanceKey].destroy(); 
+      } catch (e) { 
+        console.warn("Erro menor ao destruir gráfico de frequência:", e); 
+      }
+      delete chartInstances[instanceKey];
     }
-
-    // Limpar conteúdo anterior do container (canvas ou mensagem antiga)
-    parent.innerHTML = ''; // Remove canvas ou mensagem antiga
-
-    // Verificar se temos dados válidos
-    if (!data || !Array.isArray(data) || data.length === 0 || data.every(item => (item.count || 0) <= 0) ) {
+  
+    // Limpar conteúdo anterior do container
+    parent.innerHTML = '';
+  
+    // CORREÇÃO: Verifica corretamente se temos dados válidos
+    // Também aceita dados no formato de objeto {equipamento: dias} ou array
+    let chartData = [];
+    
+    if (Array.isArray(data)) {
+      // Dados já estão em formato de array
+      chartData = data.filter(item => (item.count || 0) > 0);
+    } else if (data && typeof data === 'object') {
+      // Dados são um objeto - converter para o formato esperado
+      chartData = Object.entries(data).map(([key, value]) => ({
+        label: key,
+        count: value
+      })).filter(item => item.count > 0);
+    }
+  
+    // Verifica se temos dados após processamento
+    if (!chartData || chartData.length === 0) {
       console.warn(`Não há dados válidos para o gráfico ${containerId}. Exibindo mensagem.`);
-      // Exibir mensagem de "sem dados" diretamente no container pai
+      
+      // Cria mensagem "sem dados" mais amigável
       const noDataElement = document.createElement('div');
-      noDataElement.className = 'no-data-message'; // Classe para estilização opcional
+      noDataElement.className = 'no-data-message';
       noDataElement.style.cssText = `
         display:flex; flex-direction:column; align-items:center; justify-content:center;
         height:150px; background-color:#f8f9fa; border-radius:6px; padding:20px; text-align:center;
@@ -684,29 +707,36 @@ const Dashboard = (function() {
         <p style="margin:0; color:var(--text-light, #6c757d); font-size:14px;">Não há dados suficientes para calcular o intervalo entre manutenções.</p>
         <p style="margin:5px 0 0; color:var(--text-light, #6c757d); font-size:13px;">Registre mais manutenções para o mesmo equipamento para ver esta análise.</p>
       `;
-      parent.appendChild(noDataElement); // Adiciona a mensagem ao invés do canvas
-      return; // Interrompe a execução aqui
+      parent.appendChild(noDataElement);
+      return;
     }
-
-    // Se houver dados, recria o canvas e continua com o código para renderizar o gráfico
-    console.log(`Renderizando gráfico ${containerId} com dados:`, data);
+  
+    // Ordenar os dados para visualização (menor intervalo primeiro)
+    chartData.sort((a, b) => a.count - b.count);
+  
+    // Se houver dados, recria o canvas para o gráfico
+    console.log(`Renderizando gráfico ${containerId} com ${chartData.length} registros:`, chartData);
     const newCanvas = document.createElement('canvas');
     newCanvas.id = containerId;
-    newCanvas.style.height = '200px'; // Altura padrão ou ajustar conforme necessidade
-    parent.appendChild(newCanvas); // Adiciona o novo canvas ao container
-
-    // Chama a função genérica para renderizar (já que agora temos dados válidos)
-    renderGenericChart(containerId, 'bar', data, {
-        indexAxis: 'y', // Barras horizontais
-        plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { label: ctx => `Intervalo Médio: ${ctx.parsed.x} dias` } }
+    newCanvas.style.height = '200px';
+    parent.appendChild(newCanvas);
+  
+    // Renderiza o gráfico com os dados processados
+    renderGenericChart(containerId, 'bar', chartData, {
+      indexAxis: 'y',  // Barras horizontais
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => `Intervalo Médio: ${ctx.parsed.x} dias` } }
+      },
+      scales: {
+        x: { 
+          beginAtZero: true, 
+          title: { display: true, text: 'Intervalo Médio (dias)'}, 
+          ticks: { precision: 0 } 
         },
-        scales: {
-            x: { beginAtZero: true, title: { display: true, text: 'Intervalo Médio (dias)'}, ticks: { precision: 0 } },
-            y: { ticks: { autoSkip: false } } // Mostra todos os labels de equipamento
-        }
-    }, instanceKey); // Passa a chave da instância
+        y: { ticks: { autoSkip: false } }
+      }
+    }, instanceKey);
   }
   // --- FIM DA FUNÇÃO SUBSTITUÍDA ---
 
