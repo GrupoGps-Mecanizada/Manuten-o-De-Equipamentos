@@ -153,7 +153,7 @@ const Maintenance = (() => {
     setupCloseModalListeners();
 
     // Eventos para campos dinâmicos
-    setupDynamicFieldListeners(); // <<< ESTA FUNÇÃO FOI SUBSTITUÍDA PELA ATUALIZAÇÃO
+    setupDynamicFieldListeners(); // <<< ESTA FUNÇÃO FOI SUBSTITUÍDA PELA ATUALIZAÇÃO 1
 
     // Form submit
     setupFormSubmitListener();
@@ -270,153 +270,107 @@ const Maintenance = (() => {
   }
 
   // =========================================================================
-  // == INÍCIO DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO =======================
+  // == INÍCIO DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO 1 =======================
   // =========================================================================
 
-  // Substitua a função setupDynamicFieldListeners em maintenance.js
+  // Substituir a função setupDynamicFieldListeners em js/maintenance.js (linha ~278)
   function setupDynamicFieldListeners() {
-    console.log("### SOLUÇÃO DE EMERGÊNCIA: Configurando listeners de campos dinâmicos ###");
+    console.log("### Configurando listeners de campos dinâmicos (VERSÃO CORRIGIDA) ###");
     const equipmentTypeSelect = document.getElementById('equipment-type');
 
-    if (equipmentTypeSelect) {
-      console.log("Encontrado select de tipo de equipamento, configurando listener...");
+    if (!equipmentTypeSelect) {
+      console.error("ERRO: Select de tipo de equipamento não encontrado!");
+      return;
+    }
 
-      // IMPORTANTE: Garantir que os campos existam antes de continuar
-      const equipmentIdContainer = document.getElementById('equipment-id')?.closest('.form-group, .form-col');
-      const otherEquipmentField = document.getElementById('other-equipment-field');
+    console.log("Encontrado select de tipo de equipamento, configurando listener...");
 
-      if (!equipmentIdContainer || !otherEquipmentField) {
-        console.error("Campos essenciais não encontrados:", {
-          equipmentIdContainer: !!equipmentIdContainer,
-          otherEquipmentField: !!otherEquipmentField
-        });
-        return;
-      }
+    // Identificando os containers
+    const equipmentIdContainer = document.getElementById('equipment-id')?.closest('.form-col');
+    const otherEquipmentField = document.getElementById('other-equipment-field');
 
-      console.log("Estado inicial dos campos:");
-      console.log("- equipmentIdContainer display:", window.getComputedStyle(equipmentIdContainer).display);
-      console.log("- otherEquipmentField display:", window.getComputedStyle(otherEquipmentField).display);
+    if (!equipmentIdContainer || !otherEquipmentField) {
+      console.error("ERRO: Containers de campos não encontrados!", {
+        equipmentIdContainer: !!equipmentIdContainer,
+        otherEquipmentField: !!otherEquipmentField
+      });
+      return;
+    }
 
-      // Inicialmente esconde ambos os campos (serão exibidos conforme a seleção)
+    // Definir estado inicial - esconder todos os campos
+    equipmentIdContainer.style.display = 'none';
+    otherEquipmentField.style.display = 'none';
+
+    // Remover listener anterior para evitar duplicação
+    const newEquipmentTypeSelect = equipmentTypeSelect.cloneNode(true);
+    equipmentTypeSelect.parentNode.replaceChild(newEquipmentTypeSelect, equipmentTypeSelect);
+
+    // Adicionar listener que controlará a exibição dos campos
+    newEquipmentTypeSelect.addEventListener('change', function() {
+      const selectedValue = this.value;
+      const selectedText = this.options[this.selectedIndex]?.textContent || '';
+      console.log(`Tipo selecionado: "${selectedText}" (valor: "${selectedValue}")`);
+
+      // Esconder todos os campos primeiro
       equipmentIdContainer.style.display = 'none';
       otherEquipmentField.style.display = 'none';
 
-      // Limpar listener existente para garantir que não haja duplicação
-      const newEquipmentTypeSelect = equipmentTypeSelect.cloneNode(true);
-      equipmentTypeSelect.parentNode.replaceChild(newEquipmentTypeSelect, equipmentTypeSelect);
+      // Resetar os campos
+      const equipmentIdSelect = document.getElementById('equipment-id');
+      const otherEquipmentInput = document.getElementById('other-equipment');
 
-      // Adicionar novo listener com debug extensivo
-      newEquipmentTypeSelect.addEventListener('change', function(event) {
-        const selectedValue = this.value;
-        const selectedText = this.options[this.selectedIndex]?.textContent || '';
-        console.log(`!!! MUDANÇA DETECTADA: Tipo selecionado: "${selectedText}" (valor: "${selectedValue}")`);
-
-        // Obter referências aos elementos (com verificação robusta)
-        const equipmentIdSelect = document.getElementById('equipment-id');
-        const equipmentIdContainer = equipmentIdSelect?.closest('.form-group, .form-col');
-        const otherEquipmentField = document.getElementById('other-equipment-field');
-        const otherEquipmentInput = document.getElementById('other-equipment');
-
-        // Verificação de segurança - se algum elemento não for encontrado, exibe erro e não continua
-        if (!equipmentIdContainer || !otherEquipmentField || !equipmentIdSelect || !otherEquipmentInput) {
-          console.error("Elementos essenciais não encontrados para manipulação:", {
-            equipmentIdContainer: !!equipmentIdContainer,
-            otherEquipmentField: !!otherEquipmentField,
-            equipmentIdSelect: !!equipmentIdSelect,
-            otherEquipmentInput: !!otherEquipmentInput
-          });
-          return;
-        }
-
-        // Esconder todos os campos primeiro
-        equipmentIdContainer.style.display = 'none';
-        otherEquipmentField.style.display = 'none';
-
-        // Resetar os valores
+      if (equipmentIdSelect) {
         equipmentIdSelect.innerHTML = '<option value="">Selecione o equipamento...</option>';
         equipmentIdSelect.disabled = true;
         equipmentIdSelect.removeAttribute('required');
+      }
+
+      if (otherEquipmentInput) {
         otherEquipmentInput.value = '';
         otherEquipmentInput.removeAttribute('required');
+      }
 
-        // Se não houver seleção, não fazer nada mais
-        if (!selectedValue && !selectedText) {
-          console.log("Nenhum tipo selecionado. Nada a fazer.");
-          return;
-        }
+      // Agora decidir qual campo mostrar baseado na seleção
+      if (selectedValue === 'aspirador' || selectedValue === 'poliguindaste' || selectedValue === 'outro' ||
+          selectedText === 'Aspirador' || selectedText === 'Poliguindaste' || selectedText === 'Outro') {
 
-        // Lógica simplificada: facilita a decisão de qual campo mostrar
-        const valueLC = selectedValue.toLowerCase();
-        const textLC = selectedText.toLowerCase();
+        console.log("Mostrando campo 'other-equipment-field'");
+        otherEquipmentField.style.display = 'block';
 
-        // Verificar se deve mostrar campo manual
-        if (valueLC === 'aspirador' ||
-            textLC === 'aspirador' ||
-            valueLC === 'poliguindaste' ||
-            textLC === 'poliguindaste' ||
-            valueLC === 'outro' ||
-            textLC === 'outro') {
-
-          console.log("DECISÃO: Mostrar campo manual");
-          otherEquipmentField.style.display = 'block';
+        if (otherEquipmentInput) {
           otherEquipmentInput.setAttribute('required', 'required');
           setTimeout(() => otherEquipmentInput.focus(), 100);
         }
-        // Verificar se deve mostrar lista de equipamentos
-        else if (valueLC === 'alta-pressao' ||
-                 textLC === 'alta pressão' ||
-                 valueLC.includes('alta') && valueLC.includes('press') ||
-                 valueLC === 'auto-vacuo-hiper-vacuo' ||
-                 textLC === 'auto vácuo / hiper vácuo' ||
-                 valueLC.includes('vacuo') ||
-                 textLC.includes('vácuo')) {
+      }
+      else if (selectedValue && selectedText) {
+        console.log("Mostrando lista de equipamentos para:", selectedText);
+        equipmentIdContainer.style.display = 'block';
 
-          console.log("DECISÃO: Mostrar lista de equipamentos");
-          equipmentIdContainer.style.display = 'block';
+        if (equipmentIdSelect) {
           equipmentIdSelect.setAttribute('required', 'required');
 
-          // Determinar qual lista de equipamentos carregar
-          let equipmentType = null;
-          if (valueLC.includes('alta') || textLC.includes('alta')) {
+          // Determinar qual lista carregar
+          let equipmentType = selectedText;
+          if (selectedText.toLowerCase().includes('alta')) {
             equipmentType = 'Alta Pressão';
-          } else {
+          } else if (selectedText.toLowerCase().includes('vácuo') || selectedText.toLowerCase().includes('vacuo')) {
             equipmentType = 'Auto Vácuo / Hiper Vácuo';
           }
 
-          console.log(`Carregando equipamentos para: ${equipmentType}`);
-          loadEquipmentListForced(equipmentType, equipmentIdSelect);
+          // Carregar a lista de equipamentos
+          loadEquipmentListForced(equipmentType, equipmentIdSelect); // <<<< ATUALIZAÇÃO 2 CHAMA ESTA FUNÇÃO
         }
-        // Opção adicional: verificar no objeto EQUIPMENT_IDS (se disponível)
-        else if (window.EQUIPMENT_IDS && EQUIPMENT_IDS[selectedText]) {
-          console.log(`Tipo '${selectedText}' encontrado em EQUIPMENT_IDS. Mostrando lista.`);
-          equipmentIdContainer.style.display = 'block';
-          equipmentIdSelect.setAttribute('required', 'required');
-          loadEquipmentListForced(selectedText, equipmentIdSelect);
-        }
-        // Padrão: mostrar entrada manual
-        else {
-          console.log(`Tipo desconhecido: '${selectedText}'. Mostrando campo manual.`);
-          otherEquipmentField.style.display = 'block';
-          otherEquipmentInput.setAttribute('required', 'required');
-          setTimeout(() => otherEquipmentInput.focus(), 100);
-        }
+      }
 
-        // Debug: verificação final dos estados
-        setTimeout(() => {
-          console.log("ESTADO FINAL DOS CAMPOS:");
-          console.log("- equipmentIdContainer display:", window.getComputedStyle(equipmentIdContainer).display);
-          console.log("- otherEquipmentField display:", window.getComputedStyle(otherEquipmentField).display);
-        }, 100);
-      });
+      // Verificar estado final dos campos após as alterações
+      setTimeout(() => {
+        console.log("Estado após alterações:");
+        console.log("- equipmentIdContainer:", window.getComputedStyle(equipmentIdContainer).display);
+        console.log("- otherEquipmentField:", window.getComputedStyle(otherEquipmentField).display);
+      }, 100);
+    });
 
-      console.log("Listener 'change' configurado para 'equipment-type' com sucesso.");
-
-      // Configurar outros listeners (manter os já existentes - MOVIDO PARA FORA DO IF)
-    } else {
-      console.error("ERRO CRÍTICO: Select 'equipment-type' não encontrado no DOM!");
-      // Ainda tenta configurar o listener da categoria mesmo se o tipo falhar?
-      // É melhor manter dentro do IF ou mover para fora? Mover para fora parece razoável.
-    }
+    console.log("Listener 'change' configurado para 'equipment-type' com sucesso.");
 
     // Configurar listener da categoria de problema (movido para fora do IF de equipment-type)
     addSafeListener('problem-category-select', 'change', function(event) {
@@ -440,66 +394,84 @@ const Maintenance = (() => {
     });
   }
 
-  // Nova função para carregar equipamentos de forma forçada
+  // =========================================================================
+  // == FIM DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO 1 =======================
+  // =========================================================================
+
+
+  // =========================================================================
+  // == INÍCIO DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO 2 =======================
+  // =========================================================================
+
+  // Substituir a função loadEquipmentListForced em js/maintenance.js (linha ~440)
   function loadEquipmentListForced(equipmentType, selectElement) {
-      console.log(`Carregando equipamentos para tipo '${equipmentType}' de forma forçada`);
+    console.log(`Carregando equipamentos para tipo '${equipmentType}'`);
 
-      // Mensagem de carregamento
-      selectElement.innerHTML = '<option value="">Carregando equipamentos...</option>';
+    if (!selectElement) {
+      console.error("ERRO: elemento select não fornecido para loadEquipmentListForced");
+      return;
+    }
+
+    // Mensagem de carregamento
+    selectElement.innerHTML = '<option value="">Carregando equipamentos...</option>';
+    selectElement.disabled = true;
+
+    // Lista padrão de equipamentos
+    const defaultLists = {
+      'Alta Pressão': ["PUB-2G02","LUX-3201","FLX7617","EZS-8765","EZS-8764","EVK-0291","EOF-5C06",
+                       "EOF-5208","EGC-2989","EGC-2985","EGC-2983","EGC-2978","EAM-3262","EAM-3256",
+                       "EAM-3255","EAM-3253","EAM-3010","DSY-6475","DSY-6474","DSY-6472","CZC-0453"],
+      'Auto Vácuo / Hiper Vácuo': ["PUB-2F80","NFF-0235","HJS-1097","FSA-3D71","EGC-2993","EGC-2979",
+                                  "EAM-3257","EAM-3251","DYB-7210","DSY-6577","DSY-6473","CUB-0763",
+                                  "ANF-2676","FTW-4D99","FTD-6368","FMD-2200","FHD-9264","EZS-9753"]
+    };
+
+    // Determinar quais equipamentos mostrar
+    let equipList = [];
+
+    // Verificar no objeto EQUIPMENT_IDS primeiro (usa a constante definida no topo do módulo)
+    if (typeof EQUIPMENT_IDS !== 'undefined' && EQUIPMENT_IDS[equipmentType]) {
+      console.log(`Usando lista de EQUIPMENT_IDS para ${equipmentType}`);
+      equipList = EQUIPMENT_IDS[equipmentType];
+    }
+    // Se não encontrar, usar lista padrão
+    else if (defaultLists[equipmentType]) {
+      console.log(`Usando lista padrão para ${equipmentType}`);
+      equipList = defaultLists[equipmentType];
+    }
+    // Última opção: lista genérica de exemplo
+    else {
+      console.log(`Nenhuma lista encontrada para ${equipmentType}. Usando lista genérica.`);
+      equipList = ["EQUIPAMENTO-001", "EQUIPAMENTO-002", "EQUIPAMENTO-003"];
+    }
+
+    // Limpar select e adicionar primeira opção
+    selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
+
+    // Adicionar opções
+    if (equipList && equipList.length > 0) {
+      // Remover duplicatas e ordenar
+      const uniqueItems = [...new Set(equipList)].sort();
+
+      uniqueItems.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item;
+        option.textContent = item;
+        selectElement.appendChild(option);
+      });
+
+      selectElement.disabled = false;
+      console.log(`Lista de equipamentos carregada com ${uniqueItems.length} itens`);
+    } else {
+      // Nenhum equipamento encontrado
+      selectElement.innerHTML = '<option value="">Nenhum equipamento encontrado</option>';
       selectElement.disabled = true;
-
-      // Lista padrão se tudo falhar
-      const defaultLists = {
-          'Alta Pressão': ["PUB-2G02","LUX-3201","FLX7617","EZS-8765","EZS-8764","EVK-0291","EOF-5C06",
-                           "EOF-5208","EGC-2989","EGC-2985","EGC-2983","EGC-2978","EAM-3262","EAM-3256",
-                           "EAM-3255","EAM-3253","EAM-3010","DSY-6475","DSY-6474","DSY-6472","CZC-0453"],
-          'Auto Vácuo / Hiper Vácuo': ["PUB-2F80","NFF-0235","HJS-1097","FSA-3D71","EGC-2993","EGC-2979",
-                                      "EAM-3257","EAM-3251","DYB-7210","DSY-6577","DSY-6473","CUB-0763",
-                                      "ANF-2676","FTW-4D99","FTD-6368","FMD-2200","FHD-9264","EZS-9753"]
-      };
-
-      let equipList = [];
-
-      // Tentar obter lista de EQUIPMENT_IDS se disponível
-      if (window.EQUIPMENT_IDS && EQUIPMENT_IDS[equipmentType]) {
-          console.log(`Usando lista de EQUIPMENT_IDS para ${equipmentType}`);
-          equipList = EQUIPMENT_IDS[equipmentType];
-      }
-      // Senão, usar a lista padrão hardcoded
-      else if (defaultLists[equipmentType]) {
-          console.log(`Usando lista padrão hardcoded para ${equipmentType}`);
-          equipList = defaultLists[equipmentType];
-      }
-      // Se nenhum dos dois funcionar, criar uma lista de exemplo
-      else {
-          console.log(`Nenhuma lista disponível para ${equipmentType}. Usando lista de exemplo.`);
-          equipList = ["EQUIP-001", "EQUIP-002", "EQUIP-003", "EQUIP-004", "EQUIP-005"];
-      }
-
-      // Limpar select e adicionar primeira opção
-      selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
-
-      // Adicionar opções
-      if (equipList && equipList.length > 0) {
-          const uniqueItems = [...new Set(equipList)];
-          uniqueItems.sort().forEach(item => {
-              const option = document.createElement('option');
-              option.value = item;
-              option.textContent = item;
-              selectElement.appendChild(option);
-          });
-
-          selectElement.disabled = false;
-          console.log(`Lista de equipamentos carregada: ${uniqueItems.length} itens`);
-      } else {
-          selectElement.innerHTML += '<option value="" disabled>Nenhum equipamento encontrado</option>';
-          selectElement.disabled = true;
-          console.warn(`Não foi possível carregar equipamentos para ${equipmentType}`);
-      }
+      console.warn(`Não foi possível carregar equipamentos para ${equipmentType}`);
+    }
   }
 
   // =======================================================================
-  // == FIM DA FUNÇÃO SUBSTITUÍDA ==
+  // == FIM DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO 2 =======================
   // =======================================================================
 
 
@@ -683,7 +655,7 @@ const Maintenance = (() => {
         if (validateAllSteps()) {
           // Dados já foram coletados nas funções saveStepXData
           // A função updateSummary já foi chamada ao ir para a etapa 3
-          submitMaintenance();
+          submitMaintenance(); // <<< ATUALIZAÇÃO 4 SUBSTITUI ESTA FUNÇÃO
         } else {
           showNotification("Por favor, verifique o preenchimento de todos os campos obrigatórios em todas as etapas.", "warning");
           // Tenta levar o usuário para a primeira etapa com erro
@@ -1085,7 +1057,7 @@ const Maintenance = (() => {
           }
       }
 
-      return validateFields(fieldsToValidate);
+      return validateFields(fieldsToValidate); // <<< ATUALIZAÇÃO 5 SUBSTITUI ESTA FUNÇÃO
   }
 
 
@@ -1106,7 +1078,7 @@ const Maintenance = (() => {
       }
     }
 
-    return validateFields(requiredFields);
+    return validateFields(requiredFields); // <<< ATUALIZAÇÃO 5 SUBSTITUI ESTA FUNÇÃO
   }
 
   function validateAllSteps() {
@@ -1117,58 +1089,90 @@ const Maintenance = (() => {
     return isStep1Valid && isStep2Valid;
   }
 
+  // =========================================================================
+  // == INÍCIO DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO 5 =======================
+  // =========================================================================
 
+  // Substituir a função validateFields em js/maintenance.js (linha ~936)
   function validateFields(fields) {
-      let isValid = true;
-      let firstInvalidField = null;
+    let isValid = true;
+    let firstInvalidField = null;
 
-      fields.forEach(field => {
-          const element = document.getElementById(field.id);
-          if (!element) {
-              console.warn(`Campo de validação ${field.id} não encontrado no DOM!`);
-              return;
-          }
-
-          let fieldValue = element.value;
-          let fieldValid = false;
-
-          const container = element.closest('.form-col, .form-group, #other-equipment-field, #other-category-field');
-          const checkElement = container || element;
-          const isVisible = window.getComputedStyle(checkElement).display !== 'none';
-
-          const isRequired = element.hasAttribute('required');
-
-          if(isVisible && isRequired) {
-              if (element.tagName === 'SELECT') {
-                  fieldValid = fieldValue !== '' && fieldValue !== null;
-              } else if (element.type === 'checkbox') {
-                   fieldValid = element.checked;
-              } else {
-                  fieldValid = fieldValue && fieldValue.trim() !== '';
-              }
-
-              if (!fieldValid) {
-                  isValid = false;
-                  const errorMsg = field.errorMsg || `${field.name} é obrigatório`;
-                  markFieldAsInvalid(element, errorMsg);
-                  if (!firstInvalidField) {
-                      firstInvalidField = element;
-                  }
-              } else {
-                  clearFieldValidation(element);
-              }
-          } else {
-               clearFieldValidation(element);
-          }
-      });
-
-      if (firstInvalidField) {
-          firstInvalidField.focus();
-          console.log(`Foco no primeiro campo inválido: #${firstInvalidField.id}`);
+    fields.forEach(field => {
+      const element = document.getElementById(field.id);
+      if (!element) {
+        console.warn(`Campo ${field.id} não encontrado!`);
+        return;
       }
 
-      return isValid;
+      // Verificar se o campo está visível antes de validar
+      const isVisible = isElementVisible(element); // <<< USA A NOVA FUNÇÃO AUXILIAR
+      if (!isVisible) {
+        clearFieldValidation(element);
+        return; // Não validar campos invisíveis
+      }
+
+      const isRequired = element.hasAttribute('required');
+      if (!isRequired) {
+        clearFieldValidation(element);
+        return; // Não validar campos não obrigatórios
+      }
+
+      // Obter valor e validar
+      let fieldValue = element.value;
+      let fieldValid = false;
+
+      if (element.tagName === 'SELECT') {
+        fieldValid = fieldValue && fieldValue !== '';
+      } else if (element.type === 'checkbox') {
+        fieldValid = true; // Checkboxes são sempre válidos (não obrigatórios)
+      } else {
+        fieldValid = fieldValue && fieldValue.trim() !== '';
+      }
+
+      if (!fieldValid) {
+        isValid = false;
+        const errorMsg = field.errorMsg || `${field.name} é obrigatório`;
+        markFieldAsInvalid(element, errorMsg);
+
+        if (!firstInvalidField) {
+          firstInvalidField = element;
+        }
+      } else {
+        clearFieldValidation(element);
+      }
+    });
+
+    // Focar no primeiro campo inválido
+    if (firstInvalidField) {
+      firstInvalidField.focus();
+    }
+
+    return isValid;
   }
+
+  // Adicionar nova função auxiliar para verificar visibilidade
+  function isElementVisible(element) {
+    // Verificar o próprio elemento
+    if (window.getComputedStyle(element).display === 'none') {
+      return false;
+    }
+
+    // Verificar containers (parent chain)
+    let parent = element.parentElement;
+    while (parent && parent !== document.body) {
+      if (window.getComputedStyle(parent).display === 'none') {
+        return false;
+      }
+      parent = parent.parentElement;
+    }
+
+    return true;
+  }
+
+  // =========================================================================
+  // == FIM DA FUNÇÃO SUBSTITUÍDA/ADICIONADA PELA ATUALIZAÇÃO 5 =======================
+  // =========================================================================
 
 
   function markFieldAsInvalid(element, message) {
@@ -1222,51 +1226,63 @@ const Maintenance = (() => {
     }
   }
 
+  // =========================================================================
+  // == INÍCIO DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO 6 =======================
+  // =========================================================================
+
+  // Substituir a função saveStep1Data em js/maintenance.js (linha ~846)
   function saveStep1Data() {
     console.log("Salvando dados da etapa 1...");
+
     const equipTypeSelect = document.getElementById('equipment-type');
-    const equipTypeValue = equipTypeSelect.value; // Valor (slug)
-    const equipTypeText = equipTypeSelect.selectedOptions[0]?.textContent || equipTypeValue; // Texto
+    const equipTypeValue = equipTypeSelect.value; // Valor/slug
+    const equipTypeText = equipTypeSelect.selectedOptions[0]?.textContent || ''; // Texto exibido
 
-    formData.tipoEquipamento = equipTypeText; // Salva o texto da opção selecionada
+    // Guardar o tipo de equipamento (preferir o texto exibido)
+    formData.tipoEquipamento = equipTypeText;
 
-    // Usa o VALOR (slug) para a lógica
-    if (equipTypeValue === 'aspirador' || equipTypeValue === 'poliguindaste' || equipTypeValue === 'outro') {
-        const otherInput = document.getElementById('other-equipment');
-        if(otherInput && otherInput.closest('#other-equipment-field')?.style.display !== 'none') {
-           formData.placaOuId = otherInput.value.trim();
-           formData.equipamentoOutro = null;
-           if(equipTypeValue === 'outro') {
-              formData.tipoEquipamento = otherInput.value.trim() || 'Outro (não especificado)';
-              formData.equipamentoOutro = otherInput.value.trim();
-           }
-        } else {
-            formData.placaOuId = '';
-            formData.equipamentoOutro = null;
-        }
-    } else if (equipTypeValue) {
-        const idSelect = document.getElementById('equipment-id');
-         if(idSelect && idSelect.closest('.form-col, .form-group')?.style.display !== 'none') {
-            formData.placaOuId = idSelect.value;
-            formData.equipamentoOutro = null;
-         } else {
-            formData.placaOuId = '';
-             formData.equipamentoOutro = null;
-         }
-    } else {
-        formData.placaOuId = '';
-        formData.equipamentoOutro = null;
+    // Verificar qual campo está visível para obter o ID do equipamento
+    const equipmentIdContainer = document.getElementById('equipment-id')?.closest('.form-col');
+    const otherEquipmentField = document.getElementById('other-equipment-field');
+
+    // Campo de seleção está visível
+    if (equipmentIdContainer && window.getComputedStyle(equipmentIdContainer).display !== 'none') {
+      const equipmentIdSelect = document.getElementById('equipment-id');
+      formData.placaOuId = equipmentIdSelect?.value || '';
+      formData.equipamentoOutro = null;
+    }
+    // Campo para entrada manual está visível
+    else if (otherEquipmentField && window.getComputedStyle(otherEquipmentField).display !== 'none') {
+      const otherEquipInput = document.getElementById('other-equipment');
+      formData.placaOuId = otherEquipInput?.value || '';
+      formData.equipamentoOutro = formData.placaOuId;
+
+      // Se for do tipo "Outro", o texto próprio equipamento se torna o tipo
+      if (equipTypeValue === 'outro' || equipTypeText === 'Outro') {
+        formData.tipoEquipamento = formData.placaOuId || 'Outro (não especificado)';
+      }
+    }
+    // Nenhum dos campos visíveis, situação de erro
+    else {
+      console.warn("Nenhum campo de equipamento visível ao salvar etapa 1!");
+      formData.placaOuId = '';
+      formData.equipamentoOutro = null;
     }
 
-    formData.responsavel = document.getElementById('technician-name').value;
-    formData.dataRegistro = document.getElementById('maintenance-date').value;
-    formData.area = document.getElementById('area').value;
-    formData.localOficina = document.getElementById('office').value;
-    formData.tipoManutencao = document.getElementById('maintenance-type-select').value; // Ajustar ID se necessário
-    formData.eCritico = document.getElementById('is-critical').checked;
+    // Continuar salvando os outros campos
+    formData.responsavel = document.getElementById('technician-name')?.value || '';
+    formData.dataRegistro = document.getElementById('maintenance-date')?.value || '';
+    formData.area = document.getElementById('area')?.value || '';
+    formData.localOficina = document.getElementById('office')?.value || '';
+    formData.tipoManutencao = document.getElementById('maintenance-type-select')?.value || '';
+    formData.eCritico = document.getElementById('is-critical')?.checked || false;
 
     console.log("Dados da etapa 1 salvos:", formData);
   }
+
+  // =========================================================================
+  // == FIM DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO 6 =======================
+  // =========================================================================
 
   function saveStep2Data() {
     console.log("Salvando dados da etapa 2...");
@@ -1333,11 +1349,29 @@ const Maintenance = (() => {
   }
 
 
+  // =========================================================================
+  // == INÍCIO DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO 4 =======================
+  // =========================================================================
+
+  // Substituir a função submitMaintenance em js/maintenance.js (linha ~1214)
   function submitMaintenance() {
-    console.log(`${isEditMode ? 'Atualizando' : 'Criando nova'} manutenção... Dados coletados:`, formData);
+    console.log(`${isEditMode ? 'Atualizando' : 'Criando nova'} manutenção... Dados:`, formData);
 
-    showLoading(true, `${isEditMode ? 'Atualizando' : 'Registrando'} manutenção...`);
+    // Verificar todos os campos obrigatórios novamente
+    if (!validateAllSteps()) {
+      console.error("Validação falhou antes do envio.");
+      showNotification("Por favor, verifique se todos os campos obrigatórios foram preenchidos.", "warning");
+      return;
+    }
 
+    // Mostrar indicador de loading
+    if (typeof Utilities !== 'undefined' && Utilities.showLoading) {
+      Utilities.showLoading(true, `${isEditMode ? 'Atualizando' : 'Registrando'} manutenção...`);
+    } else {
+      console.log(`${isEditMode ? 'Atualizando' : 'Registrando'} manutenção...`);
+    }
+
+    // Preparar dados para envio
     const dataToSend = {
       tipoEquipamento: formData.tipoEquipamento,
       placaOuId: formData.placaOuId,
@@ -1355,73 +1389,76 @@ const Maintenance = (() => {
       status: isEditMode ? undefined : 'Pendente'
     };
 
-     Object.keys(dataToSend).forEach(key => {
-         if (dataToSend[key] === undefined || dataToSend[key] === null) {
-             delete dataToSend[key];
-         }
-     });
+    // Remover campos vazios ou nulos
+    Object.keys(dataToSend).forEach(key => {
+      if (dataToSend[key] === undefined || dataToSend[key] === null || dataToSend[key] === '') {
+        delete dataToSend[key];
+      }
+    });
 
-
+    // Adicionar ID se for modo de edição
     if (isEditMode && editingMaintenanceId) {
       dataToSend.id = editingMaintenanceId;
-    } else if (isEditMode && !editingMaintenanceId) {
-        console.error("Tentando editar sem um ID de manutenção!");
-        showNotification("Erro: ID da manutenção não encontrado para edição.", "error");
-        showLoading(false);
-        return;
     }
 
-    console.log("Dados a serem enviados para a API:", dataToSend);
+    console.log("Dados a serem enviados:", dataToSend);
 
-     if (!window.API || !(isEditMode ? API.updateMaintenance : API.createMaintenance)) {
-         console.error("Função da API necessária (create/update) não encontrada!");
-         showNotification("Erro: Falha na comunicação com o servidor (API não disponível).", "error");
-         showLoading(false);
-         return;
-     }
+    // Verificar se API está disponível
+    if (!window.API) {
+      console.error("API não está disponível!");
+      showNotification("Erro: API não está disponível. Recarregue a página e tente novamente.", "error");
+      if (typeof Utilities !== 'undefined' && Utilities.showLoading) Utilities.showLoading(false);
+      return;
+    }
 
+    // Chamar função apropriada da API
     const apiCall = isEditMode ?
       API.updateMaintenance(editingMaintenanceId, dataToSend) :
       API.createMaintenance(dataToSend);
 
     apiCall
       .then(response => {
-         let parsedResponse = response;
-         if (typeof response === 'string') {
-             try {
-                 parsedResponse = JSON.parse(response);
-             } catch (e) {
-                 console.error("Erro ao parsear resposta da API:", e);
-                 parsedResponse = { success: false, message: response || "Resposta inválida do servidor." };
-             }
-         } else if (typeof response !== 'object' || response === null) {
-             parsedResponse = { success: false, message: "Formato de resposta inesperado do servidor." };
-         }
+        let parsedResponse = response;
 
+        // Tentar converter string para objeto, se necessário
+        if (typeof response === 'string') {
+          try {
+            parsedResponse = JSON.parse(response);
+          } catch (e) {
+            console.error("Erro ao parsear resposta:", e);
+            parsedResponse = { success: false, message: "Resposta inválida do servidor" };
+          }
+        }
 
         if (parsedResponse && parsedResponse.success) {
           console.log("Manutenção salva com sucesso:", parsedResponse);
-          const message = isEditMode ?
+          showNotification(isEditMode ?
             "Manutenção atualizada com sucesso!" :
-            "Nova manutenção registrada com sucesso!";
-          showNotification(message, "success");
+            "Nova manutenção registrada com sucesso!", "success");
+
           closeForm();
-          loadMaintenanceList();
+          loadMaintenanceList(); // Recarregar lista
         } else {
-          console.error("Erro ao salvar manutenção (API retornou erro):", parsedResponse);
-          const errorMessage = parsedResponse?.message || parsedResponse?.error || (typeof parsedResponse === 'string' ? parsedResponse : 'Erro desconhecido do servidor.');
-          showNotification(`Erro ao ${isEditMode ? 'atualizar' : 'registrar'} manutenção: ${errorMessage}`, "error");
+          console.error("Erro retornado pela API:", parsedResponse);
+          const errorMsg = parsedResponse?.message || "Erro desconhecido";
+          showNotification(`Erro ao ${isEditMode ? 'atualizar' : 'registrar'} manutenção: ${errorMsg}`, "error");
         }
       })
       .catch(error => {
-        console.error("Falha na chamada da API ao salvar manutenção:", error);
-        const errorMessage = error?.message || (typeof error === 'string' ? error : 'Verifique sua conexão ou contate o suporte.');
-        showNotification(`Falha ao conectar com o servidor: ${errorMessage}`, "error");
+        console.error("Erro na comunicação com API:", error);
+        showNotification(`Falha na comunicação: ${error.message || "Erro desconhecido"}`, "error");
       })
       .finally(() => {
-        showLoading(false);
+        if (typeof Utilities !== 'undefined' && Utilities.showLoading) {
+          Utilities.showLoading(false);
+        }
       });
   }
+
+  // =========================================================================
+  // == FIM DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO 4 =======================
+  // =========================================================================
+
 
   // --- Funções de Dados e Tabela ---
   function loadMaintenanceList() {
@@ -2268,16 +2305,14 @@ const Maintenance = (() => {
         filterContainer.innerHTML = filterHTML;
 
         // Configurar event listeners para os botões
-        setupMaintenanceFilterListeners(); // <<< ESTA FUNÇÃO SERÁ SUBSTITUÍDA PELA ATUALIZAÇÃO 2
+        setupMaintenanceFilterListeners(); // <<< ESTA FUNÇÃO FOI SUBSTITUÍDA PELA ATUALIZAÇÃO 2 (no arquivo original, mas não havia instrução para substituí-la aqui)
 
         // Adicionar estilos CSS inline se necessário
         addMaintenanceFilterStyles();
     }
 
 
-    // =======================================================================================
-    // == INÍCIO DA ATUALIZAÇÃO 2: setupMaintenanceFilterListeners ==
-    // =======================================================================================
+    // Função original (conforme código fornecido) - A Atualização.txt não pedia para alterar esta
     function setupMaintenanceFilterListeners() {
       const applyBtn = document.getElementById('apply-maintenance-filter');
       const resetBtn = document.getElementById('reset-maintenance-filter');
@@ -2339,9 +2374,6 @@ const Maintenance = (() => {
             }
         });
     }
-    // =======================================================================================
-    // == FIM DA ATUALIZAÇÃO 2 ==
-    // =======================================================================================
 
 
     // Adiciona estilos CSS para os filtros
