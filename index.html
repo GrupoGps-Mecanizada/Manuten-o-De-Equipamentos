@@ -646,8 +646,9 @@
 
 <script>
 // Configurações do sistema
+// Substitua a configuração do scriptConfig no index.html
 const scriptConfig = {
-  baseUrl: '', // URL base para os scripts, deixe vazio se estiverem na mesma pasta que o HTML
+  baseUrl: '',
   scripts: [
     {name: 'api', path: 'js/api.js', required: true},
     {name: 'utilities', path: 'js/utilities.js', required: true},
@@ -657,8 +658,8 @@ const scriptConfig = {
     {name: 'reports', path: 'js/reports.js', depends: ['api', 'utilities']},
     {name: 'main', path: 'js/main.js', depends: ['api', 'utilities']}
   ],
-  maxRetries: 3,
-  timeout: 15000 // Aumentado para 15 segundos
+  maxRetries: 5,  // Aumentado o número de tentativas
+  timeout: 20000  // Aumentado o timeout para 20 segundos
 };
 
 // Sistema de carregamento de scripts com retentativas
@@ -737,12 +738,13 @@ const ScriptLoader = {
       });
   },
 
+  // Substitua a função checkScriptLoaded no index.html
   checkScriptLoaded: function(name) {
     // Verifica se o script foi carregado corretamente
     if (name === 'api') {
-      return window.API !== undefined;
+      return window.API !== undefined && window.API_LOADED === true;
     } else if (name === 'utilities') {
-      return window.Utilities !== undefined;
+      return window.Utilities !== undefined && window.UTILITIES_LOADED === true;
     }
     return this.loadedScripts[name] === true;
   },
@@ -1139,5 +1141,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
+<!-- Adicionar loader global -->
+<div id="global-loading-indicator" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.8); z-index: 2000; align-items: center; justify-content: center; flex-direction: column;">
+  <div class="loader-spinner"></div>
+  <div id="global-loader-message">Carregando...</div>
+</div>
+
+<!-- Adicionar container para gráficos do dashboard -->
+<div class="dashboard-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin: 1.5rem 0;"></div>
+
 </body>
 </html>
