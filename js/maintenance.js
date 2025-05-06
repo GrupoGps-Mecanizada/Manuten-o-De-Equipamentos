@@ -338,58 +338,56 @@ const Maintenance = (() => {
   // Nova função para popular o select de equipamentos (baseado no TEXTO do tipo)
   function populateEquipmentSelect(equipmentTypeText, selectElement) {
     console.log(`Iniciando populateEquipmentSelect para tipo: "${equipmentTypeText}"`);
-
+  
     if (!selectElement) {
-        console.error("Erro: selectElement não fornecido para populateEquipmentSelect");
-        showLoading(false); // Esconde o loading se houver erro prematuro
-        return;
+      console.error("Erro: selectElement não fornecido para populateEquipmentSelect");
+      return;
     }
-
-    // Mostra mensagem de carregamento e desabilita
+  
+    // Mostra mensagem de carregamento
     selectElement.innerHTML = '<option value="">Carregando equipamentos...</option>';
     selectElement.disabled = true;
-    // showLoading já foi chamado em setupDynamicFieldListeners
-
+  
+    // Mostrar indicador de loading
+    showLoading(true, `Carregando equipamentos de ${equipmentTypeText}...`);
+  
     // Buscar equipamentos do backend via API
     API.getEquipmentsByType(equipmentTypeText)
       .then(equipList => {
         // Limpa e adiciona a opção padrão
         selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
-
+  
         // Populando o select com os dados
         if (equipList && equipList.length > 0) {
-            console.log(`Populando ${equipList.length} equipamentos para "${equipmentTypeText}"`);
-
-            // Remove duplicados e ordena
-            const uniqueItems = [...new Set(equipList)].sort();
-
-            uniqueItems.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item; // O ID/Placa é o valor
-                option.textContent = item; // E também o texto
-                selectElement.appendChild(option);
-            });
-
-            selectElement.disabled = false; // Habilita para seleção
-            console.log(`Select populado com sucesso: ${uniqueItems.length} equipamentos`);
+          console.log(`Populando ${equipList.length} equipamentos para "${equipmentTypeText}"`);
+  
+          equipList.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item; // O ID/Placa é o valor
+            option.textContent = item; // E também o texto
+            selectElement.appendChild(option);
+          });
+  
+          selectElement.disabled = false; // Habilita para seleção
+          console.log(`Select populado com sucesso: ${equipList.length} equipamentos`);
         } else {
-            // Se não houver equipamentos na lista
-            console.warn(`Nenhum equipamento encontrado para o tipo "${equipmentTypeText}"`);
-            selectElement.innerHTML += '<option value="" disabled>Nenhum equipamento na lista</option>';
-            // Mantém desabilitado
-            selectElement.disabled = true;
+          // Se não houver equipamentos na lista
+          console.warn(`Nenhum equipamento encontrado para o tipo "${equipmentTypeText}"`);
+          selectElement.innerHTML += '<option value="" disabled>Nenhum equipamento na lista</option>';
+          // Mantém desabilitado
+          selectElement.disabled = true;
         }
       })
       .catch(error => {
         console.error(`Erro ao carregar equipamentos para tipo ${equipmentTypeText}:`, error);
         selectElement.innerHTML = '<option value="">Erro ao carregar</option>';
         selectElement.disabled = true;
-
+        
         // Mostrar notificação do erro
-        showNotification(`Erro ao carregar lista de equipamentos: ${error.message || error}`, "error");
+        showNotification(`Erro ao carregar lista de equipamentos: ${error}`, "error");
       })
       .finally(() => {
-        showLoading(false); // Esconde o loading ao final do processo
+        showLoading(false);
       });
   }
   // =======================================================================
