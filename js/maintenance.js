@@ -76,15 +76,9 @@ const Maintenance = (() => {
   }
 
   function populateProblemCategories() {
-    // Linha original:
-    // const select = document.getElementById('problem-category');
-    // Linha corrigida:
-    const select = document.getElementById('problem-category-select');
+    const select = document.getElementById('problem-category'); // ATUALIZADO
     if (!select) {
-      // Linha original:
-      // console.error("Elemento select #problem-category não encontrado!");
-      // Linha corrigida:
-      console.error("Elemento select #problem-category-select não encontrado!");
+      console.error("Elemento select #problem-category não encontrado!"); // ATUALIZADO
       return;
     }
 
@@ -196,8 +190,8 @@ const Maintenance = (() => {
       handleEquipmentTypeChange(selectedType);
     });
 
-    // Listener para categoria de problema (usando o ID corrigido)
-    addSafeListener('problem-category-select', 'change', function(event) {
+    // Listener para categoria de problema
+    addSafeListener('problem-category', 'change', function(event) { // ATUALIZADO
       const selectedCategory = this.value;
       console.log(`Categoria de problema alterada para: ${selectedCategory}`);
 
@@ -582,13 +576,13 @@ const Maintenance = (() => {
     console.log("Validando etapa 2...");
 
     const requiredFields = [
-      { id: 'problem-category-select', name: 'Categoria do Problema' }, // ID corrigido aqui
+      { id: 'problem-category', name: 'Categoria do Problema' }, // ATUALIZADO
       { id: 'problem-description', name: 'Detalhes do Problema' }
     ];
 
-    // Verificar se "Outro" foi selecionado como categoria (usando o ID corrigido)
-    const problemCategory = document.getElementById('problem-category-select').value;
-    if (problemCategory === 'Outro') {
+    // Verificar se "Outro" foi selecionado como categoria
+    const problemCategoryValue = document.getElementById('problem-category').value; // ATUALIZADO
+    if (problemCategoryValue === 'Outro') {
       requiredFields.push({ id: 'other-category', name: 'Especificar Categoria' });
     }
 
@@ -715,13 +709,13 @@ const Maintenance = (() => {
   function saveStep2Data() {
     console.log("Salvando dados da etapa 2...");
 
-    // Capturar valores dos campos (usando ID corrigido)
-    const problemCategory = document.getElementById('problem-category-select').value;
+    // Capturar valores dos campos
+    const problemCategoryValue = document.getElementById('problem-category').value; // ATUALIZADO
 
-    formData.categoriaProblema = problemCategory;
+    formData.categoriaProblema = problemCategoryValue;
 
     // Se categoria for "Outro", salvar categoria específica
-    if (problemCategory === 'Outro') {
+    if (problemCategoryValue === 'Outro') {
       formData.categoriaProblemaOutro = document.getElementById('other-category').value;
     }
 
