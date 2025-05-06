@@ -1,3 +1,4 @@
+"use strict";
 // Verificar dependências no início
 if (!window.API || !window.Utilities) {
   console.error("Erro CRÍTICO: Dependências API ou Utilities não carregadas antes de maintenance.js");
