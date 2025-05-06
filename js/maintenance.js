@@ -352,16 +352,16 @@ const Maintenance = (() => {
     showLoading(true, `Carregando equipamentos de ${equipmentTypeText}...`);
   
     // Buscar equipamentos do backend via API
-    API.getEquipmentsByType(equipmentTypeText)
-      .then(equipList => {
+    API.callFunction('obterEquipamentosPorTipo', { tipoEquipamento: equipmentTypeText })
+      .then(response => {
         // Limpa e adiciona a opção padrão
         selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
   
         // Populando o select com os dados
-        if (equipList && equipList.length > 0) {
-          console.log(`Populando ${equipList.length} equipamentos para "${equipmentTypeText}"`);
+        if (response && response.success && response.equipamentos && response.equipamentos.length > 0) {
+          console.log(`Populando ${response.equipamentos.length} equipamentos para "${equipmentTypeText}"`);
   
-          equipList.forEach(item => {
+          response.equipamentos.forEach(item => {
             const option = document.createElement('option');
             option.value = item; // O ID/Placa é o valor
             option.textContent = item; // E também o texto
@@ -369,7 +369,7 @@ const Maintenance = (() => {
           });
   
           selectElement.disabled = false; // Habilita para seleção
-          console.log(`Select populado com sucesso: ${equipList.length} equipamentos`);
+          console.log(`Select populado com sucesso: ${response.equipamentos.length} equipamentos`);
         } else {
           // Se não houver equipamentos na lista
           console.warn(`Nenhum equipamento encontrado para o tipo "${equipmentTypeText}"`);
