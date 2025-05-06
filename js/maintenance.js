@@ -1,11 +1,4 @@
-Ok, entendi! Você forneceu o código completo e a atualização para a função `openMaintenanceForm`.
-
-Vou substituir a versão antiga da função `openMaintenanceForm` no seu código pela nova versão que você enviou.
-
-Aqui está o código completo e atualizado:
-
-```javascript
-// Verificar dependências no início
+/ Verificar dependências no início
 if (!window.API || !window.Utilities) {
   console.error("Erro CRÍTICO: Dependências API ou Utilities não carregadas antes de maintenance.js");
 } else {
@@ -2635,4 +2628,3 @@ function initializeMaintenanceModule() {
 
 // Chamar a função de inicialização para começar tudo
 initializeMaintenanceModule();
-```
