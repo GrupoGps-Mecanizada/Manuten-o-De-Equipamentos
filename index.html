@@ -1157,5 +1157,39 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Container para o formulário de manutenção -->
 <div id="maintenance-form-container"></div>
+
+<!-- ARQUIVO: index.html -->
+<!-- ADICIONAR: antes do </body> -->
+<script>
+// PATCH DE CORREÇÃO PARA FORMULÁRIO
+document.addEventListener('DOMContentLoaded', function() {
+  console.log("Aplicando patch de correção para formulário de manutenção");
+  
+  // Adiciona listener ao botão de nova manutenção para tentar carregar o formulário manualmente
+  const newMaintenanceBtn = document.getElementById('new-maintenance');
+  if (newMaintenanceBtn) {
+    // Preservar o handler original
+    const originalClickHandler = newMaintenanceBtn.onclick;
+    
+    // Substituir por nosso handler melhorado
+    newMaintenanceBtn.onclick = function(e) {
+      if (originalClickHandler) originalClickHandler.call(this, e);
+      
+      // Verificar se o modal está visível após um pequeno delay
+      setTimeout(() => {
+        const modal = document.getElementById('maintenance-form-overlay');
+        if (!modal || modal.style.display !== 'flex') {
+          console.log("Tentando abrir formulário via patch...");
+          
+          // Tentativa de carregar e mostrar o formulário
+          if (window.Maintenance && typeof Maintenance.openMaintenanceForm === 'function') {
+            Maintenance.openMaintenanceForm();
+          }
+        }
+      }, 500);
+    };
+  }
+});
+</script>
 </body>
 </html>
