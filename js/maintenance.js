@@ -706,7 +706,7 @@ const Maintenance = (() => {
     formData.dataRegistro = document.getElementById('maintenance-date').value;
     formData.area = document.getElementById('area').value;
     formData.localOficina = document.getElementById('office').value;
-    formData.tipoManutencao = document.getElementById('maintenance-type').value;
+    formData.tipoManutencao = document.getElementById('maintenance-type-select').value;
     formData.eCritico = document.getElementById('is-critical').checked;
 
     console.log("Dados da etapa 1 salvos:", formData);
