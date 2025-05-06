@@ -285,7 +285,7 @@ const Maintenance = (() => {
           otherEquipmentInput.setAttribute('required', 'required');
           setTimeout(() => otherEquipmentInput.focus(), 50);
         }
-        
+
         showLoading(false); // Esconde loading para estes casos
       }
       else if (selectedValue && selectedText) {
@@ -295,11 +295,11 @@ const Maintenance = (() => {
 
         if (equipmentIdSelect) {
           equipmentIdSelect.setAttribute('required', 'required');
-          
+
           // Usar a função que agora busca do backend via API
           populateEquipmentSelect(selectedText, equipmentIdSelect);
         }
-        
+
         // O loading será escondido dentro da função populateEquipmentSelect após o carregamento
       } else {
         // Se selectedValue for vazio, ambos os campos permanecem escondidos
@@ -361,14 +361,14 @@ const Maintenance = (() => {
     // Listas de equipamentos hardcoded para fallback se a API falhar
     const equipmentFallbackLists = {
       "Alta Pressão": [
-        "PUB-2G02", "LUX-3201", "FLX7617", "EZS-8765", "EZS-8764", "EVK-0291", 
-        "EOF-5C06", "EOF-5208", "EGC-2989", "EGC-2985", "EGC-2983", "EGC-2978", 
-        "EAM-3262", "EAM-3256", "EAM-3255", "EAM-3253", "EAM-3010", "DSY-6475", 
+        "PUB-2G02", "LUX-3201", "FLX7617", "EZS-8765", "EZS-8764", "EVK-0291",
+        "EOF-5C06", "EOF-5208", "EGC-2989", "EGC-2985", "EGC-2983", "EGC-2978",
+        "EAM-3262", "EAM-3256", "EAM-3255", "EAM-3253", "EAM-3010", "DSY-6475",
         "DSY-6474", "DSY-6472", "CZC-0453"
       ],
       "Auto Vácuo / Hiper Vácuo": [
-        "PUB-2F80", "NFF-0235", "HJS-1097", "FSA-3D71", "EGC-2993", "EGC-2979", 
-        "EAM-3257", "EAM-3251", "DYB-7210", "DSY-6577", "DSY-6473", "CUB-0763", 
+        "PUB-2F80", "NFF-0235", "HJS-1097", "FSA-3D71", "EGC-2993", "EGC-2979",
+        "EAM-3257", "EAM-3251", "DYB-7210", "DSY-6577", "DSY-6473", "CUB-0763",
         "ANF-2676", "FTW-4D99", "FTD-6368", "FMD-2200", "FHD-9264", "EZS-9753"
       ]
     };
@@ -414,7 +414,7 @@ const Maintenance = (() => {
       })
       .catch(error => {
         console.error(`Erro ao carregar equipamentos para tipo ${equipmentTypeText}:`, error);
-        
+
         // Tenta usar as listas fallback
         const fallbackList = equipmentFallbackLists[equipmentTypeText] || [];
         if (fallbackList.length > 0) {
@@ -431,7 +431,7 @@ const Maintenance = (() => {
           selectElement.innerHTML = '<option value="">Erro ao carregar</option>';
           selectElement.disabled = true;
         }
-        
+
         // Mostrar notificação do erro
         showNotification(`Erro ao carregar lista de equipamentos: ${error}`, "error");
       })
@@ -552,7 +552,7 @@ const Maintenance = (() => {
   }
 
   // =========================================================================
-  // == INÍCIO DA FUNÇÃO ATUALIZADA ==========================================
+  // == INÍCIO DA FUNÇÃO ATUALIZADA (COM A MODIFICAÇÃO APLICADA) =============
   // =========================================================================
   // ARQUIVO: maintenance.js
   // FUNÇÃO: openMaintenanceForm
@@ -579,7 +579,7 @@ const Maintenance = (() => {
       if (modal) {
         // Configurar formulário
         setupFormAfterLoad();
-        modal.style.display = 'flex';
+        // A linha `modal.style.display = 'flex';` que estava aqui é agora tratada dentro de setupFormAfterLoad com mais estilos.
         showLoading(false);
         return;
       }
@@ -590,7 +590,7 @@ const Maintenance = (() => {
       API.loadMaintenanceForm()
         .then(() => {
           console.log("HTML do formulário carregado com sucesso");
-          
+
           // Verificar se o formulário agora existe no DOM
           if (!document.getElementById('maintenance-form-modal')) {
             console.error("Formulário não encontrado no DOM após loadMaintenanceForm()");
@@ -598,11 +598,11 @@ const Maintenance = (() => {
             showLoading(false);
             return;
           }
-          
+
           // Popular os dropdowns
           populateEquipmentTypes();
           populateProblemCategories();
-          
+
           // Aguardar um pouco para garantir que o DOM está atualizado
           setTimeout(() => {
             setupFormAfterLoad();
@@ -624,18 +624,18 @@ const Maintenance = (() => {
     // Função para configurar o formulário após o carregamento
     function setupFormAfterLoad() {
       resetForm(); // Garante um estado limpo
-      
+
       // Verificar se o modal foi carregado
       const modal = document.getElementById('maintenance-form-overlay');
       const formTitle = document.querySelector('#maintenance-form-modal .form-title');
       const submitButton = document.getElementById('submit-maintenance');
-      
+
       if (!modal) {
         console.error("Modal #maintenance-form-overlay não encontrado!");
         showNotification("Erro: Modal do formulário não encontrado.", "error");
         return;
       }
-      
+
       if (maintenanceId && data) {
         // Modo Edição
         isEditMode = true;
@@ -652,13 +652,38 @@ const Maintenance = (() => {
         setCurrentDate(); // Define a data atual apenas para novos registros
       }
 
-      // Mostrar o modal
+      // === INÍCIO DA MODIFICAÇÃO APLICADA ===
+      // Forçar visibilidade com estilos inline
+      modal.style.position = 'fixed';
+      modal.style.top = '0';
+      modal.style.left = '0';
+      modal.style.width = '100%';
+      modal.style.height = '100%';
+      modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
       modal.style.display = 'flex';
-      console.log("Modal de manutenção aberto com sucesso");
+      modal.style.zIndex = '9999';
+      modal.style.justifyContent = 'center';
+      modal.style.alignItems = 'center';
+
+      // Estilizar o modal também
+      const modalContent = document.getElementById('maintenance-form-modal');
+      if (modalContent) {
+        modalContent.style.backgroundColor = 'white';
+        modalContent.style.padding = '20px';
+        modalContent.style.borderRadius = '8px';
+        modalContent.style.maxWidth = '800px';
+        modalContent.style.width = '80%';
+        modalContent.style.maxHeight = '90vh';
+        modalContent.style.overflowY = 'auto';
+        modalContent.style.position = 'relative';
+      }
+
+      console.log("Modal de manutenção aberto com sucesso e estilos aplicados");
+      // === FIM DA MODIFICAÇÃO APLICADA ===
 
       // Garantir que comece na primeira etapa
       showStep(1);
-      
+
       // Inicializar todos os listeners após o HTML estar pronto
       setTimeout(() => {
         console.log("Configurando listeners do formulário...");
@@ -2579,7 +2604,7 @@ const Maintenance = (() => {
      // Expor função de filtro explicitamente se necessário
      loadMaintenanceListWithFilters,
      // Expor submitVerification se for chamado de fora (ex: pelo módulo Verification)
-     submitVerification 
+     submitVerification
   };
 })(); // Fim do IIFE Maintenance
 
@@ -2629,4 +2654,3 @@ function initializeMaintenanceModule() {
 
 // Chamar a função de inicialização para começar tudo
 initializeMaintenanceModule();
-
