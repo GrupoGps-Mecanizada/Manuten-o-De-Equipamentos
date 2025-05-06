@@ -20,7 +20,7 @@ const Maintenance = (() => {
   const DEFAULT_PROBLEM_CATEGORIES = [
     "Motor Estacionário", "Motor Principal", "Tanque", "Válvulas", "Bomba de Água",
     "Sistema Hidráulico", "Sistema Elétrico", "Painel de Comando", "Freios", "Suspensão",
-    "Pneus", "Transmissão", "Documentação", "Sinalização", "Carroceria", "Outros"
+    "Pneus", "Transmissão", "Documentação", "Sinalização", "Carroceria", "Outros" // Nota: "Outros" com "s"
   ];
 
   let formData = {};
@@ -76,9 +76,9 @@ const Maintenance = (() => {
   }
 
   function populateProblemCategories() {
-    const select = document.getElementById('problem-category'); // ATUALIZADO
+    const select = document.getElementById('problem-category-select'); // ATUALIZADO (Item 2 da nova instrução)
     if (!select) {
-      console.error("Elemento select #problem-category não encontrado!"); // ATUALIZADO
+      console.error("Elemento select #problem-category-select não encontrado!"); // ATUALIZADO (Item 2 da nova instrução)
       return;
     }
 
@@ -191,14 +191,15 @@ const Maintenance = (() => {
     });
 
     // Listener para categoria de problema
-    addSafeListener('problem-category', 'change', function(event) { // ATUALIZADO
+    addSafeListener('problem-category-select', 'change', function(event) { // ATUALIZADO (Item 4 da nova instrução)
       const selectedCategory = this.value;
       console.log(`Categoria de problema alterada para: ${selectedCategory}`);
 
       // Mostrar/esconder campo de "outro" baseado na seleção
       const otherCategoryField = document.getElementById('other-category-field');
       if (otherCategoryField) {
-        otherCategoryField.style.display = selectedCategory === 'Outro' ? 'block' : 'none';
+        // A categoria em DEFAULT_PROBLEM_CATEGORIES é "Outros"
+        otherCategoryField.style.display = selectedCategory === 'Outros' ? 'block' : 'none'; // ATUALIZADO (Item 4 da nova instrução - "Outros")
       }
     });
   }
@@ -424,7 +425,7 @@ const Maintenance = (() => {
       setInputValue('maintenance-date', formatDateForInput(data.dataRegistro));
       setSelectValue('area', data.area);
       setInputValue('office', data.localOficina);
-      setSelectValue('maintenance-type', data.tipoManutencao);
+      setSelectValue('maintenance-type-select', data.tipoManutencao); // Ajustado para refletir a alteração em validateStep1
       setCheckboxValue('is-critical', data.eCritico);
 
       // Atualizar título do formulário
@@ -566,7 +567,7 @@ const Maintenance = (() => {
       { id: 'maintenance-date', name: 'Data da Manutenção' },
       { id: 'area', name: 'Área' },
       { id: 'office', name: 'Local/Oficina' },
-      { id: 'maintenance-type', name: 'Tipo de Manutenção' }
+      { id: 'maintenance-type-select', name: 'Tipo de Manutenção' } // ATUALIZADO (Item 3 da nova instrução)
     );
 
     return validateFields(requiredFields);
@@ -576,13 +577,13 @@ const Maintenance = (() => {
     console.log("Validando etapa 2...");
 
     const requiredFields = [
-      { id: 'problem-category', name: 'Categoria do Problema' }, // ATUALIZADO
+      { id: 'problem-category-select', name: 'Categoria do Problema' }, // Já estava correto ('problem-category-select')
       { id: 'problem-description', name: 'Detalhes do Problema' }
     ];
 
-    // Verificar se "Outro" foi selecionado como categoria
-    const problemCategoryValue = document.getElementById('problem-category').value; // ATUALIZADO
-    if (problemCategoryValue === 'Outro') {
+    // Verificar se "Outros" foi selecionado como categoria
+    const problemCategoryValue = document.getElementById('problem-category-select').value; // Usando o ID correto
+    if (problemCategoryValue === 'Outros') { // Comparando com "Outros" (conforme DEFAULT_PROBLEM_CATEGORIES)
       requiredFields.push({ id: 'other-category', name: 'Especificar Categoria' });
     }
 
@@ -700,7 +701,7 @@ const Maintenance = (() => {
     formData.dataRegistro = document.getElementById('maintenance-date').value;
     formData.area = document.getElementById('area').value;
     formData.localOficina = document.getElementById('office').value;
-    formData.tipoManutencao = document.getElementById('maintenance-type-select').value;
+    formData.tipoManutencao = document.getElementById('maintenance-type-select').value; // Usando ID correto
     formData.eCritico = document.getElementById('is-critical').checked;
 
     console.log("Dados da etapa 1 salvos:", formData);
@@ -710,12 +711,12 @@ const Maintenance = (() => {
     console.log("Salvando dados da etapa 2...");
 
     // Capturar valores dos campos
-    const problemCategoryValue = document.getElementById('problem-category').value; // ATUALIZADO
+    const problemCategoryValue = document.getElementById('problem-category-select').value; // Usando ID correto
 
     formData.categoriaProblema = problemCategoryValue;
 
-    // Se categoria for "Outro", salvar categoria específica
-    if (problemCategoryValue === 'Outro') {
+    // Se categoria for "Outros", salvar categoria específica
+    if (problemCategoryValue === 'Outros') { // Comparando com "Outros"
       formData.categoriaProblemaOutro = document.getElementById('other-category').value;
     }
 
@@ -742,7 +743,7 @@ const Maintenance = (() => {
       'summary-location': `${formData.area} - ${formData.localOficina}`,
       'summary-type': formData.tipoManutencao,
       'summary-critical': formData.eCritico ? 'Sim' : 'Não',
-      'summary-category': formData.categoriaProblema === 'Outro' ?
+      'summary-category': formData.categoriaProblema === 'Outros' ? // Comparando com "Outros"
                           formData.categoriaProblemaOutro :
                           formData.categoriaProblema,
       'summary-problem': formData.detalhesproblema,
@@ -779,7 +780,7 @@ const Maintenance = (() => {
       location: formData.localOficina,
       maintenanceType: formData.tipoManutencao,
       isCritical: formData.eCritico,
-      problemCategory: formData.categoriaProblema === 'Outro' ? formData.categoriaProblemaOutro : formData.categoriaProblema, // Enviar a categoria correta
+      problemCategory: formData.categoriaProblema === 'Outros' ? formData.categoriaProblemaOutro : formData.categoriaProblema, // Enviar a categoria correta
       problemDescription: formData.detalhesproblema,
       additionalNotes: formData.observacoes
     };
@@ -918,7 +919,7 @@ const Maintenance = (() => {
       const showEdit = ['pendente', 'aguardando verificação', 'aguardando verificacao', 'ajustes'].includes(statusLower);
 
       // Determinar texto da categoria do problema
-      const problemCategoryText = item.categoriaProblema === 'Outro'
+      const problemCategoryText = item.categoriaProblema === 'Outros' // Comparando com "Outros"
         ? (item.categoriaProblemaOutro || 'Outro (não especificado)')
         : (item.categoriaProblema || '-');
 
@@ -951,10 +952,6 @@ const Maintenance = (() => {
     const tableBody = document.getElementById('maintenance-tbody');
     if (!tableBody) return;
 
-    // Remover listeners antigos para evitar duplicação (melhor prática)
-    // No entanto, a delegação de eventos torna isso menos crítico, mas é bom saber
-    // tableBody.replaceWith(tableBody.cloneNode(true)); // Uma forma de remover todos os listeners (re-obter o tableBody depois)
-
     // Usar delegação de eventos
     tableBody.addEventListener('click', function(event) {
       const button = event.target.closest('.btn-icon');
@@ -962,10 +959,6 @@ const Maintenance = (() => {
 
       const maintenanceId = button.getAttribute('data-id');
       if (!maintenanceId) return; // Botão sem data-id
-
-      // Garantir que o ID seja tratado como string ou número consistentemente
-      // Se os IDs no fullMaintenanceList forem números, converta
-      // const maintenanceIdNum = parseInt(maintenanceId, 10);
 
       if (button.classList.contains('view-maintenance')) {
         console.log(`Visualizar manutenção: ${maintenanceId}`);
@@ -995,12 +988,11 @@ const Maintenance = (() => {
       Utilities.viewMaintenanceDetails(id, maintenanceData, () => verifyMaintenance(id));
     } else {
         console.warn("Módulo Utilities ou Utilities.viewMaintenanceDetails não encontrado. Usando fallback.");
-        // Implementação básica de fallback (mantida do código original)
+        // Implementação básica de fallback
         const detailOverlay = document.getElementById('detail-overlay');
         const detailContent = document.getElementById('maintenance-detail-content');
 
         if (detailOverlay && detailContent) {
-            // Mapeamento de campos para exibição mais robusto
             const detailsMap = [
                 { label: 'ID', value: maintenanceData.id },
                 { label: 'Equipamento', value: `${maintenanceData.tipoEquipamento || '-'} (${maintenanceData.placaOuId || '-'})` },
@@ -1012,7 +1004,7 @@ const Maintenance = (() => {
             ];
 
             const problemMap = [
-                { label: 'Categoria', value: maintenanceData.categoriaProblema === 'Outro' ? maintenanceData.categoriaProblemaOutro : maintenanceData.categoriaProblema },
+                { label: 'Categoria', value: maintenanceData.categoriaProblema === 'Outros' ? maintenanceData.categoriaProblemaOutro : maintenanceData.categoriaProblema }, // Comparando com "Outros"
                 { label: 'Detalhes', value: maintenanceData.detalhesproblema },
                 { label: 'Observações', value: maintenanceData.observacoes },
             ];
@@ -1029,7 +1021,6 @@ const Maintenance = (() => {
             });
             html += '</div>';
 
-            // Adicionar seção de verificação se existir
             if (maintenanceData.verificacao) {
                 const verificationMap = [
                     { label: 'Verificador', value: maintenanceData.verificacao.verificador },
@@ -1044,97 +1035,73 @@ const Maintenance = (() => {
                 html += '</div>';
             }
 
-            // Inserir conteúdo e mostrar overlay
             detailContent.innerHTML = html;
             detailOverlay.style.display = 'flex';
 
-            // Adicionar event listener aos botões de fechar
             addSafeListener('close-detail', 'click', () => detailOverlay.style.display = 'none');
             addSafeListener('close-detail-btn', 'click', () => detailOverlay.style.display = 'none');
 
-            // Configurar botão de verificação dentro do detalhe (se existir)
             const verifyBtn = document.getElementById('verify-maintenance-btn');
             if (verifyBtn) {
                 const status = (maintenanceData.status || '').toLowerCase();
                 const canVerify = ['pendente', 'aguardando verificacao', 'aguardando verificação'].includes(status);
-
                 verifyBtn.style.display = canVerify ? 'inline-block' : 'none';
-
                 if (canVerify) {
-                    // Usar addSafeListener para garantir um único listener
                     addSafeListener('verify-maintenance-btn', 'click', () => {
-                        detailOverlay.style.display = 'none'; // Fechar detalhes antes de abrir verificação
+                        detailOverlay.style.display = 'none';
                         verifyMaintenance(id);
                     });
                 }
             }
         } else {
-          // Fallback final se nem o overlay existir
           alert(`Detalhes da manutenção ${id}:\n\nTipo: ${maintenanceData.tipoEquipamento}\nResponsável: ${maintenanceData.responsavel}\nStatus: ${maintenanceData.status || 'Pendente'}`);
         }
     }
   }
 
   function editMaintenance(id) {
-    // Buscar dados da manutenção
     const maintenanceData = findMaintenanceById(id);
-
     if (!maintenanceData) {
       showNotification("Erro: Dados da manutenção não encontrados para edição.", "error");
       return;
     }
-
-    // Abrir formulário no modo de edição
     openMaintenanceForm(id, maintenanceData);
   }
 
   function verifyMaintenance(id) {
-    // Buscar dados da manutenção
     const maintenanceData = findMaintenanceById(id);
-
     if (!maintenanceData) {
       showNotification("Erro: Dados da manutenção não encontrados para verificação.", "error");
       return;
     }
 
-    // Verificar se há módulo de verificação global (Verification)
     if (typeof Verification !== 'undefined' && Verification.openVerificationForm) {
       Verification.openVerificationForm(id, maintenanceData);
     } else {
       console.warn("Módulo Verification não encontrado. Usando formulário de verificação interno/fallback.");
-      // Abrir formulário de verificação básico/fallback
       const verificationOverlay = document.getElementById('verification-form-overlay');
       const verificationForm = document.getElementById('verification-form');
 
       if (verificationOverlay && verificationForm) {
-        // Preencher campos fixos do formulário de verificação
         document.getElementById('verification-id').value = id;
         document.getElementById('verification-equipment').value = `${maintenanceData.tipoEquipamento} (${maintenanceData.placaOuId})`;
         document.getElementById('verification-type').value = maintenanceData.tipoManutencao;
 
-        // Limpar campos do verificador e resultado anterior
-        setInputValue('verifier-name', ''); // Limpa nome do verificador
+        setInputValue('verifier-name', '');
         document.querySelectorAll('input[name="verification-result"]').forEach(radio => { radio.checked = false; });
-        setInputValue('verification-comments', ''); // Limpa comentários
+        setInputValue('verification-comments', '');
         clearFieldValidation(document.getElementById('verifier-name'));
         clearFieldValidation(document.getElementById('verification-comments'));
-        // Limpar validação dos radios (geralmente um container)
         const radioContainer = document.querySelector('input[name="verification-result"]').closest('.form-group');
         if(radioContainer) clearFieldValidation(radioContainer);
 
-
-        // Mostrar overlay
         verificationOverlay.style.display = 'flex';
 
-        // Configurar event listeners para fechar
         addSafeListener('close-verification-form', 'click', () => verificationOverlay.style.display = 'none');
         addSafeListener('cancel-verification', 'click', () => verificationOverlay.style.display = 'none');
 
-        // Handler para submit do formulário (usando addSafeListener no botão submit)
-         addSafeListener('submit-verification-btn', 'click', function(event) { // Adicione um ID ao botão submit se não tiver
-           event.preventDefault(); // Prevenir submit padrão se for type="submit"
-
-           // Coletar dados
+        addSafeListener('submit-verification-btn', 'click', function(event) {
+           event.preventDefault();
            const verifierNameInput = document.getElementById('verifier-name');
            const resultRadio = document.querySelector('input[name="verification-result"]:checked');
            const commentsInput = document.getElementById('verification-comments');
@@ -1146,7 +1113,6 @@ const Maintenance = (() => {
                comments: commentsInput.value.trim()
            };
 
-           // Validar dados
            let isVerificationValid = true;
            if (!verificationData.verifierName) {
                markFieldAsInvalid(verifierNameInput, 'Nome do verificador é obrigatório.');
@@ -1155,7 +1121,6 @@ const Maintenance = (() => {
                 clearFieldValidation(verifierNameInput);
            }
            if (!verificationData.result) {
-               // Marcar o grupo de radios como inválido
                const radioGroup = document.querySelector('input[name="verification-result"]').closest('.form-group');
                if(radioGroup) markFieldAsInvalid(radioGroup, 'Selecione um resultado.');
                isVerificationValid = false;
@@ -1170,16 +1135,12 @@ const Maintenance = (() => {
                 clearFieldValidation(commentsInput);
            }
 
-
            if (!isVerificationValid) {
                showNotification("Por favor, preencha todos os campos obrigatórios da verificação.", "warning");
                return;
            }
-
-           // Submeter verificação
            submitVerification(verificationData);
        });
-
       } else {
         alert(`Formulário de verificação para a manutenção ${id} não encontrado! Verifique os IDs 'verification-form-overlay' e 'verification-form'.`);
       }
@@ -1188,27 +1149,18 @@ const Maintenance = (() => {
 
   function submitVerification(data) {
     console.log("Submetendo verificação:", data);
-
-    // Mostrar indicador de carregamento
     showLoading(true, "Registrando verificação...");
 
-    // Chamar API para registrar verificação
     if (window.API && typeof API.submitVerification === 'function') {
       API.submitVerification(data)
         .then(response => {
           if (response && response.success) {
             console.log("Verificação registrada com sucesso:", response);
-
-            // Mostrar notificação de sucesso
             showNotification("Verificação registrada com sucesso!", "success");
-
-            // Fechar o formulário de verificação
             const verificationOverlay = document.getElementById('verification-form-overlay');
             if (verificationOverlay) {
               verificationOverlay.style.display = 'none';
             }
-
-            // Recarregar a lista de manutenções para refletir a mudança de status
             loadMaintenanceList();
           } else {
             console.error("Erro ao registrar verificação:", response);
@@ -1223,11 +1175,9 @@ const Maintenance = (() => {
           showLoading(false);
         });
     } else {
-      console.error("API.submitVerification não disponível. Simulação não implementada para evitar inconsistência.");
+      console.error("API.submitVerification não disponível.");
       showNotification("Erro: Função da API para submeter verificação não encontrada.", "error");
       showLoading(false);
-
-       // Fechar o formulário de verificação mesmo em caso de erro de API
       const verificationOverlay = document.getElementById('verification-form-overlay');
       if (verificationOverlay) {
           verificationOverlay.style.display = 'none';
@@ -1236,29 +1186,20 @@ const Maintenance = (() => {
   }
 
   function findMaintenanceById(id) {
-    // Comparar como strings para evitar problemas de tipo (e.g., número vs string)
     return fullMaintenanceList.find(item => String(item.id) === String(id));
   }
 
   // --- Funções Utilitárias ---
   function formatDate(dateString) {
     if (!dateString) return '-';
-
-    // Usar Utilities se disponível
     if (typeof Utilities !== 'undefined' && Utilities.formatDate) {
       return Utilities.formatDate(dateString);
     }
-
-    // Implementação básica de fallback
     try {
-      // Tentar criar data, considerando que pode vir como YYYY-MM-DD ou outro formato ISO
       const date = new Date(dateString);
-      // Adicionar verificação se a data é válida
       if (isNaN(date.getTime())) {
-          // Se inválida, tentar tratar como DD/MM/YYYY (comum no Brasil)
           const parts = dateString.split('/');
           if (parts.length === 3) {
-              // Formato DD/MM/YYYY -> YYYY-MM-DD para o construtor Date
               const isoDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
               if (!isNaN(isoDate.getTime())) {
                   const day = String(isoDate.getDate()).padStart(2, '0');
@@ -1268,29 +1209,24 @@ const Maintenance = (() => {
               }
           }
           console.warn(`Formato de data inválido ou não reconhecido: ${dateString}`);
-          return dateString; // Retornar string original se não puder formatar
+          return dateString;
       }
-
-      // Se a data for válida, formatar
       const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0'); // Meses são 0-indexados
+      const month = String(date.getMonth() + 1).padStart(2, '0');
       const year = date.getFullYear();
-
       return `${day}/${month}/${year}`;
     } catch(e) {
       console.error("Erro ao formatar data:", e);
-      return dateString; // Retornar string original em caso de erro
+      return dateString;
     }
   }
 
   function getStatusClass(status) {
     if (!status) return 'default';
-
     const statusLower = status.toLowerCase();
-
     if (statusLower.includes('pendente') || statusLower.includes('aguardando')) {
       return 'pending';
-    } else if (statusLower.includes('verificado') && !statusLower.includes('reprovado')) { // Garante que 'verificado reprovado' não caia aqui
+    } else if (statusLower.includes('verificado') && !statusLower.includes('reprovado')) {
       return 'verified';
     } else if (statusLower.includes('concluído') || statusLower.includes('concluido')) {
       return 'completed';
@@ -1299,41 +1235,30 @@ const Maintenance = (() => {
     } else if (statusLower.includes('reprovado')) {
       return 'rejected';
     } else {
-      return 'default'; // Classe padrão para status desconhecidos
+      return 'default';
     }
   }
 
   function showNotification(message, type = 'info') {
-    // Usar Utilities se disponível
     if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
       Utilities.showNotification(message, type);
       return;
     }
-
-    // Implementação básica de fallback
     console.log(`[${type.toUpperCase()}] ${message}`);
-
-    // Tentar encontrar ou criar container de notificação
     let container = document.getElementById('notification-container');
     if (!container) {
         container = document.createElement('div');
         container.id = 'notification-container';
-        // Estilos básicos para o container (ajuste conforme necessário)
         container.style.position = 'fixed';
         container.style.top = '20px';
         container.style.right = '20px';
-        container.style.zIndex = '1050'; // Acima de modais Bootstrap
+        container.style.zIndex = '1050';
         container.style.width = '300px';
         document.body.appendChild(container);
     }
-
-    // Criar elemento de notificação
     const notification = document.createElement('div');
-    // Adicionar classes base e tipo específico
     notification.classList.add('notification', `notification-${type}`);
     notification.textContent = message;
-
-    // Estilos básicos para a notificação (ajuste conforme necessário)
     notification.style.backgroundColor = type === 'error' ? '#f8d7da' : (type === 'success' ? '#d4edda' : '#cce5ff');
     notification.style.color = type === 'error' ? '#721c24' : (type === 'success' ? '#155724' : '#004085');
     notification.style.padding = '10px 15px';
@@ -1342,71 +1267,53 @@ const Maintenance = (() => {
     notification.style.borderRadius = '4px';
     notification.style.opacity = '1';
     notification.style.transition = 'opacity 0.5s ease-out';
-
-    // Adicionar ao container
     container.appendChild(notification);
-
-    // Remover após alguns segundos
     setTimeout(() => {
       notification.style.opacity = '0';
-      // Esperar a transição terminar antes de remover o elemento
       setTimeout(() => {
         notification.remove();
-         // Opcional: remover o container se estiver vazio
         if (container.children.length === 0) {
-            // container.remove(); // Remova isso se quiser que o container persista
+            // container.remove();
         }
-      }, 500); // Tempo igual à duração da transição
-    }, 4000); // Tempo que a notificação fica visível
+      }, 500);
+    }, 4000);
   }
 
   function showLoading(show, message = 'Carregando...') {
-    // Usar Utilities se disponível
     if (typeof Utilities !== 'undefined' && Utilities.showLoading) {
       Utilities.showLoading(show, message);
       return;
     }
-
-    // Implementação básica de fallback
     let loader = document.getElementById('global-loader');
     let loaderMessageElement = document.getElementById('global-loader-message');
-
-    // Se o loader não existir, criar um básico
     if (!loader) {
         loader = document.createElement('div');
         loader.id = 'global-loader';
-        // Estilos básicos para o loader (ajuste conforme necessário)
         loader.style.position = 'fixed';
         loader.style.top = '0';
         loader.style.left = '0';
         loader.style.width = '100%';
         loader.style.height = '100%';
         loader.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        loader.style.display = 'none'; // Começa escondido
+        loader.style.display = 'none';
         loader.style.justifyContent = 'center';
         loader.style.alignItems = 'center';
-        loader.style.zIndex = '1060'; // Acima das notificações
-
+        loader.style.zIndex = '1060';
         const spinner = document.createElement('div');
-        // Estilos básicos para um spinner (pode ser substituído por uma imagem ou CSS mais complexo)
         spinner.style.border = '4px solid #f3f3f3';
         spinner.style.borderTop = '4px solid #3498db';
         spinner.style.borderRadius = '50%';
         spinner.style.width = '40px';
         spinner.style.height = '40px';
-        spinner.style.animation = 'spin 1s linear infinite'; // Precisa definir a animação @keyframes spin
-
+        spinner.style.animation = 'spin 1s linear infinite';
         loaderMessageElement = document.createElement('p');
         loaderMessageElement.id = 'global-loader-message';
         loaderMessageElement.style.color = 'white';
         loaderMessageElement.style.marginLeft = '15px';
         loaderMessageElement.style.fontSize = '1.2em';
-
         loader.appendChild(spinner);
         loader.appendChild(loaderMessageElement);
         document.body.appendChild(loader);
-
-        // Adicionar keyframes para a animação do spinner
         const styleSheet = document.styleSheets[0];
         try {
              if (styleSheet) {
@@ -1420,10 +1327,7 @@ const Maintenance = (() => {
         } catch (e) {
             console.warn("Não foi possível inserir a regra @keyframes spin:", e);
         }
-
     }
-
-    // Mostrar ou esconder o loader
     if (show) {
       if (loaderMessageElement) loaderMessageElement.textContent = message;
       loader.style.display = 'flex';
@@ -1437,14 +1341,10 @@ const Maintenance = (() => {
     initialize,
     openMaintenanceForm,
     loadMaintenanceList,
-    // Expor outras funções se necessário para depuração ou interação externa
-    // editMaintenance, // Exemplo
-    // viewMaintenanceDetails // Exemplo
   };
 })();
 
 // --- Inicialização ---
-// Garante que o DOM esteja pronto antes de inicializar
 document.addEventListener('DOMContentLoaded', () => {
   console.log("DOM completamente carregado. Inicializando Maintenance...");
   Maintenance.initialize();
