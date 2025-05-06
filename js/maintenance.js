@@ -214,98 +214,93 @@ const Maintenance = (() => {
   // == FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO 1 (Integrada aqui) =================
   // =========================================================================
   // Controla a exibição do campo de ID do equipamento (select) vs. campo de texto ('Outro')
+  // Modificar setupDynamicFieldListeners em maintenance.js para lidar com requisições assíncronas
   function setupDynamicFieldListeners() {
     console.log("### Configurando listeners de campos dinâmicos ###");
     const equipmentTypeSelect = document.getElementById('equipment-type');
-
+  
     if (!equipmentTypeSelect) {
       console.error("ERRO: Select #equipment-type não encontrado!");
       return;
     }
-
-    // Identificando os containers dos campos (assumindo a estrutura do HTML)
-    // '.form-col' é um exemplo, ajuste se o container for diferente (ex: '.form-group')
+  
+    // Identificando os containers dos campos
     const equipmentIdContainer = document.getElementById('equipment-id')?.closest('.form-col');
-    const otherEquipmentField = document.getElementById('other-equipment-field'); // Assume que este ID existe no container do campo 'Outro'
-
+    const otherEquipmentField = document.getElementById('other-equipment-field');
+  
     if (!equipmentIdContainer || !otherEquipmentField) {
-      console.error("ERRO: Containers #equipment-id (.form-col) ou #other-equipment-field não encontrados!", {
-        equipmentIdContainerFound: !!equipmentIdContainer,
-        otherEquipmentFieldFound: !!otherEquipmentField
-      });
+      console.error("ERRO: Containers #equipment-id (.form-col) ou #other-equipment-field não encontrados!");
       return;
     }
-
+  
     // Definir estado inicial: esconder ambos os campos
     equipmentIdContainer.style.display = 'none';
     otherEquipmentField.style.display = 'none';
-
-    // Remover listener antigo para evitar duplicação (usando cloneNode)
+  
+    // Remover listener antigo para evitar duplicação
     const newEquipmentTypeSelect = equipmentTypeSelect.cloneNode(true);
     equipmentTypeSelect.parentNode.replaceChild(newEquipmentTypeSelect, equipmentTypeSelect);
-
+  
     // Adicionar listener ao novo select
     newEquipmentTypeSelect.addEventListener('change', function() {
       const selectedValue = this.value; // O valor (slug): 'alta-pressao', 'aspirador', 'outro', etc.
       const selectedText = this.options[this.selectedIndex]?.textContent || ''; // O texto exibido: 'Alta Pressão', 'Aspirador', 'Outro'
       console.log(`Tipo selecionado: "${selectedText}" (valor: "${selectedValue}")`);
-
+  
+      // Mostrar indicador de loading enquanto processa
+      showLoading(true, "Carregando opções...");
+  
       // Esconder ambos os campos antes de decidir qual mostrar
       equipmentIdContainer.style.display = 'none';
       otherEquipmentField.style.display = 'none';
-
-      // Resetar os campos de ID/Outro para evitar dados incorretos
+  
+      // Resetar os campos para evitar dados incorretos
       const equipmentIdSelect = document.getElementById('equipment-id');
       const otherEquipmentInput = document.getElementById('other-equipment');
-
+  
       if (equipmentIdSelect) {
-        equipmentIdSelect.innerHTML = '<option value="">Selecione o equipamento...</option>'; // Limpa opções antigas
+        equipmentIdSelect.innerHTML = '<option value="">Selecione o equipamento...</option>';
         equipmentIdSelect.disabled = true;
-        equipmentIdSelect.removeAttribute('required'); // Remove obrigatório por padrão
+        equipmentIdSelect.removeAttribute('required');
       }
-
+  
       if (otherEquipmentInput) {
         otherEquipmentInput.value = '';
-        otherEquipmentInput.removeAttribute('required'); // Remove obrigatório por padrão
+        otherEquipmentInput.removeAttribute('required');
       }
-
+  
       // Decidir qual campo mostrar
       if (selectedValue === 'aspirador' || selectedValue === 'poliguindaste' || selectedValue === 'outro') {
         // Mostrar campo de texto para 'Aspirador', 'Poliguindaste' ou 'Outro'
         console.log("Mostrando campo 'other-equipment-field'");
-        otherEquipmentField.style.display = 'block'; // Ou 'flex', dependendo do CSS
-
+        otherEquipmentField.style.display = 'block';
+  
         if (otherEquipmentInput) {
-          otherEquipmentInput.setAttribute('required', 'required'); // Tornar obrigatório
-          // Opcional: Focar no campo
-          // setTimeout(() => otherEquipmentInput.focus(), 50);
+          otherEquipmentInput.setAttribute('required', 'required');
+          setTimeout(() => otherEquipmentInput.focus(), 50);
         }
+        
+        showLoading(false); // Esconde loading para estes casos
       }
       else if (selectedValue && selectedText) {
         // Mostrar select de equipamentos para tipos pré-definidos
         console.log("Mostrando lista de equipamentos para:", selectedText);
-        equipmentIdContainer.style.display = 'block'; // Ou 'flex'
-
+        equipmentIdContainer.style.display = 'block';
+  
         if (equipmentIdSelect) {
-          equipmentIdSelect.setAttribute('required', 'required'); // Tornar obrigatório
-          // Usar a função atualizada para popular o select
-          populateEquipmentSelect(selectedText, equipmentIdSelect); // Passa o TEXTO do tipo ('Alta Pressão')
+          equipmentIdSelect.setAttribute('required', 'required');
+          
+          // Usar a função que agora busca do backend via API
+          populateEquipmentSelect(selectedText, equipmentIdSelect);
         }
+        
+        // O loading será escondido dentro da função populateEquipmentSelect após o carregamento
+      } else {
+        // Se selectedValue for vazio, ambos os campos permanecem escondidos
+        showLoading(false);
       }
-      // Se selectedValue for vazio (opção "Selecione..."), ambos os campos permanecem escondidos.
-
-      // Log de verificação (opcional)
-      /*
-      setTimeout(() => {
-        console.log("Estado após alterações:");
-        console.log("- equipmentIdContainer:", window.getComputedStyle(equipmentIdContainer).display);
-        console.log("- otherEquipmentField:", window.getComputedStyle(otherEquipmentField).display);
-        if(equipmentIdSelect) console.log("- equipmentIdSelect required:", equipmentIdSelect.hasAttribute('required'));
-        if(otherEquipmentInput) console.log("- otherEquipmentInput required:", otherEquipmentInput.hasAttribute('required'));
-      }, 100);
-      */
     });
-
+  
     console.log("Listener 'change' configurado para #equipment-type com sucesso.");
   }
   // =========================================================================
