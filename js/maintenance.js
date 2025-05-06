@@ -218,63 +218,63 @@ const Maintenance = (() => {
   function setupDynamicFieldListeners() {
     console.log("### Configurando listeners de campos dinâmicos ###");
     const equipmentTypeSelect = document.getElementById('equipment-type');
-  
+
     if (!equipmentTypeSelect) {
       console.error("ERRO: Select #equipment-type não encontrado!");
       return;
     }
-  
+
     // Identificando os containers dos campos
     const equipmentIdContainer = document.getElementById('equipment-id')?.closest('.form-col');
     const otherEquipmentField = document.getElementById('other-equipment-field');
-  
+
     if (!equipmentIdContainer || !otherEquipmentField) {
       console.error("ERRO: Containers #equipment-id (.form-col) ou #other-equipment-field não encontrados!");
       return;
     }
-  
+
     // Definir estado inicial: esconder ambos os campos
     equipmentIdContainer.style.display = 'none';
     otherEquipmentField.style.display = 'none';
-  
+
     // Remover listener antigo para evitar duplicação
     const newEquipmentTypeSelect = equipmentTypeSelect.cloneNode(true);
     equipmentTypeSelect.parentNode.replaceChild(newEquipmentTypeSelect, equipmentTypeSelect);
-  
+
     // Adicionar listener ao novo select
     newEquipmentTypeSelect.addEventListener('change', function() {
       const selectedValue = this.value; // O valor (slug): 'alta-pressao', 'aspirador', 'outro', etc.
       const selectedText = this.options[this.selectedIndex]?.textContent || ''; // O texto exibido: 'Alta Pressão', 'Aspirador', 'Outro'
       console.log(`Tipo selecionado: "${selectedText}" (valor: "${selectedValue}")`);
-  
+
       // Mostrar indicador de loading enquanto processa
       showLoading(true, "Carregando opções...");
-  
+
       // Esconder ambos os campos antes de decidir qual mostrar
       equipmentIdContainer.style.display = 'none';
       otherEquipmentField.style.display = 'none';
-  
+
       // Resetar os campos para evitar dados incorretos
       const equipmentIdSelect = document.getElementById('equipment-id');
       const otherEquipmentInput = document.getElementById('other-equipment');
-  
+
       if (equipmentIdSelect) {
         equipmentIdSelect.innerHTML = '<option value="">Selecione o equipamento...</option>';
         equipmentIdSelect.disabled = true;
         equipmentIdSelect.removeAttribute('required');
       }
-  
+
       if (otherEquipmentInput) {
         otherEquipmentInput.value = '';
         otherEquipmentInput.removeAttribute('required');
       }
-  
+
       // Decidir qual campo mostrar
       if (selectedValue === 'aspirador' || selectedValue === 'poliguindaste' || selectedValue === 'outro') {
         // Mostrar campo de texto para 'Aspirador', 'Poliguindaste' ou 'Outro'
         console.log("Mostrando campo 'other-equipment-field'");
         otherEquipmentField.style.display = 'block';
-  
+
         if (otherEquipmentInput) {
           otherEquipmentInput.setAttribute('required', 'required');
           setTimeout(() => otherEquipmentInput.focus(), 50);
@@ -286,7 +286,7 @@ const Maintenance = (() => {
         // Mostrar select de equipamentos para tipos pré-definidos
         console.log("Mostrando lista de equipamentos para:", selectedText);
         equipmentIdContainer.style.display = 'block';
-  
+
         if (equipmentIdSelect) {
           equipmentIdSelect.setAttribute('required', 'required');
           
@@ -300,7 +300,7 @@ const Maintenance = (() => {
         showLoading(false);
       }
     });
-  
+
     console.log("Listener 'change' configurado para #equipment-type com sucesso.");
   }
   // =========================================================================
@@ -341,12 +341,14 @@ const Maintenance = (() => {
 
     if (!selectElement) {
         console.error("Erro: selectElement não fornecido para populateEquipmentSelect");
+        showLoading(false); // Esconde o loading se houver erro prematuro
         return;
     }
 
-    // Mostra mensagem de carregamento
+    // Mostra mensagem de carregamento e desabilita
     selectElement.innerHTML = '<option value="">Carregando equipamentos...</option>';
     selectElement.disabled = true;
+    // showLoading já foi chamado em setupDynamicFieldListeners
 
     // Buscar equipamentos do backend via API
     API.getEquipmentsByType(equipmentTypeText)
@@ -385,6 +387,9 @@ const Maintenance = (() => {
 
         // Mostrar notificação do erro
         showNotification(`Erro ao carregar lista de equipamentos: ${error.message || error}`, "error");
+      })
+      .finally(() => {
+        showLoading(false); // Esconde o loading ao final do processo
       });
   }
   // =======================================================================
@@ -445,7 +450,9 @@ const Maintenance = (() => {
       console.log(`Listener ${eventType} adicionado com segurança para #${elementId}`);
       return true;
     } else {
-      console.warn(`Elemento #${elementId} não encontrado para adicionar listener de ${eventType}.`);
+      // Não exibir warning se o elemento for parte de um formulário que ainda não foi carregado.
+      // A nova openMaintenanceForm cuida disso.
+      // console.warn(`Elemento #${elementId} não encontrado para adicionar listener de ${eventType}.`);
       return false;
     }
   }
@@ -461,7 +468,9 @@ const Maintenance = (() => {
     ];
 
     if (stepsContent.some(s => !s)) {
-      console.error("Um ou mais containers de etapa (step-X-content) não foram encontrados!");
+      // Se os elementos da etapa não existirem (ex: HTML do form não carregado), não fazer nada.
+      // A nova openMaintenanceForm vai chamar showStep(1) depois do HTML estar pronto.
+      console.warn("Um ou mais containers de etapa (step-X-content) não foram encontrados. A etapa não será mostrada agora.");
       return;
     }
 
@@ -481,7 +490,7 @@ const Maintenance = (() => {
   }
 
   function updateStepIndicators(currentStep) {
-      const stepsIndicators = document.querySelectorAll('.form-step'); // Assume que os indicadores têm esta classe
+      const stepsIndicators = document.querySelectorAll('#maintenance-form-modal .form-step');
       if(stepsIndicators.length === 0) return;
 
       stepsIndicators.forEach((indicator, index) => {
@@ -495,46 +504,104 @@ const Maintenance = (() => {
       });
   }
 
+  // =========================================================================
+  // == FUNÇÃO ATUALIZADA (CONFORME A SOLICITAÇÃO DO USUÁRIO) ================
+  // =========================================================================
   function openMaintenanceForm(maintenanceId = null, data = null) {
     console.log("Abrindo formulário de manutenção", maintenanceId ? `para edição (ID: ${maintenanceId})` : "para novo registro");
 
-    resetForm(); // Garante um estado limpo
-
-    const modal = document.getElementById('maintenance-form-overlay');
-    const formTitle = document.querySelector('#maintenance-form-modal .form-title'); // Seleciona título dentro do modal
-    const submitButton = document.getElementById('submit-maintenance'); // ID do botão final de submit da Etapa 3
-
-    if (maintenanceId && data) {
-      // Modo Edição
-      isEditMode = true;
-      editingMaintenanceId = maintenanceId;
-      populateFormForEdit(data); // Preenche o formulário
-      if (formTitle) formTitle.textContent = 'Editar Manutenção';
-      if (submitButton) submitButton.textContent = 'Atualizar Manutenção';
-    } else {
-      // Modo Novo Registro
-      isEditMode = false;
-      editingMaintenanceId = null;
-      if (formTitle) formTitle.textContent = 'Registrar Nova Manutenção';
-      if (submitButton) submitButton.textContent = 'Registrar Manutenção';
-      // Garante que a data atual seja definida para novos registros
-      setCurrentDate();
-    }
-
-    // Mostrar o modal
-    if (modal) {
-      modal.style.display = 'flex'; // Usar 'flex' para centralizar o overlay
-      console.log("Modal de manutenção aberto com sucesso");
-    } else {
-      console.error("Modal #maintenance-form-overlay não encontrado!");
-      // Poderia mostrar um alerta para o usuário aqui
-      showNotification("Erro ao abrir o formulário. Modal não encontrado.", "error");
+    // Verificar se o container do formulário existe
+    const container = document.getElementById('maintenance-form-container');
+    if (!container) {
+      console.error("Container #maintenance-form-container não encontrado!");
+      showNotification("Erro ao abrir o formulário. Container não encontrado.", "error");
       return;
     }
 
-    // Garantir que comece na primeira etapa
-    showStep(1);
+    // Verificar se o HTML do formulário já foi carregado
+    const formExists = document.getElementById('maintenance-form-modal');
+    
+    // Função para configurar o formulário após o HTML estar disponível
+    const setupFormAfterLoad = () => {
+      resetForm(); // Garante um estado limpo
+
+      const modal = document.getElementById('maintenance-form-overlay');
+      const formTitle = document.querySelector('#maintenance-form-modal .form-title');
+      const submitButton = document.getElementById('submit-maintenance');
+
+      if (maintenanceId && data) {
+        // Modo Edição
+        isEditMode = true;
+        editingMaintenanceId = maintenanceId;
+        populateFormForEdit(data);
+        if (formTitle) formTitle.textContent = 'Editar Manutenção';
+        if (submitButton) submitButton.textContent = 'Atualizar Manutenção';
+      } else {
+        // Modo Novo Registro
+        isEditMode = false;
+        editingMaintenanceId = null;
+        if (formTitle) formTitle.textContent = 'Registrar Nova Manutenção';
+        if (submitButton) submitButton.textContent = 'Registrar Manutenção';
+        setCurrentDate(); // Só define a data atual para NOVOS registros AQUI.
+      }
+
+      // Mostrar o modal
+      if (modal) {
+        modal.style.display = 'flex';
+        console.log("Modal de manutenção aberto com sucesso");
+      } else {
+        console.error("Modal #maintenance-form-overlay não encontrado!");
+        showNotification("Erro ao abrir o formulário. Modal não encontrado.", "error");
+        return;
+      }
+
+      // Garantir que comece na primeira etapa
+      showStep(1);
+      
+      // Inicializar todos os listeners após o HTML estar pronto
+      // Estas funções usarão addSafeListener, que já lida com a remoção de listeners antigos.
+      setupDynamicFieldListeners();
+      setupNavigationListeners();
+      setupProblemCategoryListener();
+      setupFormSubmitListener();
+      setupCloseModalListeners();
+    };
+
+    // Se o formulário não existe, carregue-o primeiro
+    if (!formExists) {
+      showLoading(true, "Carregando formulário...");
+      
+      // Garantir que API.loadMaintenanceForm exista
+      if (window.API && typeof API.loadMaintenanceForm === 'function') {
+        API.loadMaintenanceForm()
+          .then(() => {
+            console.log("HTML do formulário carregado com sucesso");
+            // Popular dropdowns que podem estar dentro do HTML carregado
+            populateEquipmentTypes(); 
+            populateProblemCategories();
+            setupFormAfterLoad();
+          })
+          .catch(error => {
+            console.error("Falha ao carregar HTML do formulário:", error);
+            showNotification("Erro ao carregar formulário. Por favor, tente novamente.", "error");
+          })
+          .finally(() => {
+            showLoading(false);
+          });
+      } else {
+        console.error("API.loadMaintenanceForm não é uma função ou API não está disponível.");
+        showNotification("Erro crítico: Falha ao carregar a estrutura do formulário.", "error");
+        showLoading(false);
+      }
+    } else {
+      // Se o formulário já existe, apenas configure-o
+      // Os dropdowns já devem estar populados da inicialização ou de uma abertura anterior.
+      setupFormAfterLoad();
+    }
   }
+  // =========================================================================
+  // == FIM DA FUNÇÃO ATUALIZADA =============================================
+  // =========================================================================
 
 
   function populateFormForEdit(data) {
@@ -760,6 +827,9 @@ const Maintenance = (() => {
       form.querySelectorAll('.is-invalid').forEach(el => clearFieldValidation(el));
       form.querySelectorAll('.has-error').forEach(el => el.classList.remove('has-error'));
       form.querySelectorAll('.error-message').forEach(el => el.remove());
+    } else {
+      // Se o formulário não existe no DOM (ainda não carregado), não há o que resetar.
+      console.log("Formulário #maintenance-form não encontrado para reset. Pode não ter sido carregado ainda.");
     }
 
     // Limpar estados internos do módulo
@@ -768,21 +838,19 @@ const Maintenance = (() => {
     formData = {}; // Limpa dados coletados
 
     // Resetar campos dinâmicos/condicionais para o estado inicial (escondidos)
+    // Esses elementos podem não existir se o formulário não foi carregado
     const equipmentTypeSelect = document.getElementById('equipment-type');
     if(equipmentTypeSelect) {
         equipmentTypeSelect.selectedIndex = 0; // Volta para "Selecione o tipo"
-        // Dispara o evento 'change' para esconder os campos ID/Outro
         equipmentTypeSelect.dispatchEvent(new Event('change'));
     }
     const problemCategorySelect = document.getElementById('problem-category-select');
     if(problemCategorySelect) {
         problemCategorySelect.selectedIndex = 0; // Volta para "Selecione a categoria"
-        // Dispara o evento 'change' para esconder o campo 'Outro' da categoria
         problemCategorySelect.dispatchEvent(new Event('change'));
     }
 
-    // Redefinir data atual (opcional, mas bom para novos registros)
-    // setCurrentDate(); // Comentado pois openMaintenanceForm já chama se for novo
+    // setCurrentDate() será chamado em openMaintenanceForm se for novo registro.
 
     // Voltar para primeira etapa e resetar indicadores visuais
     showStep(1);
@@ -802,6 +870,14 @@ const Maintenance = (() => {
   // Valida os campos da Etapa 1
   function validateStep1(showNotify = true) {
     console.log("Validando etapa 1...");
+    // Garante que os elementos existem antes de tentar acessá-los
+    const equipmentTypeElement = document.getElementById('equipment-type');
+    if (!equipmentTypeElement) {
+        console.warn("Elemento #equipment-type não encontrado para validação da Etapa 1.");
+        if (showNotify) showNotification("Erro: Formulário não carregado corretamente.", "error");
+        return false;
+    }
+
     const fieldsToValidate = [
         { id: 'equipment-type', name: 'Tipo de Equipamento' },
         { id: 'technician-name', name: 'Responsável pelo Relatório' },
@@ -811,7 +887,7 @@ const Maintenance = (() => {
         { id: 'maintenance-type-select', name: 'Tipo de Manutenção' } // ID corrigido
     ];
 
-    const equipmentType = document.getElementById('equipment-type').value; // Valor (slug)
+    const equipmentType = equipmentTypeElement.value; // Valor (slug)
     const equipmentIdElement = document.getElementById('equipment-id');
     const otherEquipmentElement = document.getElementById('other-equipment');
 
@@ -849,12 +925,19 @@ const Maintenance = (() => {
   // Valida os campos da Etapa 2
   function validateStep2(showNotify = true) {
     console.log("Validando etapa 2...");
+    const problemCategoryElement = document.getElementById('problem-category-select');
+    if (!problemCategoryElement) {
+        console.warn("Elemento #problem-category-select não encontrado para validação da Etapa 2.");
+        if (showNotify) showNotification("Erro: Formulário não carregado corretamente.", "error");
+        return false;
+    }
+
     const requiredFields = [
       { id: 'problem-category-select', name: 'Categoria do Problema' }, // ID corrigido
       { id: 'problem-description', name: 'Detalhes do Problema' }
     ];
 
-    const problemCategory = document.getElementById('problem-category-select').value;
+    const problemCategory = problemCategoryElement.value;
     const otherCategoryInput = document.getElementById('other-category');
 
     // Adiciona validação condicional para o campo 'Outra Categoria'
@@ -970,23 +1053,10 @@ const Maintenance = (() => {
   function isElementVisible(element) {
     if (!element) return false;
     // Verifica o próprio elemento e seus pais até o body
+    // offsetWidth/offsetHeight verifica se o elemento ocupa espaço
+    // getClientRects().length verifica se o elemento é renderizado (não display: none)
+    // window.getComputedStyle(element).visibility verifica a propriedade visibility
     return !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length) && window.getComputedStyle(element).visibility !== 'hidden';
-
-    /* Alternativa verificando display (pode ser menos precisa com visibility/opacity):
-    // Verificar o próprio elemento
-    if (window.getComputedStyle(element).display === 'none') {
-        return false;
-    }
-    // Verificar containers (parent chain)
-    let parent = element.parentElement;
-    while (parent && parent !== document.body) {
-        if (window.getComputedStyle(parent).display === 'none') {
-            return false;
-        }
-        parent = parent.parentElement;
-    }
-    return true;
-    */
   }
   // =========================================================================
   // == FIM DA FUNÇÃO SUBSTITUÍDA/ADICIONADA PELA ATUALIZAÇÃO 5 ==============
@@ -1065,8 +1135,13 @@ const Maintenance = (() => {
   // Salva os dados da Etapa 1 no objeto formData
   function saveStep1Data() {
     console.log("Salvando dados da etapa 1...");
-
+    // Verificar se os elementos existem antes de acessá-los
     const equipTypeSelect = document.getElementById('equipment-type');
+    if (!equipTypeSelect) {
+        console.error("Elemento #equipment-type não encontrado ao salvar dados da Etapa 1.");
+        return; // Interrompe se o elemento principal não existe
+    }
+
     const equipTypeValue = equipTypeSelect.value; // Valor/slug: 'alta-pressao', 'aspirador', etc.
     const equipTypeText = equipTypeSelect.selectedOptions[0]?.textContent || ''; // Texto exibido: 'Alta Pressão', 'Aspirador'
 
@@ -1126,8 +1201,11 @@ const Maintenance = (() => {
   // Salva os dados da Etapa 2 no objeto formData
   function saveStep2Data() {
     console.log("Salvando dados da etapa 2...");
-
     const problemCategorySelect = document.getElementById('problem-category-select'); // ID Corrigido
+    if (!problemCategorySelect) {
+        console.error("Elemento #problem-category-select não encontrado ao salvar dados da Etapa 2.");
+        return;
+    }
     formData.categoriaProblema = problemCategorySelect.value; // O valor é a string da categoria
 
     // Salvar o campo 'Outra Categoria' apenas se 'Outros' foi selecionado
@@ -1146,21 +1224,32 @@ const Maintenance = (() => {
   // Atualiza a seção de Resumo (Etapa 3) com os dados coletados
   function updateSummary() {
     console.log("Atualizando resumo (Etapa 3)...");
+    // Se o formulário não foi carregado, os elementos do resumo podem não existir.
+    if (!document.getElementById('summary-equipment')) {
+        console.warn("Elementos do resumo não encontrados. O resumo não será atualizado (formulário pode não estar carregado).");
+        return;
+    }
 
     // Construir o texto do equipamento para o resumo
     let equipmentSummary = formData.tipoEquipamento || '-';
-    if (formData.tipoEquipamento && formData.placaOuId && !formData.equipamentoOutro) {
-        // Tipo com ID/Placa selecionado
-        equipmentSummary = `${formData.tipoEquipamento} (${formData.placaOuId})`;
-    } else if (formData.tipoEquipamento && formData.placaOuId && formData.equipamentoOutro) {
-        // Tipo manual (Aspirador, Poli, Outro) com descrição/ID preenchido
-        // Se tipo for 'Outro', tipoEquipamento já contém a descrição
-        if(document.getElementById('equipment-type').value !== 'outro') {
-             equipmentSummary = `${formData.tipoEquipamento} (${formData.placaOuId})`;
+    // Obter o valor do tipo de equipamento diretamente do select, caso tenha sido um 'Outro' personalizado
+    const equipmentTypeSelect = document.getElementById('equipment-type');
+    const currentEquipTypeValue = equipmentTypeSelect ? equipmentTypeSelect.value : '';
+
+
+    if (formData.tipoEquipamento && formData.placaOuId) {
+        if (currentEquipTypeValue === 'outro') {
+            // Se o tipo selecionado FOI 'Outro', então tipoEquipamento já contém a descrição digitada
+            equipmentSummary = formData.tipoEquipamento;
+        } else if (formData.equipamentoOutro) {
+            // Para tipos manuais (aspirador, poli) que não são 'Outro', placaOuId tem a descrição
+            equipmentSummary = `${formData.tipoEquipamento} (${formData.placaOuId})`;
         } else {
-             equipmentSummary = formData.tipoEquipamento; // Já contém a descrição
+            // Para tipos com select de ID
+            equipmentSummary = `${formData.tipoEquipamento} (${formData.placaOuId})`;
         }
     }
+
 
     // Construir o texto da categoria para o resumo
     let categorySummary = formData.categoriaProblema || '-';
@@ -2417,7 +2506,9 @@ const Maintenance = (() => {
     editMaintenance,
     verifyMaintenance,
      // Expor função de filtro explicitamente se necessário
-     loadMaintenanceListWithFilters
+     loadMaintenanceListWithFilters,
+     // Expor submitVerification se for chamado de fora (ex: pelo módulo Verification)
+     submitVerification 
   };
 })(); // Fim do IIFE Maintenance
 
