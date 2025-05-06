@@ -1,3 +1,10 @@
+Ok, entendi! Você forneceu o código completo e a atualização para a função `openMaintenanceForm`.
+
+Vou substituir a versão antiga da função `openMaintenanceForm` no seu código pela nova versão que você enviou.
+
+Aqui está o código completo e atualizado:
+
+```javascript
 // Verificar dependências no início
 if (!window.API || !window.Utilities) {
   console.error("Erro CRÍTICO: Dependências API ou Utilities não carregadas antes de maintenance.js");
@@ -551,32 +558,90 @@ const Maintenance = (() => {
   }
 
   // =========================================================================
-  // == INÍCIO DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO A =======================
+  // == INÍCIO DA FUNÇÃO ATUALIZADA ==========================================
   // =========================================================================
   // ARQUIVO: maintenance.js
   // FUNÇÃO: openMaintenanceForm
   function openMaintenanceForm(maintenanceId = null, data = null) {
     console.log("Abrindo formulário de manutenção", maintenanceId ? `para edição (ID: ${maintenanceId})` : "para novo registro");
 
-    // Verificar se o container do formulário existe
-    const container = document.getElementById('maintenance-form-container');
+    // Verificar se o container do formulário existe, criar se não existir
+    let container = document.getElementById('maintenance-form-container');
     if (!container) {
-      console.error("Container #maintenance-form-container não encontrado!");
-      showNotification("Erro ao abrir o formulário. Container não encontrado.", "error");
-      return;
+      console.log("Container #maintenance-form-container não encontrado, criando um novo...");
+      container = document.createElement('div');
+      container.id = 'maintenance-form-container';
+      document.body.appendChild(container);
     }
 
-    // Verificar se o HTML do formulário já foi carregado
-    const formExists = document.getElementById('maintenance-form-modal');
-    
-    // Função para configurar o formulário após o HTML estar disponível
-    const setupFormAfterLoad = () => {
-      resetForm(); // Garante um estado limpo
+    // Mostrar loading enquanto carregamos
+    showLoading(true, "Carregando formulário...");
 
+    // Se o formulário modal já existe, limpar ouvintes e exibí-lo
+    const existingForm = document.getElementById('maintenance-form-modal');
+    if (existingForm) {
+      console.log("Formulário já existe no DOM, reaproveitando...");
+      const modal = document.getElementById('maintenance-form-overlay');
+      if (modal) {
+        // Configurar formulário
+        setupFormAfterLoad();
+        modal.style.display = 'flex';
+        showLoading(false);
+        return;
+      }
+    }
+
+    // Carregar o formulário se não existir
+    if (window.API && typeof API.loadMaintenanceForm === 'function') {
+      API.loadMaintenanceForm()
+        .then(() => {
+          console.log("HTML do formulário carregado com sucesso");
+          
+          // Verificar se o formulário agora existe no DOM
+          if (!document.getElementById('maintenance-form-modal')) {
+            console.error("Formulário não encontrado no DOM após loadMaintenanceForm()");
+            showNotification("Erro ao carregar formulário. Elemento não encontrado.", "error");
+            showLoading(false);
+            return;
+          }
+          
+          // Popular os dropdowns
+          populateEquipmentTypes();
+          populateProblemCategories();
+          
+          // Aguardar um pouco para garantir que o DOM está atualizado
+          setTimeout(() => {
+            setupFormAfterLoad();
+          }, 200);
+        })
+        .catch(error => {
+          console.error("Falha ao carregar HTML do formulário:", error);
+          showNotification("Erro ao carregar formulário. Por favor, recarregue a página e tente novamente.", "error");
+        })
+        .finally(() => {
+          showLoading(false);
+        });
+    } else {
+      console.error("API.loadMaintenanceForm não é uma função ou API não está disponível.");
+      showNotification("Erro crítico: API não disponível. Recarregue a página.", "error");
+      showLoading(false);
+    }
+
+    // Função para configurar o formulário após o carregamento
+    function setupFormAfterLoad() {
+      resetForm(); // Garante um estado limpo
+      
+      // Verificar se o modal foi carregado
       const modal = document.getElementById('maintenance-form-overlay');
       const formTitle = document.querySelector('#maintenance-form-modal .form-title');
       const submitButton = document.getElementById('submit-maintenance');
-
+      
+      if (!modal) {
+        console.error("Modal #maintenance-form-overlay não encontrado!");
+        showNotification("Erro: Modal do formulário não encontrado.", "error");
+        return;
+      }
+      
       if (maintenanceId && data) {
         // Modo Edição
         isEditMode = true;
@@ -590,70 +655,29 @@ const Maintenance = (() => {
         editingMaintenanceId = null;
         if (formTitle) formTitle.textContent = 'Registrar Nova Manutenção';
         if (submitButton) submitButton.textContent = 'Registrar Manutenção';
-        setCurrentDate(); // Só define a data atual para NOVOS registros AQUI.
+        setCurrentDate(); // Define a data atual apenas para novos registros
       }
 
       // Mostrar o modal
-      if (modal) {
-        modal.style.display = 'flex';
-        console.log("Modal de manutenção aberto com sucesso");
-      } else {
-        console.error("Modal #maintenance-form-overlay não encontrado!");
-        showNotification("Erro ao abrir o formulário. Modal não encontrado.", "error");
-        return;
-      }
+      modal.style.display = 'flex';
+      console.log("Modal de manutenção aberto com sucesso");
 
       // Garantir que comece na primeira etapa
       showStep(1);
       
       // Inicializar todos os listeners após o HTML estar pronto
-      // Estas funções usarão addSafeListener, que já lida com a remoção de listeners antigos.
       setTimeout(() => {
-        console.log("Configurando listeners do formulário após delay para garantir que o DOM está pronto");
+        console.log("Configurando listeners do formulário...");
         setupDynamicFieldListeners();
         setupNavigationListeners();
         setupProblemCategoryListener();
         setupFormSubmitListener();
         setupCloseModalListeners();
-      }, 100);
-    };
-
-    // Se o formulário não existe, carregue-o primeiro
-    if (!formExists) {
-      showLoading(true, "Carregando formulário...");
-      
-      // Garantir que API.loadMaintenanceForm exista
-      if (window.API && typeof API.loadMaintenanceForm === 'function') {
-        API.loadMaintenanceForm()
-          .then(() => {
-            console.log("HTML do formulário carregado com sucesso");
-            // Popular dropdowns que podem estar dentro do HTML carregado
-            populateEquipmentTypes(); 
-            populateProblemCategories();
-            setTimeout(() => {
-              setupFormAfterLoad();
-            }, 100);
-          })
-          .catch(error => {
-            console.error("Falha ao carregar HTML do formulário:", error);
-            showNotification("Erro ao carregar formulário. Por favor, tente novamente.", "error");
-          })
-          .finally(() => {
-            showLoading(false);
-          });
-      } else {
-        console.error("API.loadMaintenanceForm não é uma função ou API não está disponível.");
-        showNotification("Erro crítico: Falha ao carregar a estrutura do formulário.", "error");
-        showLoading(false);
-      }
-    } else {
-      // Se o formulário já existe, apenas configure-o
-      // Os dropdowns já devem estar populados da inicialização ou de uma abertura anterior.
-      setupFormAfterLoad();
+      }, 300); // Atraso maior para garantir que o DOM está pronto
     }
   }
   // =========================================================================
-  // == FIM DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO A =========================
+  // == FIM DA FUNÇÃO ATUALIZADA =============================================
   // =========================================================================
 
 
@@ -2611,3 +2635,4 @@ function initializeMaintenanceModule() {
 
 // Chamar a função de inicialização para começar tudo
 initializeMaintenanceModule();
+```
