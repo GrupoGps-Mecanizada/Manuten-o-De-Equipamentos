@@ -8,11 +8,7 @@ if (!window.API || !window.Utilities) {
 // Definir o módulo Maintenance com funcionalidade adaptada para o HTML existente
 const Maintenance = (() => {
   // --- Listas de Equipamentos Completas ---
-  const EQUIPMENT_IDS = {
-    'Alta Pressão': ["PUB-2G02","LUX-3201","FLX7617","EZS-8765","EZS-8764","EVK-0291","EOF-5C06","EOF-5208","EGC-2989","EGC-2985","EGC-2983","EGC-2978","EAM-3262","EAM-3256","EAM-3255","EAM-3253","EAM-3010","DSY-6475","DSY-6474","DSY-6472","CZC-0453"],
-    'Auto Vácuo / Hiper Vácuo': ["PUB-2F80","NFF-0235","HJS-1097","FSA-3D71","EGC-2993","EGC-2979","EAM-3257","EAM-3251","DYB-7210","DSY-6577","DSY-6473","CUB-0763","ANF-2676","FTW-4D99","FTD-6368","FMD-2200","FHD-9264","EZS-9753"],
-    // 'Aspirador', 'Poliguindaste', 'Outro' são tratados dinamicamente
-  };
+  // REMOVIDO: const EQUIPMENT_IDS = { ... } conforme a atualização
 
   // Lista de categorias de problemas padrão
   const DEFAULT_PROBLEM_CATEGORIES = [
@@ -66,17 +62,19 @@ const Maintenance = (() => {
     // Limpar opções existentes (mantendo a primeira)
     select.innerHTML = '<option value="">Selecione o tipo...</option>';
 
-    // Adicionar opções com base nas chaves de EQUIPMENT_IDS
-    Object.keys(EQUIPMENT_IDS).forEach(type => {
-      const option = document.createElement('option');
-      // Usar o nome original como texto e um valor normalizado (slug)
-      const typeSlug = type.toLowerCase().replace(/ /g, '-').replace(/\//g, '-');
-      option.value = typeSlug;
-      option.textContent = type;
-      select.appendChild(option);
+    // Tipos que usarão a API para buscar equipamentos
+    const apiDrivenTypes = ['Alta Pressão', 'Auto Vácuo / Hiper Vácuo'];
+
+    apiDrivenTypes.forEach(type => {
+        const option = document.createElement('option');
+        const typeSlug = type.toLowerCase().replace(/ /g, '-').replace(/\//g, '-');
+        option.value = typeSlug;
+        option.textContent = type;
+        select.appendChild(option);
     });
 
     // Adiciona 'Aspirador', 'Poliguindaste', 'Outro' explicitamente, garantindo o value correto
+    // Estes tipos não buscarão equipamentos de uma lista, mas sim um campo de texto.
     ['Aspirador', 'Poliguindaste', 'Outro'].forEach(typeName => {
         const typeKey = typeName.toLowerCase(); // ex: 'aspirador'
         const option = document.createElement('option');
@@ -340,63 +338,62 @@ const Maintenance = (() => {
 
 
   // =========================================================================
-  // == FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO 2 (Integrada aqui) =================
+  // == FUNÇÃO ATUALIZADA (CONFORME SOLICITAÇÃO) =============================
   // =========================================================================
   // Nova função para popular o select de equipamentos (baseado no TEXTO do tipo)
   function populateEquipmentSelect(equipmentTypeText, selectElement) {
-      console.log(`Iniciando populateEquipmentSelect para tipo: "${equipmentTypeText}"`);
+    console.log(`Iniciando populateEquipmentSelect para tipo: "${equipmentTypeText}"`);
 
-      if (!selectElement) {
-          console.error("Erro: selectElement não fornecido para populateEquipmentSelect");
-          return;
-      }
+    if (!selectElement) {
+        console.error("Erro: selectElement não fornecido para populateEquipmentSelect");
+        return;
+    }
 
-      // Mostra mensagem de carregamento
-      selectElement.innerHTML = '<option value="">Carregando equipamentos...</option>';
-      selectElement.disabled = true;
+    // Mostra mensagem de carregamento
+    selectElement.innerHTML = '<option value="">Carregando equipamentos...</option>';
+    selectElement.disabled = true;
 
-      // Determina quais equipamentos mostrar usando o TEXTO como chave
-      let equipList = [];
+    // Buscar equipamentos do backend via API
+    API.getEquipmentsByType(equipmentTypeText)
+      .then(equipList => {
+        // Limpa e adiciona a opção padrão
+        selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
 
-      if (EQUIPMENT_IDS && EQUIPMENT_IDS[equipmentTypeText]) {
-           console.log(`Tipo "${equipmentTypeText}" encontrado diretamente em EQUIPMENT_IDS.`);
-           equipList = EQUIPMENT_IDS[equipmentTypeText];
-      } else {
-          console.warn(`Aviso: Tipo "${equipmentTypeText}" não encontrado nas chaves de EQUIPMENT_IDS. O select ficará vazio ou usará fallback se houver API.`);
-          // Aqui, poderia tentar uma chamada API como fallback se EQUIPMENT_IDS falhar
-          // Ex: return loadEquipmentsFromApiFallback(equipmentTypeText, selectElement);
-          // Por enquanto, apenas deixamos vazio se não estiver em EQUIPMENT_IDS.
-      }
+        // Populando o select com os dados
+        if (equipList && equipList.length > 0) {
+            console.log(`Populando ${equipList.length} equipamentos para "${equipmentTypeText}"`);
 
-      // Limpa e adiciona a opção padrão
-      selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
+            // Remove duplicados e ordena
+            const uniqueItems = [...new Set(equipList)].sort();
 
-      // Populando o select com os dados
-      if (equipList && equipList.length > 0) {
-          console.log(`Populando ${equipList.length} equipamentos para "${equipmentTypeText}"`);
+            uniqueItems.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item; // O ID/Placa é o valor
+                option.textContent = item; // E também o texto
+                selectElement.appendChild(option);
+            });
 
-          // Remove duplicados e ordena
-          const uniqueItems = [...new Set(equipList)].sort();
+            selectElement.disabled = false; // Habilita para seleção
+            console.log(`Select populado com sucesso: ${uniqueItems.length} equipamentos`);
+        } else {
+            // Se não houver equipamentos na lista
+            console.warn(`Nenhum equipamento encontrado para o tipo "${equipmentTypeText}"`);
+            selectElement.innerHTML += '<option value="" disabled>Nenhum equipamento na lista</option>';
+            // Mantém desabilitado
+            selectElement.disabled = true;
+        }
+      })
+      .catch(error => {
+        console.error(`Erro ao carregar equipamentos para tipo ${equipmentTypeText}:`, error);
+        selectElement.innerHTML = '<option value="">Erro ao carregar</option>';
+        selectElement.disabled = true;
 
-          uniqueItems.forEach(item => {
-              const option = document.createElement('option');
-              option.value = item; // O ID/Placa é o valor
-              option.textContent = item; // E também o texto
-              selectElement.appendChild(option);
-          });
-
-          selectElement.disabled = false; // Habilita para seleção
-          console.log(`Select populado com sucesso: ${uniqueItems.length} equipamentos`);
-      } else {
-          // Se não houver equipamentos na lista local
-          console.warn(`Nenhum equipamento encontrado localmente para o tipo "${equipmentTypeText}"`);
-          selectElement.innerHTML += '<option value="" disabled>Nenhum equipamento na lista</option>';
-          // Mantém desabilitado
-          selectElement.disabled = true;
-      }
+        // Mostrar notificação do erro
+        showNotification(`Erro ao carregar lista de equipamentos: ${error.message || error}`, "error");
+      });
   }
   // =======================================================================
-  // == FIM DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO 2 =======================
+  // == FIM DA FUNÇÃO ATUALIZADA ===========================================
   // =======================================================================
 
   // Função original loadEquipmentsForType - Pode ser removida se populateEquipmentSelect a substitui completamente.
@@ -584,9 +581,9 @@ const Maintenance = (() => {
         setInputValue('other-equipment', data.placaOuId || data.equipamentoOutro || '');
       } else if (currentSelectedTypeValue) { // É um tipo com select de ID
         const equipmentIdSelect = document.getElementById('equipment-id');
-        // A função populateEquipmentSelect já foi chamada pelo 'change'.
+        // A função populateEquipmentSelect já foi chamada pelo 'change' (se não for manual).
         // Agora, apenas tentamos selecionar o valor correto.
-        // Pode precisar de um delay maior se a API for lenta (se houvesse API fallback)
+        // Para API.getEquipmentsByType, pode precisar de um delay maior se a API for lenta.
         setTimeout(() => {
             console.log("Populando #equipment-id com:", data.placaOuId);
             if (!setSelectValue('equipment-id', data.placaOuId)) {
@@ -603,7 +600,7 @@ const Maintenance = (() => {
                     equipmentIdSelect.disabled = false; // Garante que esteja habilitado
                 }
             }
-        }, 150); // Pequeno delay extra para garantir que as opções do populateEquipmentSelect foram adicionadas
+        }, 300); // Pequeno delay extra para garantir que as opções do populateEquipmentSelect (via API) foram adicionadas
       }
 
       // Preencher o restante dos campos da etapa 1
