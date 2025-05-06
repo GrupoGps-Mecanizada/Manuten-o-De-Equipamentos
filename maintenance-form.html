@@ -1,0 +1,185 @@
+<div id="maintenance-form-overlay" class="modal-overlay">
+  <div id="maintenance-form-modal" class="modal-content">
+    <h2 class="form-title">Registrar Nova Manutenção</h2>
+    <button id="close-maintenance-form" class="close-modal-btn">&times;</button>
+    
+    <div class="form-steps">
+      <div class="form-step active">1. Equipamento</div>
+      <div class="form-step">2. Problema</div>
+      <div class="form-step">3. Resumo</div>
+    </div>
+    
+    <form id="maintenance-form" class="multi-step-form">
+      <!-- Etapa 1: Equipamento -->
+      <div id="step-1-content" class="step-content">
+        <div class="form-row">
+          <div class="form-col">
+            <label for="equipment-type">Tipo de Equipamento *</label>
+            <select id="equipment-type" required>
+              <option value="">Selecione o tipo...</option>
+              <!-- Opções serão preenchidas via JavaScript -->
+            </select>
+          </div>
+          
+          <div class="form-col">
+            <label for="equipment-id">Placa/ID do Equipamento *</label>
+            <select id="equipment-id" disabled>
+              <option value="">Selecione o equipamento...</option>
+              <!-- Opções serão preenchidas via JavaScript -->
+            </select>
+          </div>
+          
+          <div id="other-equipment-field" class="form-col" style="display: none;">
+            <label for="other-equipment">Descrição do Equipamento *</label>
+            <input type="text" id="other-equipment" placeholder="Descreva o equipamento">
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-col">
+            <label for="technician-name">Responsável *</label>
+            <input type="text" id="technician-name" required placeholder="Nome do responsável pelo relatório">
+          </div>
+          
+          <div class="form-col">
+            <label for="maintenance-date">Data *</label>
+            <input type="date" id="maintenance-date" required>
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-col">
+            <label for="area">Área *</label>
+            <select id="area" required>
+              <option value="">Selecione a área...</option>
+              <option value="TORK DIESEL">TORK DIESEL</option>
+              <option value="Servitec">Servitec</option>
+              <option value="Parana Molas">Parana Molas</option>
+              <option value="Carplaca">Carplaca</option>
+              <option value="JJS Diesel">JJS Diesel</option>
+              <option value="Outro">Outro</option>
+            </select>
+          </div>
+          
+          <div class="form-col">
+            <label for="office">Local/Oficina *</label>
+            <input type="text" id="office" required placeholder="Local específico">
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-col">
+            <label for="maintenance-type-select">Tipo de Manutenção *</label>
+            <select id="maintenance-type-select" required>
+              <option value="">Selecione o tipo...</option>
+              <option value="Preventiva">Preventiva</option>
+              <option value="Corretiva">Corretiva</option>
+              <option value="Emergencial">Emergencial</option>
+              <option value="Melhoria">Melhoria</option>
+            </select>
+          </div>
+          
+          <div class="form-col">
+            <div class="checkbox-group">
+              <input type="checkbox" id="is-critical">
+              <label for="is-critical">Manutenção Crítica</label>
+            </div>
+          </div>
+        </div>
+        
+        <div class="form-actions">
+          <button type="button" id="next-to-step-2" class="btn btn-primary">Avançar</button>
+        </div>
+      </div>
+      
+      <!-- Etapa 2: Problema -->
+      <div id="step-2-content" class="step-content" style="display: none;">
+        <div class="form-row">
+          <div class="form-col">
+            <label for="problem-category-select">Categoria do Problema *</label>
+            <select id="problem-category-select" required>
+              <option value="">Selecione a categoria...</option>
+              <!-- Opções serão preenchidas via JavaScript -->
+            </select>
+          </div>
+          
+          <div id="other-category-field" class="form-col" style="display: none;">
+            <label for="other-category">Especificar Categoria *</label>
+            <input type="text" id="other-category" placeholder="Especifique a categoria do problema">
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-col">
+            <label for="problem-description">Descrição do Problema *</label>
+            <textarea id="problem-description" required rows="5" placeholder="Descreva detalhadamente o problema encontrado"></textarea>
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-col">
+            <label for="additional-notes">Observações Adicionais</label>
+            <textarea id="additional-notes" rows="3" placeholder="Informações complementares (opcional)"></textarea>
+          </div>
+        </div>
+        
+        <div class="form-actions">
+          <button type="button" id="back-to-step-1" class="btn btn-secondary">Voltar</button>
+          <button type="button" id="next-to-step-3" class="btn btn-primary">Avançar</button>
+        </div>
+      </div>
+      
+      <!-- Etapa 3: Resumo -->
+      <div id="step-3-content" class="step-content" style="display: none;">
+        <div class="summary-container">
+          <h3>Resumo da Manutenção</h3>
+          
+          <div class="summary-group">
+            <div class="summary-item">
+              <strong>Equipamento:</strong>
+              <span id="summary-equipment">-</span>
+            </div>
+            <div class="summary-item">
+              <strong>Responsável:</strong>
+              <span id="summary-technician">-</span>
+            </div>
+            <div class="summary-item">
+              <strong>Data:</strong>
+              <span id="summary-date">-</span>
+            </div>
+            <div class="summary-item">
+              <strong>Local:</strong>
+              <span id="summary-location">-</span>
+            </div>
+            <div class="summary-item">
+              <strong>Tipo:</strong>
+              <span id="summary-type">-</span>
+            </div>
+            <div class="summary-item">
+              <strong>Crítica:</strong>
+              <span id="summary-critical">-</span>
+            </div>
+            <div class="summary-item">
+              <strong>Categoria do Problema:</strong>
+              <span id="summary-category">-</span>
+            </div>
+            <div class="summary-item full-width">
+              <strong>Descrição:</strong>
+              <span id="summary-problem">-</span>
+            </div>
+            <div class="summary-item full-width">
+              <strong>Observações:</strong>
+              <span id="summary-notes">Nenhuma</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="form-actions">
+          <button type="button" id="back-to-step-2" class="btn btn-secondary">Voltar</button>
+          <button type="submit" id="submit-maintenance" class="btn btn-success">Registrar Manutenção</button>
+          <button type="button" id="cancel-maintenance" class="btn btn-light">Cancelar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
