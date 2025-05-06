@@ -195,13 +195,11 @@ const API = (function() {
         });
     },
 
-    // INÍCIO DA ATUALIZAÇÃO ANTERIOR: Função adicionada para buscar equipamentos por tipo
+    // Função adicionada para buscar equipamentos por tipo (usando google.script.run)
     getEquipmentsByType: function(equipmentType) {
       return new Promise((resolve, reject) => {
-        // Chamada para o endpoint do Google Apps Script
         google.script.run
           .withSuccessHandler(response => {
-            // Verifica se a resposta é uma string JSON e faz o parse
             if (typeof response === 'string') {
               try {
                 response = JSON.parse(response);
@@ -210,7 +208,6 @@ const API = (function() {
                 return;
               }
             }
-
             if (response && response.success && response.equipamentos) {
               resolve(response.equipamentos);
             } else {
@@ -220,34 +217,47 @@ const API = (function() {
           .withFailureHandler(error => {
             reject("Falha na comunicação: " + error);
           })
-          .obterEquipamentosPorTipo(equipmentType); // Função no backend
+          .obterEquipamentosPorTipo(equipmentType);
       });
     },
-    // FIM DA ATUALIZAÇÃO ANTERIOR
 
-    // INÍCIO DA ATUALIZAÇÃO SOLICITADA: Adicionar o HTML do Formulário ao DOM
+    // ATUALIZAÇÃO APLICADA ABAIXO:
+    // Modificado para usar o padrão callAPI e criar o container se não existir.
     loadMaintenanceForm: function() {
       return new Promise((resolve, reject) => {
-        google.script.run
-          .withSuccessHandler(response => {
-            // Adiciona o HTML recebido ao DOM
-            const container = document.getElementById('maintenance-form-container');
-            if (container) {
-              container.innerHTML = response;
-              resolve(true);
-            } else {
-              console.error("Erro: Elemento 'maintenance-form-container' não encontrado no DOM.");
-              reject("Elemento 'maintenance-form-container' não encontrado.");
+        // Usa o mesmo padrão de API que outras chamadas
+        callAPI('obterHTMLFormularioManutencao', {})
+          .then(response => {
+            try {
+              if (response && response.success && response.html) {
+                // Adiciona o HTML recebido ao DOM
+                const container = document.getElementById('maintenance-form-container');
+                if (container) {
+                  container.innerHTML = response.html;
+                  resolve(true);
+                } else {
+                  // Criar o container se não existir
+                  const newContainer = document.createElement('div');
+                  newContainer.id = 'maintenance-form-container';
+                  document.body.appendChild(newContainer);
+                  newContainer.innerHTML = response.html;
+                  resolve(true);
+                }
+              } else {
+                reject(response.message || "Resposta inválida do servidor");
+              }
+            } catch (error) {
+              console.error("Erro ao processar HTML do formulário:", error);
+              reject(error);
             }
           })
-          .withFailureHandler(error => {
+          .catch(error => {
             console.error("Erro ao carregar HTML do formulário:", error);
             reject(error);
-          })
-          .obterHTMLFormularioManutencao(); // Função a ser adicionada no backend
+          });
       });
     },
-    // FIM DA ATUALIZAÇÃO SOLICITADA
+    // FIM DA ATUALIZAÇÃO
 
     // Método para atualizar uma manutenção existente
     updateMaintenance: function(id, data) {
@@ -255,7 +265,6 @@ const API = (function() {
       const formattedData = { ...data, id };
 
       // Garantir que os campos estejam no formato esperado pelo backend
-      // Mesmo mapeamento da função createMaintenance
       formattedData.equipmentId = formattedData.placaOuId;
       formattedData.date = formattedData.dataRegistro;
       formattedData.equipmentType = formattedData.tipoEquipamento;
@@ -281,16 +290,10 @@ const API = (function() {
     createMaintenance: function(data) {
       console.log("API.createMaintenance chamada com dados:", data);
 
-      // Criar uma cópia dos dados para não modificar o objeto original
       const formattedData = { ...data };
 
-      // MAPEAMENTO DE CAMPOS: Garantir que os campos obrigatórios estejam no formato esperado pelo backend
-
-      // Campos críticos que estavam causando erro
       formattedData.equipmentId = formattedData.placaOuId;
       formattedData.date = formattedData.dataRegistro;
-
-      // Outros mapeamentos importantes
       formattedData.equipmentType = formattedData.tipoEquipamento;
       formattedData.technician = formattedData.responsavel;
       formattedData.location = formattedData.localOficina;
@@ -300,20 +303,16 @@ const API = (function() {
       formattedData.problemDescription = formattedData.detalhesproblema;
       formattedData.additionalNotes = formattedData.observacoes;
 
-      // Formatos alternativos para compatibilidade com diferentes versões do backend
       formattedData.id_equipamento = formattedData.placaOuId;
       formattedData.equipamento_id = formattedData.placaOuId;
       formattedData.equipamentoId = formattedData.placaOuId;
       formattedData.placa_id = formattedData.placaOuId;
 
-      // Backup para datas
       formattedData.data = formattedData.dataRegistro;
       formattedData.data_manutencao = formattedData.dataRegistro;
       formattedData.dataManutencao = formattedData.dataRegistro;
 
-      // Garantir formato de data correto (YYYY-MM-DD)
       if (formattedData.dataRegistro && !formattedData.dataRegistro.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        // Se não estiver no formato correto, tente converter
         try {
           const dateObj = new Date(formattedData.dataRegistro);
           const formattedDate = dateObj.toISOString().split('T')[0];
@@ -327,37 +326,26 @@ const API = (function() {
         }
       }
 
-      // Backup para tipo de equipamento
       formattedData.tipo_equipamento = formattedData.tipoEquipamento;
       formattedData.equipment_type = formattedData.tipoEquipamento;
-
-      // Backup para responsável
       formattedData.tecnico = formattedData.responsavel;
       formattedData.responsavel_nome = formattedData.responsavel;
       formattedData.technician_name = formattedData.responsavel;
-
-      // Backup para categoria de problema
       formattedData.categoria = formattedData.categoriaProblema;
       formattedData.problema_categoria = formattedData.categoriaProblema;
-
-      // Backup para detalhes do problema
       formattedData.detalhes = formattedData.detalhesproblema;
       formattedData.problema_detalhes = formattedData.detalhesproblema;
 
       console.log("Dados formatados para envio:", formattedData);
-
-      // Chamar a função original com os dados formatados
       return callAPI('saveMaintenance', formattedData);
     },
 
     // Método para enviar verificação
     submitVerification: function(data) {
       console.log("API.submitVerification chamada com dados:", data);
-
-      // Mapear campos para o backend
       const formattedData = {
         ...data,
-        maintenanceId: data.maintenanceId || data.id, // Aceitar ambos os formatos
+        maintenanceId: data.maintenanceId || data.id,
         verifier: data.verifierName || data.verifier,
         verificador: data.verifierName || data.verifier,
         result: data.result || data.resultado,
@@ -365,7 +353,6 @@ const API = (function() {
         comments: data.comments || data.comentarios,
         comentarios: data.comments || data.comentarios
       };
-
       return this.saveVerification(formattedData);
     },
 
