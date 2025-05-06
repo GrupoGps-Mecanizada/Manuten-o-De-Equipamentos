@@ -211,16 +211,21 @@ const Maintenance = (() => {
   }
 
   // =========================================================================
-  // == FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO 1 (Integrada aqui) =================
+  // == INÍCIO DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO B =======================
   // =========================================================================
-  // Controla a exibição do campo de ID do equipamento (select) vs. campo de texto ('Outro')
-  // Modificar setupDynamicFieldListeners em maintenance.js para lidar com requisições assíncronas
+  // ARQUIVO: maintenance.js
+  // FUNÇÃO: setupDynamicFieldListeners
   function setupDynamicFieldListeners() {
     console.log("### Configurando listeners de campos dinâmicos ###");
     const equipmentTypeSelect = document.getElementById('equipment-type');
 
     if (!equipmentTypeSelect) {
       console.error("ERRO: Select #equipment-type não encontrado!");
+      // Se o elemento não existir, podemos verificar se o formulário está realmente carregado
+      const formModal = document.getElementById('maintenance-form-modal');
+      if (!formModal) {
+        console.error("Formulário ainda não foi carregado corretamente no DOM");
+      }
       return;
     }
 
@@ -304,7 +309,7 @@ const Maintenance = (() => {
     console.log("Listener 'change' configurado para #equipment-type com sucesso.");
   }
   // =========================================================================
-  // == FIM DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO 1 =========================
+  // == FIM DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO B =========================
   // =========================================================================
 
   // Listener separado para o campo de Categoria de Problema
@@ -333,55 +338,98 @@ const Maintenance = (() => {
 
 
   // =========================================================================
-  // == FUNÇÃO ATUALIZADA (CONFORME SOLICITAÇÃO) =============================
+  // == INÍCIO DA FUNÇÃO MODIFICADA PELA ATUALIZAÇÃO C =======================
   // =========================================================================
-  // Nova função para popular o select de equipamentos (baseado no TEXTO do tipo)
+  // ARQUIVO: maintenance.js
+  // FUNÇÃO: populateEquipmentSelect
   function populateEquipmentSelect(equipmentTypeText, selectElement) {
     console.log(`Iniciando populateEquipmentSelect para tipo: "${equipmentTypeText}"`);
-  
+
     if (!selectElement) {
       console.error("Erro: selectElement não fornecido para populateEquipmentSelect");
       return;
     }
-  
+
     // Mostra mensagem de carregamento
     selectElement.innerHTML = '<option value="">Carregando equipamentos...</option>';
     selectElement.disabled = true;
-  
+
     // Mostrar indicador de loading
     showLoading(true, `Carregando equipamentos de ${equipmentTypeText}...`);
-  
+
+    // Listas de equipamentos hardcoded para fallback se a API falhar
+    const equipmentFallbackLists = {
+      "Alta Pressão": [
+        "PUB-2G02", "LUX-3201", "FLX7617", "EZS-8765", "EZS-8764", "EVK-0291", 
+        "EOF-5C06", "EOF-5208", "EGC-2989", "EGC-2985", "EGC-2983", "EGC-2978", 
+        "EAM-3262", "EAM-3256", "EAM-3255", "EAM-3253", "EAM-3010", "DSY-6475", 
+        "DSY-6474", "DSY-6472", "CZC-0453"
+      ],
+      "Auto Vácuo / Hiper Vácuo": [
+        "PUB-2F80", "NFF-0235", "HJS-1097", "FSA-3D71", "EGC-2993", "EGC-2979", 
+        "EAM-3257", "EAM-3251", "DYB-7210", "DSY-6577", "DSY-6473", "CUB-0763", 
+        "ANF-2676", "FTW-4D99", "FTD-6368", "FMD-2200", "FHD-9264", "EZS-9753"
+      ]
+    };
+
     // Buscar equipamentos do backend via API
     API.callFunction('obterEquipamentosPorTipo', { tipoEquipamento: equipmentTypeText })
       .then(response => {
         // Limpa e adiciona a opção padrão
         selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
-  
+
         // Populando o select com os dados
         if (response && response.success && response.equipamentos && response.equipamentos.length > 0) {
           console.log(`Populando ${response.equipamentos.length} equipamentos para "${equipmentTypeText}"`);
-  
+
           response.equipamentos.forEach(item => {
             const option = document.createElement('option');
             option.value = item; // O ID/Placa é o valor
             option.textContent = item; // E também o texto
             selectElement.appendChild(option);
           });
-  
+
           selectElement.disabled = false; // Habilita para seleção
           console.log(`Select populado com sucesso: ${response.equipamentos.length} equipamentos`);
         } else {
-          // Se não houver equipamentos na lista
-          console.warn(`Nenhum equipamento encontrado para o tipo "${equipmentTypeText}"`);
-          selectElement.innerHTML += '<option value="" disabled>Nenhum equipamento na lista</option>';
-          // Mantém desabilitado
-          selectElement.disabled = true;
+          // Tenta usar as listas fallback se não houver dados da API
+          const fallbackList = equipmentFallbackLists[equipmentTypeText] || [];
+          if (fallbackList.length > 0) {
+            console.log(`Usando lista fallback com ${fallbackList.length} equipamentos para ${equipmentTypeText}`);
+            fallbackList.forEach(item => {
+              const option = document.createElement('option');
+              option.value = item;
+              option.textContent = item;
+              selectElement.appendChild(option);
+            });
+            selectElement.disabled = false;
+          } else {
+            console.warn(`Nenhum equipamento encontrado para o tipo "${equipmentTypeText}"`);
+            selectElement.innerHTML += '<option value="" disabled>Nenhum equipamento na lista</option>';
+            // Mantém desabilitado
+            selectElement.disabled = true;
+          }
         }
       })
       .catch(error => {
         console.error(`Erro ao carregar equipamentos para tipo ${equipmentTypeText}:`, error);
-        selectElement.innerHTML = '<option value="">Erro ao carregar</option>';
-        selectElement.disabled = true;
+        
+        // Tenta usar as listas fallback
+        const fallbackList = equipmentFallbackLists[equipmentTypeText] || [];
+        if (fallbackList.length > 0) {
+          console.log(`Usando lista fallback após erro para ${equipmentTypeText}`);
+          selectElement.innerHTML = '<option value="">Selecione o equipamento...</option>';
+          fallbackList.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item;
+            option.textContent = item;
+            selectElement.appendChild(option);
+          });
+          selectElement.disabled = false;
+        } else {
+          selectElement.innerHTML = '<option value="">Erro ao carregar</option>';
+          selectElement.disabled = true;
+        }
         
         // Mostrar notificação do erro
         showNotification(`Erro ao carregar lista de equipamentos: ${error}`, "error");
@@ -391,7 +439,7 @@ const Maintenance = (() => {
       });
   }
   // =======================================================================
-  // == FIM DA FUNÇÃO ATUALIZADA ===========================================
+  // == FIM DA FUNÇÃO MODIFICADA PELA ATUALIZAÇÃO C =======================
   // =======================================================================
 
   // Função original loadEquipmentsForType - Pode ser removida se populateEquipmentSelect a substitui completamente.
@@ -503,8 +551,10 @@ const Maintenance = (() => {
   }
 
   // =========================================================================
-  // == FUNÇÃO ATUALIZADA (CONFORME A SOLICITAÇÃO DO USUÁRIO) ================
+  // == INÍCIO DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO A =======================
   // =========================================================================
+  // ARQUIVO: maintenance.js
+  // FUNÇÃO: openMaintenanceForm
   function openMaintenanceForm(maintenanceId = null, data = null) {
     console.log("Abrindo formulário de manutenção", maintenanceId ? `para edição (ID: ${maintenanceId})` : "para novo registro");
 
@@ -558,11 +608,14 @@ const Maintenance = (() => {
       
       // Inicializar todos os listeners após o HTML estar pronto
       // Estas funções usarão addSafeListener, que já lida com a remoção de listeners antigos.
-      setupDynamicFieldListeners();
-      setupNavigationListeners();
-      setupProblemCategoryListener();
-      setupFormSubmitListener();
-      setupCloseModalListeners();
+      setTimeout(() => {
+        console.log("Configurando listeners do formulário após delay para garantir que o DOM está pronto");
+        setupDynamicFieldListeners();
+        setupNavigationListeners();
+        setupProblemCategoryListener();
+        setupFormSubmitListener();
+        setupCloseModalListeners();
+      }, 100);
     };
 
     // Se o formulário não existe, carregue-o primeiro
@@ -577,7 +630,9 @@ const Maintenance = (() => {
             // Popular dropdowns que podem estar dentro do HTML carregado
             populateEquipmentTypes(); 
             populateProblemCategories();
-            setupFormAfterLoad();
+            setTimeout(() => {
+              setupFormAfterLoad();
+            }, 100);
           })
           .catch(error => {
             console.error("Falha ao carregar HTML do formulário:", error);
@@ -598,7 +653,7 @@ const Maintenance = (() => {
     }
   }
   // =========================================================================
-  // == FIM DA FUNÇÃO ATUALIZADA =============================================
+  // == FIM DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO A =========================
   // =========================================================================
 
 
@@ -2510,39 +2565,49 @@ const Maintenance = (() => {
   };
 })(); // Fim do IIFE Maintenance
 
-// --- Inicialização do Módulo ---
-// Função para garantir que o DOM e as dependências estejam prontos
+// --- INÍCIO DA FUNÇÃO MODIFICADA PELA ATUALIZAÇÃO D ---
+// ARQUIVO: maintenance.js
+// FUNÇÃO: initializeMaintenanceModule
 function initializeMaintenanceModule() {
-    const init = () => {
-         console.log("Tentando inicializar o módulo Maintenance...");
-         if (window.API && window.Utilities) {
-             console.log("Dependências API e Utilities encontradas. Inicializando Maintenance.initialize()...");
-             Maintenance.initialize();
-         } else {
-             console.error("Falha na inicialização: Dependências API ou Utilities NÃO encontradas.");
-             // Tentar novamente após um pequeno atraso?
-             setTimeout(() => {
-                 console.warn("Tentando inicializar novamente após 500ms...");
-                 if (window.API && window.Utilities) {
-                     Maintenance.initialize();
-                 } else {
-                      console.error("Dependências ainda não disponíveis após delay. A aplicação pode não funcionar corretamente.");
-                      // Mostrar mensagem para o usuário
-                      alert("Erro crítico ao carregar componentes da página (API/Utilities). Por favor, recarregue a página ou contate o suporte.");
-                 }
-             }, 500);
-         }
-    };
+  // Verificar se já inicializou
+  if (window.maintenanceModuleInitialized) {
+    console.log("Módulo Maintenance já inicializado anteriormente. Ignorando nova chamada.");
+    return;
+  }
 
-    // Verificar se o DOM já está carregado ou esperar pelo evento
-    if (document.readyState === 'loading') {
-        console.log("DOM ainda carregando. Esperando por DOMContentLoaded...");
-        document.addEventListener('DOMContentLoaded', init);
+  const init = () => {
+    console.log("Tentando inicializar o módulo Maintenance...");
+    if (window.API && window.Utilities) {
+      console.log("Dependências API e Utilities encontradas. Inicializando Maintenance.initialize()...");
+      Maintenance.initialize();
+      window.maintenanceModuleInitialized = true;
     } else {
-        console.log("DOM já carregado. Iniciando imediatamente...");
-        init();
+      console.error("Falha na inicialização: Dependências API ou Utilities NÃO encontradas.");
+      // Tentar novamente após um pequeno atraso?
+      setTimeout(() => {
+        console.warn("Tentando inicializar novamente após 500ms...");
+        if (window.API && window.Utilities) {
+          Maintenance.initialize();
+          window.maintenanceModuleInitialized = true;
+        } else {
+          console.error("Dependências ainda não disponíveis após delay. A aplicação pode não funcionar corretamente.");
+           // Mostrar mensagem para o usuário
+           alert("Erro crítico ao carregar componentes da página (API/Utilities). Por favor, recarregue a página ou contate o suporte.");
+        }
+      }, 500);
     }
+  };
+
+  // Verificar se o DOM já está carregado ou esperar pelo evento
+  if (document.readyState === 'loading') {
+    console.log("DOM ainda carregando. Esperando por DOMContentLoaded...");
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    console.log("DOM já carregado. Iniciando imediatamente...");
+    init();
+  }
 }
+// --- FIM DA FUNÇÃO MODIFICADA PELA ATUALIZAÇÃO D ---
 
 // Chamar a função de inicialização para começar tudo
 initializeMaintenanceModule();
