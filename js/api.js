@@ -194,6 +194,36 @@ const API = (function() {
           return { success: false, message: error.message, ids: [] };
         });
     },
+
+    // INÍCIO DA ATUALIZAÇÃO: Função adicionada para buscar equipamentos por tipo
+    getEquipmentsByType: function(equipmentType) {
+      return new Promise((resolve, reject) => {
+        // Chamada para o endpoint do Google Apps Script
+        google.script.run
+          .withSuccessHandler(response => {
+            // Verifica se a resposta é uma string JSON e faz o parse
+            if (typeof response === 'string') {
+              try {
+                response = JSON.parse(response);
+              } catch (e) {
+                reject("Erro ao processar resposta: " + e.message);
+                return;
+              }
+            }
+            
+            if (response && response.success && response.equipamentos) {
+              resolve(response.equipamentos);
+            } else {
+              reject(response.message || "Erro ao carregar equipamentos");
+            }
+          })
+          .withFailureHandler(error => {
+            reject("Falha na comunicação: " + error);
+          })
+          .obterEquipamentosPorTipo(equipmentType); // Função no backend
+      });
+    },
+    // FIM DA ATUALIZAÇÃO
     
     // Método para atualizar uma manutenção existente
     updateMaintenance: function(id, data) {
