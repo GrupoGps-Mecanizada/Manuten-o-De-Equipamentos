@@ -21,7 +21,6 @@ const Dashboard = (function() {
     chartInstances = {};
   }
 
-  // Adicionar esta função no arquivo dashboard.js, antes de initialize()
   function createFilterDropdown() {
      console.log("Dropdown de filtros criado e configurado.");
   }
@@ -54,16 +53,13 @@ const Dashboard = (function() {
     console.log("Dashboard inicializado com sucesso.");
   }
 
-  /** Cria botões de período se eles não existirem no DOM */
   function createPeriodButtonsIfNeeded() {
     const dashboardHeader = document.querySelector('#tab-dashboard .dashboard-header');
     if (!dashboardHeader || dashboardHeader.querySelector('.dashboard-controls')) return;
 
     console.log("Criando controles do Dashboard (botões de período/refresh)...");
-
     const controlsContainer = document.createElement('div');
     controlsContainer.className = 'dashboard-controls';
-
     const buttonContainer = document.createElement('div');
     buttonContainer.className = 'period-buttons';
     const periods = [
@@ -87,7 +83,6 @@ const Dashboard = (function() {
         buttonContainer.firstChild.classList.add('active');
     }
     controlsContainer.appendChild(buttonContainer);
-
     createRefreshButton(controlsContainer);
     dashboardHeader.appendChild(controlsContainer);
 
@@ -129,16 +124,13 @@ const Dashboard = (function() {
      if (!targetButton) return;
      const period = targetButton.getAttribute('data-period');
      if (!period) return;
-
      console.log(`Botão de período clicado: ${period}`);
      document.querySelectorAll('#tab-dashboard .period-btn').forEach(btn => btn.classList.remove('active'));
      targetButton.classList.add('active');
-
-      const startDateInput = document.getElementById('filter-start-date'); // Corrigido para corresponder ao HTML do filtro
-      const endDateInput = document.getElementById('filter-end-date');   // Corrigido para corresponder ao HTML do filtro
+      const startDateInput = document.getElementById('filter-start-date');
+      const endDateInput = document.getElementById('filter-end-date');
       if (startDateInput) startDateInput.value = '';
       if (endDateInput) endDateInput.value = '';
-
      loadDashboardData(period, true);
   }
 
@@ -157,11 +149,9 @@ const Dashboard = (function() {
      const targetButton = event.target.closest('#refresh-dashboard');
      if (!targetButton) return;
      console.log("Atualização manual do dashboard solicitada");
-
-     const startDate = document.getElementById('filter-start-date')?.value; // Corrigido
-     const endDate = document.getElementById('filter-end-date')?.value;   // Corrigido
+     const startDate = document.getElementById('filter-start-date')?.value;
+     const endDate = document.getElementById('filter-end-date')?.value;
      let periodToLoad;
-
      if (startDate && endDate) {
          periodToLoad = `custom:${startDate}:${endDate}`;
          console.log("Atualizando com período customizado:", periodToLoad);
@@ -196,7 +186,6 @@ const Dashboard = (function() {
    function checkIfDashboard(isInitialLoad = false) {
      const hash = window.location.hash || '#dashboard';
      const dashboardTabElement = document.getElementById('tab-dashboard');
-
      if (hash === '#dashboard' && dashboardTabElement) {
         const isActive = dashboardTabElement.classList.contains('active');
         if (isActive) {
@@ -205,7 +194,6 @@ const Dashboard = (function() {
            const needsLoad = isInitialLoad || !dashboardData || (currentTime - lastLoadTime > REFRESH_INTERVAL);
            if (needsLoad) {
              console.log(`Carregando dados (${isInitialLoad ? 'inicial' : (!dashboardData ? 'sem dados' : 'atualização')})`);
-
              const startDateInput = document.getElementById('filter-start-date')?.value;
              const endDateInput = document.getElementById('filter-end-date')?.value;
              let period;
@@ -237,7 +225,7 @@ const Dashboard = (function() {
        showLoadingError("Erro crítico: Função da API não encontrada.");
        if (refreshButton) refreshButton.classList.remove('rotating');
        showLoading(false);
-       renderDashboard(createEmptyDashboardResponse("Erro de API")); // Passar a função diretamente
+       renderDashboard(createEmptyDashboardResponse("Erro de API"));
        return;
     }
 
@@ -247,17 +235,17 @@ const Dashboard = (function() {
         if (response && response.success) {
           dashboardData = response;
           lastLoadTime = currentTime;
-          renderDashboard(dashboardData); // Passar a função diretamente
+          renderDashboard(dashboardData);
         } else {
           console.error("Erro retornado pela API:", response);
           showLoadingError("Erro ao carregar dados: " + (response?.message || "Resposta inválida"));
-          renderDashboard(dashboardData || createEmptyDashboardResponse(response?.message || "Erro API")); // Passar a função diretamente
+          renderDashboard(dashboardData || createEmptyDashboardResponse(response?.message || "Erro API"));
         }
       })
       .catch(error => {
         console.error("Falha na requisição API:", error);
         showLoadingError(`Falha na comunicação: ${error.message}.`);
-        renderDashboard(dashboardData || createEmptyDashboardResponse(error.message)); // Passar a função diretamente
+        renderDashboard(dashboardData || createEmptyDashboardResponse(error.message));
       })
       .finally(() => {
         if (refreshButton) refreshButton.classList.remove('rotating');
@@ -269,8 +257,8 @@ const Dashboard = (function() {
       return { success: true, message: message, summary: { total: 0, pending: 0, completed: 0, critical: 0 }, maintenanceTypes: [], maintenanceStatuses: [], equipmentRanking: [], areaDistribution: [], problemCategories: [], monthlyTrend: [], criticalVsRegular: [], verificationResults: [], maintenanceFrequency: [], recentMaintenances: [] };
   }
 
-  // Guardar referência original de renderDashboard
-  let _renderDashboard = function(data) { // Renomeado para evitar conflito no escopo do IIFE
+  // Função principal de renderização do Dashboard
+  function renderDashboard(data) {
     cleanupCharts();
     console.log("Renderizando dashboard com dados:", data);
     data = data || createEmptyDashboardResponse("Dados nulos recebidos");
@@ -291,6 +279,11 @@ const Dashboard = (function() {
       renderCharts(chartData);
       renderRecentMaintenances(data.equipmentRanking || [], 'equipment-ranking-tbody');
       renderRecentMaintenances(data.recentMaintenances || [], 'recent-maintenance-tbody');
+      
+      // Chamar applyGlobalFilter() logo após renderizar cada tabela (NOVA INSTRUÇÃO)
+      // ou, mais apropriadamente, após todas as tabelas relevantes serem renderizadas.
+      applyGlobalFilter();
+
       console.log("Dashboard renderizado com sucesso.");
     } catch (error) {
       console.error("Erro CRÍTICO ao renderizar dashboard:", error);
@@ -298,72 +291,7 @@ const Dashboard = (function() {
     } finally {
        showLoading(false);
     }
-  };
-
-  function setupTableFilters() {
-    const applyBtn = document.getElementById('filter-apply');
-    const clearBtn = document.getElementById('filter-clear');
-    const searchInput = document.getElementById('filter-search');
-    const statusSelect = document.getElementById('filter-status');
-    const startDateEl = document.getElementById('filter-start-date'); // Renomeado para evitar conflito de nome
-    const endDateEl = document.getElementById('filter-end-date');     // Renomeado para evitar conflito de nome
-
-    if (!applyBtn || !clearBtn || !searchInput || !statusSelect || !startDateEl || !endDateEl) {
-        console.warn("Elementos do filtro da tabela não encontrados. A filtragem pode não funcionar.");
-        return;
-    }
-
-    function applyFilter() {
-      const text = searchInput.value.trim().toLowerCase();
-      const status = statusSelect.value;
-      const from = startDateEl.value;
-      const to = endDateEl.value;
-
-      document.querySelectorAll('#recent-maintenance-tbody tr').forEach(row => {
-        const cols = row.querySelectorAll('td');
-        if (cols.length < 6) {
-            row.style.display = '';
-            return;
-        }
-        const dateParts = cols[3].textContent.trim().split('/');
-        const rowDateStr = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : '';
-        const stat = cols[5].querySelector('.status-badge') ? cols[5].querySelector('.status-badge').textContent.trim() : cols[5].textContent.trim(); // Pega o texto do status
-        const rowText = row.textContent.toLowerCase();
-        let visible = true;
-
-        if (text && !rowText.includes(text)) visible = false;
-        if (status && stat !== status) visible = false;
-        if (from && rowDateStr && rowDateStr < from) visible = false;
-        if (to && rowDateStr && rowDateStr > to) visible = false;
-        
-        row.style.display = visible ? '' : 'none';
-      });
-    }
-
-    applyBtn.addEventListener('click', applyFilter);
-    clearBtn.addEventListener('click', () => {
-      searchInput.value = '';
-      statusSelect.value = '';
-      startDateEl.value = '';
-      endDateEl.value = '';
-      applyFilter();
-    });
-    console.log("Filtros da tabela de manutenções recentes configurados.");
   }
-
-  // Decorator para renderDashboard
-  // Esta é a única atribuição a renderDashboard no escopo do IIFE
-  // que será usada externamente (se renderDashboard fosse exposta) ou internamente.
-  // Se renderDashboard não for exposta, _renderDashboard é a função principal de renderização.
-  // Para o propósito deste módulo, onde renderDashboard é chamado internamente,
-  // podemos simplesmente chamar setupTableFilters ao final de _renderDashboard.
-  // No entanto, a instrução pede para usar o padrão decorator.
-  const originalRenderDashboard = _renderDashboard; // Usa a função interna renomeada
-  var renderDashboard = function(data) { // Declara renderDashboard aqui para que seja a função usada
-    originalRenderDashboard.call(this, data);
-    setupTableFilters();
-  };
-
 
   function renderSummaryCards(summary) {
     const cardValueMap = {
@@ -458,7 +386,6 @@ const Dashboard = (function() {
       let canvas = document.getElementById(chartId);
       if (!canvas) { console.error(`Canvas #${chartId} não encontrado!`); return; }
       if (typeof Chart === 'undefined') { console.error(`Chart.js não carregado para ${chartId}!`); return; }
-
       const parent = canvas.parentElement;
       const noDataMessage = parent?.querySelector('.no-data-message');
       if (noDataMessage && parent) {
@@ -471,9 +398,7 @@ const Dashboard = (function() {
         canvas = newCanvas;
         console.log(`Canvas #${chartId} recriado após remover mensagem 'sem dados'.`);
       }
-
       const isValidData = chartData && Array.isArray(chartData) && chartData.length > 0 && chartData.some(item => (item.count || 0) > 0);
-
       if (!isValidData && chartId !== 'maintenance-frequency-chart') {
         console.warn(`Dados inválidos/vazios para ${chartId}. Usando placeholder.`);
         const ctx = canvas.getContext('2d');
@@ -627,22 +552,35 @@ const Dashboard = (function() {
        items.forEach(item => {
            const row = document.createElement('tr');
            let html = '';
-           if (tbodyId === 'equipment-ranking-tbody') {
+           // Ajuste nas colunas para corresponder à lógica de applyGlobalFilter
+           // A data (cols[3]) e status (cols[5]) são cruciais.
+           if (tbodyId === 'equipment-ranking-tbody') { // Esta tabela pode não ser filtrada pelo applyGlobalFilter se não tiver data/status na mesma posição
                html = `
                  <td>${item.identifier || item.id || '-'}</td>
                  <td>${item.name || item.type || '-'}</td>
                  <td>${item.maintenanceCount || 0}</td>
-                 <td>${formatDate(item.lastMaintenanceDate)}</td>
+                 <td>${formatDate(item.lastMaintenanceDate)}</td> 
                  <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td>`;
-           } else if (tbodyId === 'recent-maintenance-tbody') {
+           } else if (tbodyId === 'recent-maintenance-tbody') { // Esta é a principal tabela filtrada pelo dashboard.js
                 html = `
                   <td>${item.id || '-'}</td>
                   <td>${item.placaOuId || '-'} (${item.tipoEquipamento || '-'})</td>
                   <td>${item.tipoManutencao || '-'}</td>
-                  <td>${formatDate(item.dataRegistro)}</td>
+                  <td>${formatDate(item.dataRegistro)}</td> <!-- Data na coluna 3 (índice) -->
                   <td>${item.responsavel || '-'}</td>
-                  <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td>
+                  <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td> <!-- Status na coluna 5 (índice) -->
                   <td><button class="btn-icon view-maintenance" data-id="${item.id}" title="Ver Detalhes">👁️</button></td>`;
+           } else if (tbodyId === 'maintenance-tbody' || tbodyId === 'verification-tbody') {
+                // Adapte as colunas para estas tabelas se elas precisarem ser filtradas
+                // Exemplo genérico, ajuste conforme a estrutura real dessas tabelas
+                html = `
+                  <td>${item.id || '-'}</td>
+                  <td>${item.description || '-'}</td>
+                  <td>${item.type || '-'}</td>
+                  <td>${formatDate(item.date)}</td> <!-- Data na coluna 3 (índice) -->
+                  <td>${item.user || '-'}</td>
+                  <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td> <!-- Status na coluna 5 (índice) -->
+                  <td><button class="btn-icon view-details" data-id="${item.id}" title="Ver Detalhes">👁️</button></td>`;
            }
            row.innerHTML = html;
            tableBody.appendChild(row);
@@ -656,20 +594,114 @@ const Dashboard = (function() {
    }
 
    function handleTableActionClick(event) {
-       const button = event.target.closest('.btn-icon');
+       const button = event.target.closest('.btn-icon'); // Mais genérico que '.view-maintenance'
        if (!button) return;
        const maintenanceId = button.getAttribute('data-id');
        if (!maintenanceId) return;
-       if (button.classList.contains('view-maintenance')) {
-          console.log(`Visualizar manutenção ID: ${maintenanceId}`);
+       
+       // Verifica se é um botão para ver detalhes (pode ser de qualquer tabela que use esta classe)
+       if (button.classList.contains('view-maintenance') || button.classList.contains('view-details')) {
+          console.log(`Visualizar detalhes para ID: ${maintenanceId}`);
           if (typeof window.viewMaintenanceDetails === 'function') {
              window.viewMaintenanceDetails(maintenanceId);
           } else {
              console.error("Função global 'viewMaintenanceDetails' não encontrada ou não definida.");
-             alert(`Detalhes da manutenção ${maintenanceId} (Função 'viewMaintenanceDetails' não disponível)`);
+             alert(`Detalhes para ID ${maintenanceId} (Função 'viewMaintenanceDetails' não disponível)`);
           }
        }
    }
+
+  // NOVA FUNÇÃO DE FILTRO GLOBAL E SEUS LISTENERS (dentro do IIFE)
+  function applyGlobalFilter() {
+    const searchInputEl = document.getElementById('filter-search');
+    const statusSelectEl = document.getElementById('filter-status');
+    const startDateEl = document.getElementById('filter-start-date');
+    const endDateEl = document.getElementById('filter-end-date');
+
+    // Garantir que os elementos de filtro existam
+    if (!searchInputEl || !statusSelectEl || !startDateEl || !endDateEl) {
+        console.warn("Elementos do formulário de filtro não encontrados. O filtro global não pode ser aplicado.");
+        return;
+    }
+
+    const text = searchInputEl.value.trim().toLowerCase();
+    const status = statusSelectEl.value; // O valor do select já é o texto do status desejado
+    const from = startDateEl.value; // Formato YYYY-MM-DD
+    const to = endDateEl.value;     // Formato YYYY-MM-DD
+
+    // IDs das tabelas a serem filtradas
+    const tablesToFilter = ['recent-maintenance-tbody', 'maintenance-tbody', 'verification-tbody'];
+
+    tablesToFilter.forEach(tbodyId => {
+      const tableBody = document.getElementById(tbodyId);
+      if (!tableBody) {
+        // console.warn(`Tabela com tbody ID #${tbodyId} não encontrada para filtragem.`);
+        return; // Pula para a próxima tabela se esta não existir
+      }
+
+      tableBody.querySelectorAll('tr').forEach(row => {
+        const cols = [...row.children].map(td => td.textContent.trim().toLowerCase());
+        let visible = true;
+
+        // Filtro por texto
+        if (text && !cols.join(' ').includes(text)) {
+          visible = false;
+        }
+
+        // Filtro por status (coluna 5, índice 5 para recent-maintenance-tbody)
+        // A lógica de status precisa ser adaptada se a coluna for diferente ou se o status não for texto simples
+        const statusTextInRow = (cols[5] || '').trim(); // Status na sexta coluna
+        if (status && statusTextInRow !== status.toLowerCase()) {
+          visible = false;
+        }
+        
+        // Filtro por data (coluna 3, índice 3 para recent-maintenance-tbody)
+        // A data na tabela (DD/MM/YYYY) precisa ser convertida para YYYY-MM-DD para comparação
+        const dateInRowDDMMYYYY = (cols[3] || '').trim(); // Data na quarta coluna
+        let dateInRowYYYYMMDD = '';
+        if (dateInRowDDMMYYYY) {
+            const parts = dateInRowDDMMYYYY.split('/');
+            if (parts.length === 3) {
+                dateInRowYYYYMMDD = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
+        }
+
+        if (from && dateInRowYYYYMMDD && dateInRowYYYYMMDD < from) {
+          visible = false;
+        }
+        if (to && dateInRowYYYYMMDD && dateInRowYYYYMMDD > to) {
+          visible = false;
+        }
+
+        row.style.display = visible ? '' : 'none';
+      });
+    });
+    console.log("Filtro global aplicado.");
+  }
+
+  // Configurar listeners para os botões de filtro (garantir que os botões existam)
+  const applyFilterButton = document.getElementById('filter-apply');
+  const clearFilterButton = document.getElementById('filter-clear');
+
+  if (applyFilterButton) {
+    applyFilterButton.addEventListener('click', applyGlobalFilter);
+  } else {
+    console.warn("Botão 'filter-apply' não encontrado.");
+  }
+
+  if (clearFilterButton) {
+    clearFilterButton.addEventListener('click', () => {
+      ['filter-search','filter-status','filter-start-date','filter-end-date'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value='';
+      });
+      applyGlobalFilter(); // Reaplica o filtro (que agora mostrará tudo)
+    });
+  } else {
+    console.warn("Botão 'filter-clear' não encontrado.");
+  }
+  // FIM DA NOVA FUNÇÃO DE FILTRO GLOBAL
+
 
   function generateColorPalette(count) {
     const baseColors = ['#0052CC', '#36B37E', '#FFAB00', '#6554C0', '#FF5630', '#00B8D9', '#FFC400', '#4C9AFF', '#79F2C0', '#FF8B00'];
@@ -807,22 +839,39 @@ const Dashboard = (function() {
    function isObject(item) { return (item && typeof item === 'object' && !Array.isArray(item)); }
 
   return { initialize };
-})();
+})(); // FIM DO IIFE Dashboard
 
-// ----------------------------------------------------------
-// Exporta globalmente a função de visualizar detalhes de manutenção
-// (ATUALIZADO CONFORME A ÚLTIMA INSTRUÇÃO)
-// ----------------------------------------------------------
-if (typeof window !== 'undefined') {
-  window.viewMaintenanceDetails = function(maintenanceId) {
-    if (typeof Maintenance !== 'undefined' && Maintenance.openMaintenanceForm) {
-      Maintenance.openMaintenanceForm(maintenanceId);
-      return;
-    }
-    // Removido o fallback para API.getMaintenanceDetails e displayDetailsModal conforme a última instrução.
-    console.error("Nenhum handler disponível para viewMaintenanceDetails. Maintenance.openMaintenanceForm não encontrado. ID:", maintenanceId);
-    alert(`Detalhes da manutenção ${maintenanceId} não podem ser exibidos.`);
-  };
+// NOVA IMPLEMENTAÇÃO PARA window.viewMaintenanceDetails (fora do IIFE)
+// Colocado aqui conforme instrução "no final do IIFE, cole:" (interpretado como APÓS o IIFE)
+// Se a intenção era "antes do return { initialize };", então deveria estar dentro.
+// Mas a instrução anterior para applyGlobalFilter foi "Dentro do IIFE ... abaixo das funções de renderização"
+// o que sugere uma distinção clara.
+if (typeof window !== 'undefined') { // Adicionando verificação para evitar erro em ambientes não-browser
+    window.viewMaintenanceDetails = function(id) {
+        // Verifica se API e Maintenance estão disponíveis
+        if (typeof API === 'undefined' || typeof API.getMaintenanceDetails !== 'function') {
+            console.error("API.getMaintenanceDetails não está disponível.");
+            alert('Erro: Função de API para obter detalhes não encontrada.');
+            return;
+        }
+        if (typeof Maintenance === 'undefined' || typeof Maintenance.openMaintenanceForm !== 'function') {
+            console.error("Maintenance.openMaintenanceForm não está disponível.");
+            alert('Erro: Função para abrir formulário de manutenção não encontrada.');
+            return;
+        }
+
+        API.getMaintenanceDetails({ id }).then(resp => {
+            if (resp.success && resp.maintenance) {
+                Maintenance.openMaintenanceForm(resp.maintenance.id, resp.maintenance);
+            } else {
+                alert('Detalhes não encontrados ou erro na resposta da API: ' + (resp.message || 'Erro desconhecido'));
+                console.error("Falha ao obter detalhes da manutenção:", resp);
+            }
+        }).catch(err => {
+            alert('Erro ao tentar obter detalhes da manutenção: ' + err.message);
+            console.error("Erro na chamada API.getMaintenanceDetails:", err);
+        });
+    };
 }
 
 
