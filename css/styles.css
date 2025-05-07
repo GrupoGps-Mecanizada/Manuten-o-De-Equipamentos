@@ -351,7 +351,11 @@ td.action-buttons {
 .status-rejected { background-color: var(--status-rejected); }
 .status-reprovado { background-color: var(--status-rejected); }
 .status-adjustments { background-color: var(--status-adjustments); }
-.status-ajustes { background-color: var(--status-adjustments); }
+.status-ajustes { 
+    background-color: #FF9800; /* Laranja */
+    color: #000000;          /* Texto preto */
+    font-weight: bold;
+}
 .status-critical { background-color: var(--status-danger); } /* Crítico usa cor de perigo */
 .status-critico { background-color: var(--status-danger); }
 .status-default { background-color: var(--text-lighter); } /* Status não mapeado */
@@ -1187,4 +1191,267 @@ select.form-control option[value=""] {
 .developer-credit {
   margin-top: var(--spacing-sm);
   font-size: var(--font-size-xs);
+}
+
+/* Estilos para o Sistema de Filtros */
+
+/* Contêiner principal de filtros */
+.filters-container {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: var(--bg-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+}
+
+/* Campo de busca */
+.search-filter {
+  margin-bottom: 15px;
+}
+
+.search-input { /* Este seletor já existe, mas está sendo solicitado aqui também. Para seguir a solicitação, o último prevalecerá, mas idealmente isso seria consolidado. */
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-light-color);
+  border-radius: var(--border-radius);
+  font-size: var(--font-size-base);
+}
+
+/* Container de filtros dropdown */
+.dropdown-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+/* Grupo de filtro individual */
+.filter-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.filter-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  font-size: var(--font-size-sm);
+}
+
+.filter-select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-light-color);
+  border-radius: var(--border-radius);
+  background-color: white;
+}
+
+/* Botões de ação de filtro */
+.filter-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Contador de resultados */
+.filter-results-info {
+  margin-top: 10px;
+  padding: 5px 10px;
+  background-color: var(--light-color);
+  border-radius: var(--border-radius);
+  font-size: var(--font-size-sm);
+  color: var(--text-light);
+}
+
+/* Media query para dispositivos móveis */
+@media (max-width: 768px) {
+  .filter-group {
+    min-width: 100%;
+  }
+}
+
+/* Novo sistema de filtros unificado e elegante */
+.filter-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #ffffff;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.search-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.search-input {
+  flex: 1;
+  height: 42px;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+  padding: 0 15px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  background-color: #f9f9f9;
+  width: 100%;
+}
+
+.search-input:focus {
+  border-color: var(--primary-color);
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.1);
+  outline: none;
+}
+
+.filter-toggle {
+  height: 42px;
+  padding: 0 16px;
+  background-color: #f0f2f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text-dark);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-toggle:hover {
+  background-color: #e6e8ec;
+}
+
+.filter-toggle.active {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.expanded-filters {
+  background-color: #f9f9fa;
+  border-radius: 6px;
+  padding: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  opacity: 0;
+}
+
+.expanded-filters.show {
+  padding: 16px;
+  max-height: 300px;
+  opacity: 1;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.filter-item {
+  margin-bottom: 0;
+}
+
+.filter-item label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dark);
+}
+
+.filter-select {
+  width: 100%;
+  height: 38px;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+  padding: 0 12px;
+  font-size: 14px;
+  background-color: white;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  padding-right: 32px;
+}
+
+.filter-select:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.1);
+}
+
+.filter-results-info {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-light);
+  background-color: rgba(0, 82, 204, 0.08);
+  padding: 6px 12px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.filter-results-info::before {
+  content: '🔍';
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+/* Correção para Status Ajustes */
+.status-adjusting,
+.status-badge.status-ajustes,
+.status-ajustes {
+  background-color: #FF9800 !important;
+  color: #000000 !important;
+  font-weight: bold;
+}
+
+/* Melhorias nas ações da tabela */
+td.action-buttons {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  margin: 0 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background-color: rgba(0, 82, 204, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  
+  .search-group {
+    flex-direction: column;
+  }
+  
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
 }
