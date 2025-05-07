@@ -1,6 +1,6 @@
 /**
  * Sistema de Dupla Checagem de Manutenção
- * Módulo: Dashboard (Versão FINAL Frontend - 03/05/2025 v2 - Corrigido e Atualizado com Novos Filtros)
+ * Módulo: Dashboard (Versão FINAL Frontend - Atualizado com filtros e modal de detalhes globais)
  */
 
 const Dashboard = (function() {
@@ -11,19 +11,18 @@ const Dashboard = (function() {
   const REFRESH_INTERVAL = 300000; // 5 minutos
   let dashboardInitialized = false;
 
-  // Constantes para os tipos de filtro (adaptadas para os data-period existentes)
+  // Substitua as constantes FILTER_TYPES existentes por:
   const FILTER_TYPES = {
-    CURRENT_MONTH: 'current-month',
-    LAST_MONTH: 'last-month',
-    LAST_3_MONTHS: 'last-3-months',
-    LAST_6_MONTHS: 'last-6-months',
-    CURRENT_YEAR: 'current-year',
-    ALL: 'all'
+      CURRENT_MONTH: 'current-month',
+      LAST_MONTH: 'last-month',
+      LAST_3_MONTHS: 'last-3-months',
+      LAST_6_MONTHS: 'last-6-months',
+      CURRENT_YEAR: 'current-year',
+      ALL: 'all'
   };
 
   // Estado inicial do filtro
-  let currentFilter = FILTER_TYPES.CURRENT_MONTH; // Padrão corresponde ao botão 'Mês Atual'
-
+  let currentFilter = FILTER_TYPES.CURRENT_MONTH;
 
   /** Limpa instâncias de gráficos anteriores */
   function cleanupCharts() {
@@ -37,43 +36,44 @@ const Dashboard = (function() {
     chartInstances = {};
   }
 
-  // Função createFilterDropdown original era apenas um log, removida da inicialização pois
-  // a nova lógica de filtros não a utiliza e sua implementação não foi fornecida na atualização.
-  // function createFilterDropdown() {
-  //    console.log("Dropdown de filtros criado e configurado.");
-  // }
-
-  /** Inicializa o dashboard */
+  // Substitua ou modifique a função initialize atual
   function initialize() {
-    if (dashboardInitialized) {
-      return;
-    }
-    console.log("Dashboard.initialize() chamado");
+      if (dashboardInitialized) {
+          return;
+      }
+      console.log("Dashboard.initialize() chamado");
 
-    if (!document.getElementById('tab-dashboard')) {
-        console.error("Elemento #tab-dashboard não encontrado. A inicialização do Dashboard não pode continuar.");
-        return;
-    }
+      if (!document.getElementById('tab-dashboard')) {
+          console.error("Elemento #tab-dashboard não encontrado. A inicialização do Dashboard não pode continuar.");
+          return;
+      }
 
-    createPeriodButtonsIfNeeded(); // Cria botões de período/filtro se não existirem
-    initializeFilters();         // Configura os novos listeners de filtro
-    setupRefreshButton();        // Configura listener do botão refresh
-    setupTabNavigation();        // Monitora hashchange
+      // Usar a nova função setupFilters em vez das funções antigas
+      createPeriodButtonsIfNeeded(); // Garante que os botões de filtro/período existam
+      setupFilters();                // Configura os filtros e carrega dados iniciais
+      setupRefreshButton();          // Configura o botão de refresh
+      setupTabNavigation();          // Monitora a navegação por hash
 
-    const isActive = document.getElementById('tab-dashboard').classList.contains('active');
-    const hash = window.location.hash || '#dashboard';
-    if (isActive || hash === '#dashboard') {
-       checkIfDashboard(true); // Passa true para forçar carregamento inicial
-    }
+      // checkIfDashboard agora é mais para sincronizar com a aba ativa/hash e pode não precisar
+      // forçar o carregamento se setupFilters já o fez. A lógica de lastLoadTime deve cobrir isso.
+      const isActive = document.getElementById('tab-dashboard').classList.contains('active');
+      const hash = window.location.hash || '#dashboard';
+      if (isActive || hash === '#dashboard') {
+         // setupFilters já chama loadDashboardData, então checkIfDashboard aqui
+         // só precisa garantir que o estado da aba está correto, e não necessariamente recarregar.
+         // Passar false para não forçar recarga se já carregado.
+         checkIfDashboard(false);
+      }
 
-    dashboardInitialized = true;
-    console.log("Dashboard inicializado com sucesso.");
+      dashboardInitialized = true;
+      console.log("Dashboard inicializado com sucesso.");
   }
+
 
   /** Cria botões de período (que agora funcionam como botões de filtro) se eles não existirem no DOM */
   function createPeriodButtonsIfNeeded() {
     const dashboardHeader = document.querySelector('#tab-dashboard .dashboard-header');
-    if (!dashboardHeader || dashboardHeader.querySelector('.dashboard-controls .period-buttons')) return; // Verifica se os botões já existem
+    if (!dashboardHeader || dashboardHeader.querySelector('.dashboard-controls .period-buttons')) return;
 
     console.log("Criando controles do Dashboard (botões de filtro/refresh)...");
 
@@ -85,7 +85,8 @@ const Dashboard = (function() {
     }
     
     const buttonContainer = document.createElement('div');
-    buttonContainer.className = 'period-buttons'; // Usado como seletor para filtros
+    buttonContainer.className = 'period-buttons';
+    // Usa os valores de FILTER_TYPES para criar os botões
     const periods = [
       { id: FILTER_TYPES.CURRENT_MONTH, label: 'Mês Atual' }, { id: FILTER_TYPES.LAST_MONTH, label: 'Mês Anterior' },
       { id: FILTER_TYPES.LAST_3_MONTHS, label: 'Últimos 3m' }, { id: FILTER_TYPES.LAST_6_MONTHS, label: 'Últimos 6m' },
@@ -94,17 +95,13 @@ const Dashboard = (function() {
     
     periods.forEach(period => {
       const button = document.createElement('button');
-      // Adiciona classe 'filter-button' para consistência se necessário, mas a lógica de filtro usa '.period-btn'
-      button.className = 'period-btn'; // Esta classe é usada pelos seletores de filtro
-      button.setAttribute('data-filter', period.id); // Usa 'data-filter' como na atualização
-      button.setAttribute('data-period', period.id); // Mantém 'data-period' por compatibilidade se houver
+      button.className = 'period-btn';
+      button.setAttribute('data-filter', period.id);
       button.textContent = period.label;
-      if (period.id === currentFilter) { // Marca o filtro padrão como ativo
-          button.classList.add('active');
-      }
+      // O filtro ativo será definido por setupFilters -> activateFilter
       buttonContainer.appendChild(button);
     });
-    controlsContainer.prepend(buttonContainer); // Adiciona botões de filtro no início dos controles
+    controlsContainer.prepend(buttonContainer);
 
     createRefreshButton(controlsContainer);
 
@@ -130,68 +127,66 @@ const Dashboard = (function() {
     console.log("Controles do Dashboard (filtros/refresh) criados/verificados.");
   }
 
-  /** Função para inicializar os filtros (configurar listeners) */
-  function initializeFilters() {
-    const filterButtonsContainer = document.querySelector('#tab-dashboard .period-buttons');
-    if (!filterButtonsContainer) {
-        console.warn("Container de botões de filtro (.period-buttons) não encontrado para adicionar listener.");
-        return;
-    }
-    
-    // Adicionar evento de clique DELEGADO ao container dos botões de filtro
-    filterButtonsContainer.removeEventListener('click', handleFilterClick); // Garante que não haja duplicatas
-    filterButtonsContainer.addEventListener('click', handleFilterClick);
-    console.log("Listeners dos botões de filtro configurados via delegação em .period-buttons.");
-
-    // Ativar o filtro padrão visualmente (já feito em createPeriodButtonsIfNeeded e currentFilter já definido)
-    // activateFilter(currentFilter); // Assegura o estado visual correto
-
-    // O carregamento inicial de dados é tratado por checkIfDashboard -> loadDashboardData
-    // loadDashboardData(currentFilter, true); // Não carregar aqui, checkIfDashboard fará.
+  // Função para inicializar os filtros (use esta função em vez de initializeFilters ou createFilterDropdown)
+  function setupFilters() {
+      console.log("Configurando sistema de filtros do dashboard...");
+      
+      // Garantir que apenas existe um conjunto de botões de filtro
+      const filterButtons = document.querySelectorAll('.period-btn');
+      if (filterButtons.length === 0) {
+          console.error("Botões de filtro não encontrados! Verifique o HTML.");
+          return;
+      }
+      
+      // Remover listeners anteriores para evitar duplicação e adicionar o novo
+      filterButtons.forEach(button => {
+          button.removeEventListener('click', handleFilterClick); // Remove listener específico
+          button.addEventListener('click', handleFilterClick);
+      });
+      
+      // Aplicar visual correto ao filtro ativo (currentFilter é o padrão no início)
+      activateFilter(currentFilter);
+      
+      // Iniciar carregamento de dados com o filtro atual
+      // A flag 'true' força o carregamento, mesmo que os dados existam,
+      // útil para a carga inicial ou se a lógica de `lastLoadTime` não for suficiente.
+      loadDashboardData(currentFilter, true); 
+      
+      console.log("Sistema de filtros configurado com sucesso.");
   }
 
-  /** Função para lidar com cliques nos botões de filtro (delegação) */
+  // Substitua a função handleFilterClick existente
   function handleFilterClick(e) {
-    const targetButton = e.target.closest('.period-btn'); // Botões de período agora são botões de filtro
-    if (!targetButton) return;
-
-    const filterType = targetButton.dataset.filter; // Usar data-filter
-    if (!filterType) return;
-    
-    if (filterType === currentFilter && targetButton.classList.contains('active')) {
-      // Se o filtro já estiver ativo e o botão clicado é o ativo, não faz nada
-      // (útil se o clique não for necessariamente para mudar)
-      // Para forçar recarga no mesmo filtro, usar o botão refresh.
-      return;
-    }
-    
-    activateFilter(filterType); // Ativa o novo filtro (estado e visual)
-    loadDashboardData(filterType, true); // Carrega dados com o novo filtro, forçando a atualização
+      // O target do evento é o próprio botão, já que o listener é nele
+      if (!e.target.classList.contains('period-btn')) return; // Segurança extra
+      
+      const filterType = e.target.dataset.filter;
+      // Se não há tipo de filtro ou é o mesmo que já está ativo, não faz nada.
+      // Para recarregar o mesmo filtro, o usuário deve usar o botão de refresh.
+      if (!filterType || filterType === currentFilter) return;
+      
+      console.log(`Filtro alterado para: ${filterType}`);
+      activateFilter(filterType);
+      loadDashboardData(filterType, true); // Força o recarregamento com o novo filtro
   }
 
-  /** Função para ativar visualmente um filtro e atualizar o estado */
+  // Substitua a função activateFilter existente
   function activateFilter(filterType) {
-    console.log("Ativando filtro:", filterType);
-    currentFilter = filterType; // Atualiza o filtro atual no estado do módulo
-    
-    const filterButtons = document.querySelectorAll('#tab-dashboard .period-btn');
-    filterButtons.forEach(button => {
-        button.classList.remove('active');
-    });
-    
-    const activeButton = document.querySelector(`.period-btn[data-filter="${filterType}"]`);
-    if (activeButton) {
-        activeButton.classList.add('active');
-    } else {
-        console.warn(`Botão de filtro para '${filterType}' não encontrado para ativar visualmente.`);
-    }
-
-    // Limpar campos de filtro de data customizado (se existirem no HTML)
-    // A atualização não implementa filtro customizado, mas esta é uma boa prática.
-    const startDateInput = document.getElementById('filterStartDate');
-    const endDateInput = document.getElementById('filterEndDate');
-    if (startDateInput) startDateInput.value = '';
-    if (endDateInput) endDateInput.value = '';
+      if (!filterType) return;
+      
+      currentFilter = filterType; // Atualiza o estado do filtro atual
+      document.querySelectorAll('.period-btn').forEach(button => {
+          button.classList.remove('active');
+      });
+      
+      const activeButton = document.querySelector(`.period-btn[data-filter="${filterType}"]`);
+      if (activeButton) {
+          activeButton.classList.add('active');
+      } else {
+          console.warn(`Botão para o filtro "${filterType}" não encontrado.`);
+          // Se o botão não for encontrado, talvez ativar o primeiro como fallback ou logar erro
+          // Por ora, apenas loga um aviso.
+      }
   }
 
   /** Configura o listener do botão de refresh via delegação */
@@ -201,7 +196,8 @@ const Dashboard = (function() {
        console.warn("Container de controles não encontrado para listener do refresh.");
        return;
      }
-    controlsContainer.removeEventListener('click', handleRefreshButtonClick); // Evita duplicatas
+    // Listener delegado ao container de controles
+    controlsContainer.removeEventListener('click', handleRefreshButtonClick);
     controlsContainer.addEventListener('click', handleRefreshButtonClick);
     console.log("Listener do botão Refresh configurado via delegação.");
   }
@@ -211,12 +207,9 @@ const Dashboard = (function() {
      const targetButton = event.target.closest('#refresh-dashboard');
      if (!targetButton) return;
 
-     console.log("Atualização manual do dashboard solicitada");
-     
-     // A lógica de filtro de data customizado foi removida daqui pois a atualização foca em filtros pré-definidos.
-     // O refresh agora usa o currentFilter ativo.
+     console.log("Atualização manual do dashboard solicitada via botão refresh");
      console.log("Atualizando com filtro pré-definido:", currentFilter);
-     loadDashboardData(currentFilter, true); // Força recarregamento com o filtro ATUAL
+     loadDashboardData(currentFilter, true); 
 
      targetButton.classList.remove('rotating');
      void targetButton.offsetWidth;
@@ -242,8 +235,8 @@ const Dashboard = (function() {
      window.addEventListener('hashchange', () => checkIfDashboard(false), false);
    }
 
-   /** Verifica se a aba Dashboard está ativa e carrega/atualiza dados */
-   function checkIfDashboard(isInitialLoad = false) {
+   /** Verifica se a aba Dashboard está ativa e carrega/atualiza dados se necessário */
+   function checkIfDashboard(isInitialLoadDueToHash = false) {
      const hash = window.location.hash || '#dashboard';
      const dashboardTabElement = document.getElementById('tab-dashboard');
 
@@ -251,12 +244,22 @@ const Dashboard = (function() {
         const isActive = dashboardTabElement.classList.contains('active');
         if (isActive) {
            console.log("Verificando aba Dashboard (ativa)...");
-           // A lógica de decidir se carrega ou não (baseada em REFRESH_INTERVAL)
-           // está agora dentro de loadDashboardData.
-           // isInitialLoad é passado como 'force' para loadDashboardData.
-           const filterToLoad = currentFilter; // Carrega com o filtro atualmente selecionado/padrão
-           const delay = isInitialLoad ? 200 : 0;
-           setTimeout(() => { loadDashboardData(filterToLoad, isInitialLoad); }, delay);
+           const currentTime = Date.now();
+           // Se for uma carga inicial devido ao hash (ex: refresh da página na aba) E os dados já foram
+           // carregados por setupFilters (lastLoadTime > 0 e recente), não precisa recarregar.
+           const dataJustLoadedBySetup = lastLoadTime > 0 && (currentTime - lastLoadTime < 1000); // Pequena margem
+
+           const needsLoad = (isInitialLoadDueToHash && !dataJustLoadedBySetup) || // Carga inicial se não acabou de carregar
+                             !dashboardData || // Sem dados
+                             (currentTime - lastLoadTime > REFRESH_INTERVAL); // Intervalo de refresh passou
+
+           if (needsLoad) {
+             console.log(`Carregando dados em checkIfDashboard (${isInitialLoadDueToHash ? 'hash inicial' : (!dashboardData ? 'sem dados' : 'refresh interval')}) para filtro: ${currentFilter}`);
+             // A flag 'true' para force em loadDashboardData será baseada em 'needsLoad' implicando uma necessidade.
+             loadDashboardData(currentFilter, true);
+           } else {
+             console.log("Dashboard ativo, usando dados existentes ou recém-carregados por setupFilters.");
+           }
         }
      }
    }
@@ -266,7 +269,6 @@ const Dashboard = (function() {
   function calculateDateRange(filterType) {
     const now = new Date();
     let startDate;
-    // Define endDate como o final do dia atual por padrão para a maioria dos filtros.
     let endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     
     switch (filterType) {
@@ -275,23 +277,22 @@ const Dashboard = (function() {
             break;
         case FILTER_TYPES.LAST_MONTH:
             startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-            endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999); // Último dia do mês anterior
+            endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
             break;
         case FILTER_TYPES.LAST_3_MONTHS:
-            startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+            startDate = new Date(now.getFullYear(), now.getMonth() - 2, 1); // Mês atual (M) - 2 = M-2. Ex: Maio(4) - 2 = Março(2). Mês 2, 3, 4.
             break;
         case FILTER_TYPES.LAST_6_MONTHS:
-            startDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+            startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1); // Mês atual (M) - 5 = M-5.
             break;
         case FILTER_TYPES.CURRENT_YEAR:
             startDate = new Date(now.getFullYear(), 0, 1);
             break;
         case FILTER_TYPES.ALL:
         default:
-            startDate = new Date(2000, 0, 1); // Data bem antiga para "Todos"
+            startDate = new Date(2000, 0, 1);
             break;
     }
-    // Garante que startDate seja o início do dia.
     if (startDate) {
         startDate.setHours(0, 0, 0, 0);
     }
@@ -300,7 +301,7 @@ const Dashboard = (function() {
 
   /** Função auxiliar para formatar data como yyyy-mm-dd para a API */
   function formatDateForAPI(date) {
-    if (!date || !(date instanceof Date) || isNaN(date)) return ''; // Retorna string vazia se data inválida
+    if (!date || !(date instanceof Date) || isNaN(date)) return '';
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -312,7 +313,6 @@ const Dashboard = (function() {
     const formattedStartDate = formatDateForAPI(startDate);
     const formattedEndDate = formatDateForAPI(endDate);
     
-    // API_URL deve estar definida globalmente ou ser acessível (ex: const API_URL = "/api/main.php";)
     if (typeof API_URL === 'undefined') {
         console.error("API_URL não está definida. Não é possível buscar dados do dashboard.");
         return Promise.resolve({ success: false, message: "API_URL não configurada." });
@@ -326,14 +326,9 @@ const Dashboard = (function() {
     return fetch(url)
         .then(response => {
             if (!response.ok) {
-                // Tenta pegar uma mensagem de erro do corpo da resposta, se houver
                 return response.text().then(text => {
-                    try {
-                        const errData = JSON.parse(text);
-                        throw new Error(errData.message || `Erro HTTP: ${response.status}`);
-                    } catch (e) {
-                        throw new Error(text || `Erro HTTP: ${response.status}`);
-                    }
+                    try { const errData = JSON.parse(text); throw new Error(errData.message || `Erro HTTP: ${response.status}`); }
+                    catch (e) { throw new Error(text || `Erro HTTP: ${response.status}`); }
                 });
             }
             return response.json();
@@ -344,15 +339,11 @@ const Dashboard = (function() {
         });
   }
 
-  /** Carrega dados do dashboard via API (AGORA USANDO FILTROS DE DATA) */
+  /** Carrega dados do dashboard via API */
   function loadDashboardData(filterType = currentFilter, force = false) {
     const currentTime = Date.now();
-    // Se não for forçado, e os dados existem, e o intervalo de refresh não passou, E o filtro é o mesmo: não carrega.
     if (!force && dashboardData && (currentTime - lastLoadTime < REFRESH_INTERVAL) && filterType === currentFilter) {
       console.log("Dados recentes para o filtro atual, pulando carregamento.");
-      // Se o dashboard já estiver renderizado com esses dados, não precisa fazer nada.
-      // Se precisar garantir que está renderizado, descomente:
-      // renderDashboard(dashboardData); 
       return;
     }
 
@@ -363,12 +354,11 @@ const Dashboard = (function() {
     const dateRange = calculateDateRange(filterType);
     
     fetchDashboardData(dateRange.startDate, dateRange.endDate)
-      .then(response => { // 'response' é o objeto JSON da API
+      .then(response => {
         console.log("Resposta API (filtrada):", JSON.stringify(response, null, 2));
         if (response && response.success === true) {
-          dashboardData = response; // Armazena toda a resposta da API
+          dashboardData = response;
           lastLoadTime = currentTime;
-          // currentFilter já foi atualizado por activateFilter ANTES de chamar loadDashboardData
           renderDashboard(dashboardData);
         } else {
           console.error("Erro retornado pela API (filtrada) ou resposta não sucedida:", response);
@@ -376,7 +366,7 @@ const Dashboard = (function() {
           renderDashboard(createEmptyDashboardResponse(response?.message || "Erro ao obter dados da API"));
         }
       })
-      .catch(error => { // Este catch pode ser redundante se fetchDashboardData já tratar e retornar um objeto de erro.
+      .catch(error => {
         console.error("Falha crítica na requisição API (filtrada):", error);
         showLoadingError(`Falha na comunicação com a API: ${error.message}.`);
         renderDashboard(createEmptyDashboardResponse(error.message));
@@ -401,15 +391,9 @@ const Dashboard = (function() {
     try {
       checkAndCreateChartContainers();
       renderSummaryCards(data.summary || {});
-      
-      // A função renderCharts espera o objeto de dados completo.
-      // O backend deve retornar os dados para os gráficos nas chaves que renderCharts espera
-      // (ex: data.maintenanceStatuses, data.problemCategories, etc.)
       renderCharts(data); 
-
       renderRecentMaintenances(data.equipmentRanking || [], 'equipment-ranking-tbody');
       renderRecentMaintenances(data.recentMaintenances || [], 'recent-maintenance-tbody');
-
       console.log("Dashboard renderizado com sucesso.");
     } catch (error) {
       console.error("Erro CRÍTICO ao renderizar dashboard:", error);
@@ -435,7 +419,6 @@ const Dashboard = (function() {
     });
   }
 
-   /** Cria cards de sumário se necessário (chamado no initialize original, mas pode não ser mais preciso se o HTML for fixo) */
    function createSummaryCardsIfNeeded() {
        const dashboardContent = document.getElementById('tab-dashboard');
        if (!dashboardContent || dashboardContent.querySelector('.summary-cards')) return;
@@ -462,7 +445,7 @@ const Dashboard = (function() {
    }
 
   /** Chama as funções de renderização para todos os gráficos */
-  function renderCharts(chartData) { // chartData aqui é o objeto 'data' completo da API
+  function renderCharts(chartData) {
       console.log("Renderizando gráficos...");
       renderStatusChart(chartData.maintenanceStatuses || [], 'maintenance-status-chart');
       renderProblemCategoriesChart(chartData.problemCategories || [], 'problem-categories-chart');
@@ -478,10 +461,6 @@ const Dashboard = (function() {
       console.log("Chamadas de renderização de gráficos concluídas.");
   }
 
-
-  // ===========================================================
-  // FUNÇÕES DE RENDERIZAÇÃO DE GRÁFICOS (Refatoradas para reutilização)
-  // ===========================================================
   function renderGenericChart(chartId, chartType, chartData, options = {}, chartKey = null) {
       const canvas = document.getElementById(chartId);
       if (!canvas) { console.error(`Canvas #${chartId} não encontrado!`); return; }
@@ -497,12 +476,11 @@ const Dashboard = (function() {
         newCanvas.style.width = canvas.style.width || '100%';
         parent.appendChild(newCanvas);
         canvas = newCanvas;
-        console.log(`Canvas #${chartId} recriado após remover mensagem 'sem dados'.`);
       }
 
       const isValidData = chartData && Array.isArray(chartData) && chartData.length > 0 && chartData.some(item => (item.count || 0) > 0);
       
-      if (!isValidData && chartId !== 'maintenance-frequency-chart') { // Frequency chart tem seu próprio handler de no-data
+      if (!isValidData && chartId !== 'maintenance-frequency-chart') {
         console.warn(`Dados inválidos/vazios para ${chartId}. Exibindo placeholder.`);
         const ctx = canvas.getContext('2d');
         canvas.height = 150; 
@@ -527,7 +505,7 @@ const Dashboard = (function() {
           const labels = dataToRender.map(item => item.label || 'N/A');
           const counts = dataToRender.map(item => item.count || 0);
           let colors = generateColorPalette(labels.length);
-
+          // Usa a getStatusColor global agora
           if (chartId === 'maintenance-status-chart') colors = labels.map(l => getStatusColor(l));
           else if (chartId === 'critical-vs-regular-chart') colors = labels.map(l => l === 'Críticas' ? '#FF5630' : '#36B37E');
           else if (chartId === 'verification-results-chart') colors = labels.map(l => getStatusColor(l));
@@ -560,7 +538,6 @@ const Dashboard = (function() {
               data: { labels, datasets: [{ data: counts, backgroundColor: colors, borderWidth: (chartType === 'pie' || chartType === 'doughnut') ? 0 : 1 }] },
               options: mergedOptions
           });
-          console.log(`${chartId} (${chartType}) renderizado.`);
       } catch (error) { console.error(`Erro ao renderizar ${chartId}:`, error); }
   }
 
@@ -590,7 +567,6 @@ const Dashboard = (function() {
 
        const isValidData = data && Array.isArray(data) && data.length > 0 && data.some(item => (item.count || 0) > 0);
        const isPlaceholder = !isValidData;
-       if (isPlaceholder) console.warn(`Dados de Tendência inválidos/vazios para ${chartId}.`);
 
        try {
            const instanceKey = 'trendChart';
@@ -602,7 +578,6 @@ const Dashboard = (function() {
                data: { labels, datasets: [{ label: 'Manutenções', data: counts, borderColor: isPlaceholder ? '#cccccc' : '#3f51b5', backgroundColor: isPlaceholder ? 'transparent' : 'rgba(63, 81, 181, 0.1)', borderWidth: 2, pointRadius: isPlaceholder ? 0 : 3, fill: !isPlaceholder, tension: 0.1 }] },
                options: options
            });
-           console.log(`${chartId} (line) renderizado.`);
        } catch (error) { console.error(`Erro ao renderizar ${chartId}:`, error); }
   }
 
@@ -631,7 +606,6 @@ const Dashboard = (function() {
     }
   
     if (!chartData || chartData.length === 0) {
-      console.warn(`Não há dados para o gráfico ${containerId}`);
       const noDataElement = document.createElement('div');
       noDataElement.className = 'no-data-message';
       noDataElement.style.cssText = `display:flex; flex-direction:column; align-items:center; justify-content:center; height:150px; background-color:#f8f9fa; border-radius:6px; padding:20px; text-align:center;`;
@@ -647,13 +621,11 @@ const Dashboard = (function() {
   
     renderGenericChart(containerId, 'bar', chartData, {
       indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `Intervalo Médio: ${ctx.parsed.x} dias` } } },
+      // Usa a getStatusClass global
       scales: { x: { beginAtZero: true, title: { display: true, text: 'Intervalo Médio (dias)'}, ticks: { precision: 0 } }, y: { ticks: { autoSkip: false } } }
     }, instanceKey);
   }
 
-  // ===========================================================
-  // FUNÇÃO PARA RENDERIZAR TABELAS (Ranking e Recentes)
-  // ===========================================================
    function renderRecentMaintenances(items, tbodyId) {
        const tableBody = document.getElementById(tbodyId);
        if (!tableBody) { console.warn(`Tbody #${tbodyId} não encontrado!`); return; }
@@ -669,8 +641,9 @@ const Dashboard = (function() {
 
        items.forEach(item => {
            const row = document.createElement('tr');
-           row.dataset.id = item.id; // Adiciona ID ao TR para consistência com `e.currentTarget.closest('tr').dataset.id;`
+           row.dataset.id = item.id;
            let html = '';
+           // Usar as funções globais formatDate e getStatusClass
            if (tbodyId === 'equipment-ranking-tbody') {
                html = `<td>${item.identifier || item.id || '-'}</td> <td>${item.name || item.type || '-'}</td> <td>${item.maintenanceCount || 0}</td> <td>${formatDate(item.lastMaintenanceDate)}</td> <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td>`;
            } else if (tbodyId === 'recent-maintenance-tbody') {
@@ -682,227 +655,336 @@ const Dashboard = (function() {
 
         const listenerKey = tbodyId.replace(/-([a-z])/g, g => g[1].toUpperCase()) + 'ListenerSet';
         if (!tableBody.dataset[listenerKey]) {
-           tableBody.addEventListener('click', handleTableActionClick); // Agora chama a handleTableActionClick atualizada
+           tableBody.addEventListener('click', handleTableActionClick);
            tableBody.dataset[listenerKey] = 'true';
-           console.log(`Listener de clique configurado para #${tbodyId} com chave dataset: ${listenerKey}`);
         }
    }
 
-   /** Handler DELEGADO para cliques nos botões de ação das tabelas (ATUALIZADO) */
+   /** Handler DELEGADO para cliques nos botões de ação das tabelas (SIMPLIFICADO) */
     function handleTableActionClick(e) {
-        // O clique pode ser no ícone dentro do botão, então .closest() é importante.
-        const button = e.target.closest('.view-maintenance'); // Foca no botão de visualização
-        if (!button) return; // Se não for o botão de visualização, ignora por enquanto
+        const button = e.target.closest('.view-maintenance');
+        if (!button) return;
 
-        // A atualização original sugeria e.currentTarget.closest('tr').dataset.id;
-        // Mas o data-id já está no botão, que é mais direto.
-        const id = button.dataset.id; 
+        const id = button.dataset.id || e.target.closest('tr')?.dataset.id;
         if (!id) {
-            // Fallback para pegar do TR se o botão não tiver o ID (mas deveria ter)
-            const trId = e.target.closest('tr')?.dataset.id;
-            if (!trId) {
-                console.warn("Não foi possível obter o ID da manutenção para visualização.");
-                return;
-            }
-            id = trId;
+            console.warn("Não foi possível obter o ID da manutenção para visualização.");
+            return;
         }
         
-        console.log(`Visualizar manutenção ID: ${id}`);
-        
-        // Lógica da atualização para chamar viewMaintenanceDetails ou o modal
+        console.log(`Chamando window.viewMaintenanceDetails para ID: ${id}`);
+        // Chama a função global diretamente.
+        // O fallback para showMaintenanceDetailsModal interno foi removido, pois
+        // window.viewMaintenanceDetails agora gerencia isso.
         if (typeof window.viewMaintenanceDetails === 'function') {
             window.viewMaintenanceDetails(id);
-        } else if (typeof viewMaintenanceDetails === 'function') { // Pouco provável de ser diferente de window.
-            viewMaintenanceDetails(id);
         } else {
-            console.log("Função viewMaintenanceDetails não encontrada globalmente, usando modal fallback.");
-            showMaintenanceDetailsModal(id); // Fallback para o novo modal
+            console.error("Função global 'window.viewMaintenanceDetails' não encontrada.");
+            alert(`Erro: Função de visualização de detalhes (ID: ${id}) não está disponível.`);
         }
-        // Se houver outros botões de ação (editar, excluir), adicionar lógica aqui com `else if (e.target.closest('.edit-maintenance'))` etc.
     }
 
-  // ==================================================================
-  // NOVAS FUNÇÕES PARA MODAL DE DETALHES DA MANUTENÇÃO (DA ATUALIZAÇÃO)
-  // ==================================================================
-
-  /** Exibe um modal com os detalhes da manutenção (fallback) */
-  function showMaintenanceDetailsModal(id) {
-    fetchMaintenanceDetails(id) // Nova função para buscar detalhes específicos
-        .then(data => {
-            if (data && data.success && data.details) { // Assumindo que a API retorna { success: true, details: {...} }
-                const modalContent = createMaintenanceDetailsContent(data.details);
-                // showModal é uma função global/utilitária esperada (ex: Utilities.showModal)
-                if (typeof Utilities !== 'undefined' && Utilities.showModal) {
-                    Utilities.showModal(`Detalhes da Manutenção ${id}`, modalContent, null, { large: true });
-                } else if (typeof showModal === 'function') {
-                    showModal(`Detalhes da Manutenção ${id}`, modalContent);
-                } else {
-                    console.error("Função showModal não encontrada para exibir detalhes.");
-                    alert("Detalhes:\n" + JSON.stringify(data.details, null, 2)); // Fallback muito simples
-                }
-            } else {
-                console.error("Erro ao buscar detalhes ou dados inválidos:", data);
-                showNotification(data?.message || "Não foi possível obter os detalhes da manutenção.", "error");
-            }
-        })
-        .catch(error => {
-            console.error("Erro na promessa ao buscar detalhes:", error);
-            showNotification("Erro crítico ao buscar detalhes da manutenção.", "error");
-        });
-  }
-
-  /** Cria o conteúdo HTML para o modal de detalhes da manutenção */
-  function createMaintenanceDetailsContent(maintenance) {
-    const content = document.createElement('div');
-    content.className = 'maintenance-details-modal-content'; // Classe para estilização
-    // Estilos básicos inline para o modal (idealmente, isso estaria no CSS)
-    content.style.cssText = `
-        font-size: 0.9rem;
-        line-height: 1.6;
-    `;
-    
-    content.innerHTML = `
-        <style>
-            .maintenance-details-modal-content .detail-row { margin-bottom: 8px; display: flex; }
-            .maintenance-details-modal-content .detail-label { font-weight: bold; min-width: 120px; color: #333; }
-            .maintenance-details-modal-content .detail-value { color: #555; }
-            .maintenance-details-modal-content .status-badge-modal { padding: 3px 8px; border-radius: 4px; color: white; font-size: 0.85em; }
-            /* Cores de status para o modal (exemplo, alinhar com getStatusClass) */
-            .status-badge-modal.status-pending { background-color: #FFAB00; }
-            .status-badge-modal.status-verified { background-color: #0052CC; }
-            .status-badge-modal.status-completed { background-color: #36B37E; }
-            .status-badge-modal.status-adjusting { background-color: #FFC400; }
-            .status-badge-modal.status-rejected { background-color: #FF5630; }
-            .status-badge-modal.status-critical { background-color: #BF2600; }
-            .status-badge-modal.status-default { background-color: #6c757d; }
-        </style>
-        <div class="detail-row">
-            <span class="detail-label">ID:</span>
-            <span class="detail-value">${maintenance.id || '-'}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Equipamento:</span>
-            <span class="detail-value">${maintenance.equipment_identifier || maintenance.equipment || '-'}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Tipo Manut.:</span>
-            <span class="detail-value">${maintenance.maintenance_type || maintenance.type || '-'}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Responsável:</span>
-            <span class="detail-value">${maintenance.responsible_name || maintenance.responsible || '-'}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Data Agendada:</span>
-            <span class="detail-value">${maintenance.scheduled_date ? formatDate(maintenance.scheduled_date) : '-'}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Data Conclusão:</span>
-            <span class="detail-value">${maintenance.completion_date ? formatDate(maintenance.completion_date) : '-'}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Status:</span>
-            <span class="detail-value">
-                <span class="status-badge-modal status-${getStatusClass(maintenance.status)}">
-                    ${maintenance.status || '-'}
-                </span>
-            </span>
-        </div>
-        <div class="detail-row" style="flex-direction: column;">
-            <span class="detail-label" style="margin-bottom: 4px;">Descrição:</span>
-            <span class="detail-value" style="white-space: pre-wrap; background: #f9f9f9; padding: 5px; border-radius:3px;">${maintenance.description || '-'}</span>
-        </div>
-        ${maintenance.notes ? `
-        <div class="detail-row" style="flex-direction: column; margin-top: 10px;">
-            <span class="detail-label" style="margin-bottom: 4px;">Observações da Verificação:</span>
-            <span class="detail-value" style="white-space: pre-wrap; background: #f9f9f9; padding: 5px; border-radius:3px;">${maintenance.notes}</span>
-        </div>` : ''}
-    `;
-    // Adaptei os nomes dos campos (ex: maintenance.equipment_identifier) para um formato mais comum de API.
-    // Ajuste conforme a sua API de detalhes retorna.
-    return content;
-  }
-
-  /** Função para buscar detalhes de uma manutenção específica via API */
-  function fetchMaintenanceDetails(id) {
-    // API_URL deve estar definida globalmente ou ser acessível
-    if (typeof API_URL === 'undefined') {
-        console.error("API_URL não está definida. Não é possível buscar detalhes da manutenção.");
-        return Promise.resolve({ success: false, message: "API_URL não configurada." });
-    }
-
-    const url = `${API_URL}?action=getMaintenanceDetails&id=${id}`;
-    console.log("Buscando detalhes da manutenção da API:", url);
-
-    return fetch(url)
-        .then(response => {
-            if (!response.ok) {
-                // Tenta pegar uma mensagem de erro do corpo da resposta
-                return response.text().then(text => {
-                    try {
-                        const errData = JSON.parse(text);
-                        throw new Error(errData.message || `Erro HTTP: ${response.status}`);
-                    } catch (e) { // Se não for JSON
-                        throw new Error(text || `Erro HTTP: ${response.status}`);
-                    }
-                });
-            }
-            return response.json(); // Espera-se { success: true, details: { ... } }
-        })
-        .catch(error => {
-            console.error('Erro em fetchMaintenanceDetails:', error);
-            return { success: false, message: error.message || "Erro ao buscar detalhes da manutenção via API." };
-        });
-  }
-
-
-  // ===========================================================
-  // FUNÇÕES UTILITÁRIAS INTERNAS E GLOBAIS
-  // ===========================================================
-  function generateColorPalette(count) { /* ... (código original mantido) ... */ const baseColors = ['#0052CC', '#36B37E', '#FFAB00', '#6554C0', '#FF5630', '#00B8D9', '#FFC400', '#4C9AFF', '#79F2C0', '#FF8B00']; if (count <= baseColors.length) return baseColors.slice(0, count); const colors = [...baseColors]; const step = 360 / (count - baseColors.length); const baseHue = 200; for (let i = 0; i < count - baseColors.length; i++) { colors.push(`hsl(${(baseHue + i * step) % 360}, 75%, 55%)`); } return colors; }
-  function getStatusClass(status) { /* ... (código original mantido) ... */ if (!status) return 'default'; const s = String(status).toLowerCase(); if (s.includes('pendente') || s.includes('aguardando')) return 'pending'; if (s.includes('verificado') || s.includes('aprovado')) return 'verified'; if (s.includes('concluído') || s.includes('concluido')) return 'completed'; if (s.includes('ajustes') || s.includes('andamento')) return 'adjusting'; if (s.includes('reprovado') || s.includes('rejeitado')) return 'rejected'; if (s.includes('crítico') || s.includes('critico')) return 'critical'; if (s.includes('info') || s.includes('ok')) return 'info'; return 'default'; }
-  function getStatusColor(status) { /* ... (código original mantido) ... */ if (!status) return '#adb5bd'; const s = String(status).toLowerCase(); if (s.includes('pendente') || s.includes('aguardando')) return '#FFAB00'; if (s.includes('verificado') || s.includes('aprovado')) return '#0052CC'; if (s.includes('concluído') || s.includes('concluido')) return '#36B37E'; if (s.includes('ajustes')) return '#FFC400'; if (s.includes('reprovado') || s.includes('rejeitado')) return '#FF5630'; if (s.includes('crítico') || s.includes('critico')) return '#BF2600'; return '#6c757d'; }
+  function generateColorPalette(count) { const baseColors = ['#0052CC', '#36B37E', '#FFAB00', '#6554C0', '#FF5630', '#00B8D9', '#FFC400', '#4C9AFF', '#79F2C0', '#FF8B00']; if (count <= baseColors.length) return baseColors.slice(0, count); const colors = [...baseColors]; const step = 360 / (count - baseColors.length); const baseHue = 200; for (let i = 0; i < count - baseColors.length; i++) { colors.push(`hsl(${(baseHue + i * step) % 360}, 75%, 55%)`); } return colors; }
+  // getStatusClass e formatDate foram movidas para o escopo global
   
-  /** Formata uma data (DD/MM/YYYY) - Função original mantida para exibição */
-  function formatDate(dateInput) {
-    if (!dateInput) return '-';
-    if (typeof Utilities !== 'undefined' && Utilities.formatDate) {
-        try { return Utilities.formatDate(dateInput); } catch (e) { console.warn("Erro ao usar Utilities.formatDate, usando fallback:", e); }
-    }
-    try {
-      let date;
-      if (typeof dateInput === 'string' && dateInput.includes('T')) { date = new Date(dateInput.split('T')[0] + 'T00:00:00'); } 
-      else { date = new Date(dateInput); }
-      if (isNaN(date.getTime())) { if (typeof dateInput === 'string') return dateInput.split('T')[0]; return String(dateInput); }
-      date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const year = date.getFullYear();
-      if (year < 1900 || year > 3000) return '-';
-      return `${day}/${month}/${year}`;
-    } catch(e) { console.error("Erro ao formatar data (fallback):", e, "Input:", dateInput); return String(dateInput); }
-  }
-
-  function showLoading(show, message = 'Carregando...') { /* ... (código original mantido) ... */ if (typeof Utilities !== 'undefined' && Utilities.showLoading) { try { Utilities.showLoading(show, message); return; } catch (e) {} } const loader = document.getElementById('global-loader'); if (loader) { loader.style.display = show ? 'flex' : 'none'; const msgEl = document.getElementById('global-loader-message'); if (msgEl) msgEl.textContent = message; } else if (show) { console.warn("Loader global não encontrado"); } }
-  function showLoadingError(message) { /* ... (código original mantido) ... */ if (typeof Utilities !== 'undefined' && Utilities.showNotification) { try { Utilities.showNotification(message, 'error', 8000); return; } catch(e) {} } console.error("Dashboard Error:", message); }
+  function showLoading(show, message = 'Carregando...') { if (typeof Utilities !== 'undefined' && Utilities.showLoading) { try { Utilities.showLoading(show, message); return; } catch (e) {} } const loader = document.getElementById('global-loader'); if (loader) { loader.style.display = show ? 'flex' : 'none'; const msgEl = document.getElementById('global-loader-message'); if (msgEl) msgEl.textContent = message; } else if (show) { console.warn("Loader global não encontrado"); } }
+  function showLoadingError(message) { if (typeof Utilities !== 'undefined' && Utilities.showNotification) { try { Utilities.showNotification(message, 'error', 8000); return; } catch(e) {} } console.error("Dashboard Error:", message); }
   
-  function checkAndCreateChartContainers() { /* ... (código original mantido) ... */ const requiredCanvasIds = [ 'maintenance-status-chart', 'problem-categories-chart', 'monthly-trend-chart', 'area-distribution-chart', 'critical-vs-regular-chart', 'verification-results-chart', 'maintenance-frequency-chart' ]; let dashboardGrid = document.querySelector('#tab-dashboard .dashboard-grid'); if (!dashboardGrid) { console.log("Container .dashboard-grid não encontrado. Criando..."); dashboardGrid = document.createElement('div'); dashboardGrid.className = 'dashboard-grid'; dashboardGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin: 1.5rem 0;'; const dashboardTab = document.getElementById('tab-dashboard'); if (dashboardTab) { const summaryCards = dashboardTab.querySelector('.summary-cards'); if (summaryCards) { summaryCards.after(dashboardGrid); } else { dashboardTab.appendChild(dashboardGrid); } } else { console.error("Elemento #tab-dashboard também não encontrado. Não é possível criar container de gráficos."); return; } } requiredCanvasIds.forEach(id => { if (!document.getElementById(id)) { console.log(`Canvas #${id} não encontrado. Criando...`); const chartContainer = document.createElement('div'); chartContainer.className = 'chart-container'; chartContainer.style.cssText = 'position: relative; min-height: 250px; width: 100%; margin-bottom: 1rem;'; const canvas = document.createElement('canvas'); canvas.id = id; canvas.style.height = '200px'; chartContainer.appendChild(canvas); dashboardGrid.appendChild(chartContainer); } }); }
-  function deepMerge(target, source) { /* ... (código original mantido) ... */ const output = Object.assign({}, target); if (isObject(target) && isObject(source)) { Object.keys(source).forEach(key => { if (isObject(source[key])) { if (!(key in target)) Object.assign(output, { [key]: source[key] }); else output[key] = deepMerge(target[key], source[key]); } else { Object.assign(output, { [key]: source[key] }); } }); } return output; }
-  function isObject(item) { /* ... (código original mantido) ... */ return (item && typeof item === 'object' && !Array.isArray(item)); }
+  function checkAndCreateChartContainers() { const requiredCanvasIds = [ 'maintenance-status-chart', 'problem-categories-chart', 'monthly-trend-chart', 'area-distribution-chart', 'critical-vs-regular-chart', 'verification-results-chart', 'maintenance-frequency-chart' ]; let dashboardGrid = document.querySelector('#tab-dashboard .dashboard-grid'); if (!dashboardGrid) { dashboardGrid = document.createElement('div'); dashboardGrid.className = 'dashboard-grid'; dashboardGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin: 1.5rem 0;'; const dashboardTab = document.getElementById('tab-dashboard'); if (dashboardTab) { const summaryCards = dashboardTab.querySelector('.summary-cards'); if (summaryCards) { summaryCards.after(dashboardGrid); } else { dashboardTab.appendChild(dashboardGrid); } } else { console.error("Elemento #tab-dashboard também não encontrado."); return; } } requiredCanvasIds.forEach(id => { if (!document.getElementById(id)) { const chartContainer = document.createElement('div'); chartContainer.className = 'chart-container'; chartContainer.style.cssText = 'position: relative; min-height: 250px; width: 100%; margin-bottom: 1rem;'; const canvas = document.createElement('canvas'); canvas.id = id; canvas.style.height = '200px'; chartContainer.appendChild(canvas); dashboardGrid.appendChild(chartContainer); } }); }
+  function deepMerge(target, source) { const output = Object.assign({}, target); if (isObject(target) && isObject(source)) { Object.keys(source).forEach(key => { if (isObject(source[key])) { if (!(key in target)) Object.assign(output, { [key]: source[key] }); else output[key] = deepMerge(target[key], source[key]); } else { Object.assign(output, { [key]: source[key] }); } }); } return output; }
+  function isObject(item) { return (item && typeof item === 'object' && !Array.isArray(item)); }
 
   // API pública do módulo
   return { initialize };
 })();
 
-// --- Inicialização ---
+
+// ==================================================================
+// FUNÇÕES GLOBAIS PARA VISUALIZAÇÃO DE DETALHES DA MANUTENÇÃO
+// (Adicionadas conforme a atualização)
+// ==================================================================
+
+/**
+ * Função para visualizar detalhes de uma manutenção
+ * Esta função deve estar no escopo global para ser acessível
+ * @param {string} id - ID da manutenção a ser visualizada
+ */
+window.viewMaintenanceDetails = function(id) {
+    if (!id) {
+        console.error("ID da manutenção não fornecido para viewMaintenanceDetails");
+        if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+             Utilities.showNotification("ID da manutenção não fornecido.", "error");
+        }
+        return;
+    }
+    
+    console.log(`Visualizando detalhes da manutenção: ${id}`);
+    
+    if (typeof Utilities !== 'undefined' && Utilities.showLoading) {
+        Utilities.showLoading(true, "Carregando detalhes...");
+    }
+    
+    // API_URL deve estar definida globalmente
+    if (typeof API_URL === 'undefined') {
+        console.error("API_URL não está definida. Não é possível buscar detalhes.");
+        if (typeof Utilities !== 'undefined' && Utilities.showLoading) Utilities.showLoading(false);
+        if (typeof Utilities !== 'undefined' && Utilities.showNotification) Utilities.showNotification("Erro de configuração: API_URL não definida.", "error");
+        return;
+    }
+
+    fetch(`${API_URL}?action=getMaintenanceDetails&id=${id}`)
+        .then(response => {
+            if (!response.ok) { // Verifica se a resposta da rede foi bem-sucedida
+                // Tenta ler a mensagem de erro do corpo, se houver
+                return response.json().catch(() => ({ // Se o corpo não for JSON ou estiver vazio
+                    success: false, message: `Erro HTTP: ${response.status} ${response.statusText}`
+                })).then(errData => {
+                    throw new Error(errData.message || `Erro HTTP: ${response.status}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success && data.details) {
+                // A função showMaintenanceDetailsModal está definida abaixo neste escopo global
+                showMaintenanceDetailsModal(data.details);
+            } else {
+                console.error("Erro ao obter detalhes:", data.message || "Resposta inválida da API.");
+                if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+                    Utilities.showNotification(data.message || "Erro ao obter detalhes da manutenção", "error");
+                }
+            }
+        })
+        .catch(error => {
+            console.error("Erro na requisição de detalhes da manutenção:", error);
+            if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+                Utilities.showNotification(error.message || "Erro ao comunicar com o servidor para obter detalhes", "error");
+            }
+        })
+        .finally(() => {
+            if (typeof Utilities !== 'undefined' && Utilities.showLoading) {
+                Utilities.showLoading(false);
+            }
+        });
+};
+
+/**
+ * Exibe o modal com detalhes da manutenção
+ * @param {Object} details - Detalhes da manutenção
+ */
+function showMaintenanceDetailsModal(details) {
+    const overlay = document.getElementById('detail-overlay');
+    if (!overlay) {
+        console.error("Elemento #detail-overlay não encontrado no DOM.");
+        if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+             Utilities.showNotification("Erro de interface: Modal de detalhes não encontrado.", "error");
+        }
+        return;
+    }
+    
+    const contentElement = document.getElementById('maintenance-detail-content');
+    if (!contentElement) {
+        console.error("Elemento #maintenance-detail-content não encontrado no DOM.");
+        if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+             Utilities.showNotification("Erro de interface: Conteúdo do modal não encontrado.", "error");
+        }
+        overlay.style.display = 'none'; // Esconde o overlay se o conteúdo não existir
+        return;
+    }
+    
+    // Construir o conteúdo HTML
+    // Usar as funções globais formatDate e getStatusClass
+    let html = `
+        <div class="detail-header">
+            <h3 class="detail-title">Manutenção ID: ${details.id || '-'}</h3>
+            <span class="detail-subtitle">Registrado em ${formatDate(details.dataRegistro || details.registration_date || details.created_at) || '-'}</span>
+        </div>
+        
+        <div class="detail-section">
+            <h4 class="detail-section-title">Informações do Equipamento</h4>
+            <div class="detail-grid">
+                <div class="detail-field">
+                    <div class="detail-label">Equipamento:</div>
+                    <div class="detail-value">${details.placaOuId || details.equipment_identifier || details.equipment_name || '-'}</div>
+                </div>
+                <div class="detail-field">
+                    <div class="detail-label">Tipo Eq.:</div>
+                    <div class="detail-value">${details.tipoEquipamento || details.equipment_type || '-'}</div>
+                </div>
+                <div class="detail-field">
+                    <div class="detail-label">Local/Oficina:</div>
+                    <div class="detail-value">${details.local || details.oficina || details.location_name || '-'}</div>
+                </div>
+                <div class="detail-field">
+                    <div class="detail-label">Área:</div>
+                    <div class="detail-value">${details.area || details.area_name || '-'}</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="detail-section">
+            <h4 class="detail-section-title">Detalhes da Manutenção</h4>
+            <div class="detail-grid">
+                <div class="detail-field">
+                    <div class="detail-label">Responsável:</div>
+                    <div class="detail-value">${details.responsavel || details.responsible_name || '-'}</div>
+                </div>
+                <div class="detail-field">
+                    <div class="detail-label">Tipo Manut.:</div>
+                    <div class="detail-value">${details.tipoManutencao || details.maintenance_type || '-'}</div>
+                </div>
+                <div class="detail-field">
+                    <div class="detail-label">Status Atual:</div>
+                    <div class="detail-value">
+                        <span class="status-badge status-${getStatusClass(details.status)}">${details.status || 'N/A'}</span>
+                    </div>
+                </div>
+                <div class="detail-field">
+                    <div class="detail-label">É Crítica:</div>
+                    <div class="detail-value">${(details.critica || details.is_critical) ? 'Sim' : 'Não'}</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="detail-section">
+            <h4 class="detail-section-title">Problema</h4>
+            <div class="detail-field">
+                <div class="detail-label">Categoria:</div>
+                <div class="detail-value">${details.categoriaProblem || details.problem_category || '-'}</div>
+            </div>
+            <div class="detail-field" style="grid-column: 1 / -1;">
+                <div class="detail-label">Descrição do Problema:</div>
+                <div class="detail-value problem-description">${details.descricao || details.description || '-'}</div>
+            </div>
+            <div class="detail-field" style="grid-column: 1 / -1;">
+                <div class="detail-label">Observações Adicionais:</div>
+                <div class="detail-value">${details.observacoes || details.notes || '-'}</div>
+            </div>
+        </div>
+    `;
+    
+    if (details.verificacoes && details.verificacoes.length > 0) {
+        html += `
+            <div class="detail-section">
+                <h4 class="detail-section-title">Histórico de Verificações</h4>
+                <div class="timeline">
+        `;
+        
+        details.verificacoes.forEach(verif => {
+            const statusClass = getStatusClass(verif.resultado || verif.result); // Usa global getStatusClass
+            html += `
+                <div class="timeline-item">
+                    <div class="timeline-dot ${statusClass}"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-title">
+                            ${verif.resultado || verif.result || 'Verificação'}
+                            <span class="timeline-date">${formatDate(verif.data || verif.date) || '-'}</span>
+                        </div>
+                        <div class="timeline-description">
+                            Verificador: ${verif.verificador || verif.verifier_name || '-'}<br>
+                            ${verif.comentarios || verif.comments || ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `
+                </div>
+            </div>
+        `;
+    }
+    
+    contentElement.innerHTML = html;
+    overlay.style.display = 'flex';
+    
+    const closeIconBtn = document.getElementById('close-detail'); // Botão X (ícone)
+    const closeFooterBtn = document.getElementById('close-detail-btn'); // Botão "Fechar" no rodapé
+    
+    const closeFunction = function() {
+        overlay.style.display = 'none';
+    };
+
+    if (closeIconBtn) {
+        closeIconBtn.onclick = closeFunction;
+    }
+    if (closeFooterBtn) {
+        closeFooterBtn.onclick = closeFunction;
+    }
+    
+    const verifyBtn = document.getElementById('verify-maintenance-btn');
+    if (verifyBtn) {
+        const statusLower = (details.status || '').toLowerCase();
+        if (statusLower === 'pendente' || statusLower === 'aguardando verificacao' || statusLower === 'aguardando verificação') {
+            verifyBtn.style.display = 'inline-block'; // ou 'block' dependendo do estilo
+            verifyBtn.onclick = function() {
+                overlay.style.display = 'none'; // Fecha o modal de detalhes
+                // Tenta chamar a função para abrir o formulário de verificação
+                if (typeof openVerificationForm === 'function') {
+                    openVerificationForm(details.id);
+                } else if (typeof Verification !== 'undefined' && typeof Verification.openForm === 'function') { // Assumindo um módulo Verification
+                    Verification.openForm(details.id);
+                } else {
+                    console.error("Função para abrir formulário de verificação não encontrada (openVerificationForm ou Verification.openForm)");
+                    if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+                        Utilities.showNotification("Funcionalidade de verificação não disponível.", "warning");
+                    }
+                }
+            };
+        } else {
+            verifyBtn.style.display = 'none';
+        }
+    }
+}
+
+// Função auxiliar global para formatar datas
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    
+    if (typeof Utilities !== 'undefined' && typeof Utilities.formatDate === 'function') {
+        try { return Utilities.formatDate(dateStr); }
+        catch(e) { console.warn("Utilities.formatDate falhou, usando fallback.", e); }
+    }
+    
+    try {
+        const date = new Date(dateStr);
+        // Verifica se a data é válida. Adiciona uma verificação de ano razoável.
+        if (isNaN(date.getTime()) || date.getFullYear() < 1900 || date.getFullYear() > 2100) {
+            // Se a string original parece uma data no formato YYYY-MM-DD, tenta formatá-la.
+            if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+                const parts = dateStr.substring(0, 10).split('-');
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            return dateStr; // Retorna a string original se não puder formatar
+        }
+        // Adiciona o fuso horário para exibir a data local corretamente, se necessário
+        const adjustedDate = new Date(date.valueOf() + date.getTimezoneOffset() * 60 * 1000);
+        return adjustedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    } catch (e) {
+        console.error("Erro ao formatar data (global):", e, "Input:", dateStr);
+        return dateStr; // Retorna a string original em caso de erro
+    }
+}
+
+// Função auxiliar global para obter a classe CSS com base no status
+function getStatusClass(status) {
+    if (!status) return 'default';
+    
+    const s = String(status).toLowerCase();
+    if (s.includes('pendente') || s.includes('aguardando')) return 'pending';
+    if (s.includes('verificado') || s.includes('aprovado') || s.includes('confirmado')) return 'verified';
+    if (s.includes('concluído') || s.includes('concluido') || s.includes('finalizado')) return 'completed';
+    if (s.includes('ajustes') || s.includes('andamento') || s.includes('em progresso')) return 'adjustments'; // Alterado de adjusting
+    if (s.includes('reprovado') || s.includes('rejeitado') || s.includes('cancelado')) return 'rejected';
+    if (s.includes('crítico') || s.includes('critico') || s.includes('urgente')) return 'critical';
+    return 'default';
+}
+
+
+// --- Inicialização do Dashboard ---
 document.addEventListener('DOMContentLoaded', function() {
-  // Assume-se que API_URL está definida globalmente antes deste script, ex:
-  // <script> const API_URL = "/api/seu_endpoint.php"; </script>
-  // Ou definida em api.js se este for carregado antes.
   if (typeof API_URL === 'undefined') {
-      console.warn("AVISO: A constante global API_URL não está definida. As chamadas de API para filtros e detalhes de manutenção podem falhar.");
-      // Poderia até mesmo definir um valor padrão se apropriado, mas é melhor que seja explícito.
-      // window.API_URL = "/api/default_api_endpoint.php"; // Exemplo de fallback
+      console.warn("AVISO: A constante global API_URL não está definida. As chamadas de API podem falhar.");
+      // Exemplo: window.API_URL = "/api/main.php"; // Defina isso no seu HTML ou em um script carregado antes.
   }
 
   if (typeof Chart === 'undefined') {
