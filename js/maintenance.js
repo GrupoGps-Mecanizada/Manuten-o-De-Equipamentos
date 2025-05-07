@@ -39,7 +39,10 @@ const Maintenance = (() => {
     setupBasicListeners();
 
     // Configurar listeners de filtro
-    setupFilterListeners(); // Adicionado conforme Passo 8
+    setupFilterListeners();
+  
+    // Configurar toggle de filtros
+    setupFilterToggle(); // Adicionado conforme solicitação
 
     // Carregar lista de manutenções
     loadMaintenanceList();
@@ -79,9 +82,9 @@ const Maintenance = (() => {
   }
 
   function populateProblemCategories() {
-    const select = document.getElementById('problem-category-select'); // ATUALIZADO (Item 2 da nova instrução)
+    const select = document.getElementById('problem-category-select');
     if (!select) {
-      console.error("Elemento select #problem-category-select não encontrado!"); // ATUALIZADO (Item 2 da nova instrução)
+      console.error("Elemento select #problem-category-select não encontrado!");
       return;
     }
 
@@ -194,15 +197,14 @@ const Maintenance = (() => {
     });
 
     // Listener para categoria de problema
-    addSafeListener('problem-category-select', 'change', function(event) { // ATUALIZADO (Item 4 da nova instrução)
+    addSafeListener('problem-category-select', 'change', function(event) {
       const selectedCategory = this.value;
       console.log(`Categoria de problema alterada para: ${selectedCategory}`);
 
       // Mostrar/esconder campo de "outro" baseado na seleção
       const otherCategoryField = document.getElementById('other-category-field');
       if (otherCategoryField) {
-        // A categoria em DEFAULT_PROBLEM_CATEGORIES é "Outros"
-        otherCategoryField.style.display = selectedCategory === 'Outros' ? 'block' : 'none'; // ATUALIZADO (Item 4 da nova instrução - "Outros")
+        otherCategoryField.style.display = selectedCategory === 'Outros' ? 'block' : 'none';
       }
     });
   }
@@ -229,11 +231,8 @@ const Maintenance = (() => {
   function addSafeListener(elementId, eventType, handler) {
     const element = document.getElementById(elementId);
     if (element) {
-      // Clone o elemento para remover todos os listeners antigos
       const newElement = element.cloneNode(true);
       element.parentNode.replaceChild(newElement, element);
-
-      // Adicionar o novo listener
       newElement.addEventListener(eventType, handler);
       return true;
     } else {
@@ -245,12 +244,10 @@ const Maintenance = (() => {
   function handleEquipmentTypeChange(selectedType) {
     console.log(`Manipulando mudança de tipo de equipamento para: ${selectedType}`);
 
-    // Elementos que podem ser mostrados/escondidos
     const equipmentIdField = document.getElementById('equipment-id').closest('.form-col');
     const otherEquipmentField = document.getElementById('other-equipment-field');
     const customIdField = document.getElementById('custom-equipment-field');
 
-    // Se qualquer um dos elementos não for encontrado, registre e retorne
     if (!equipmentIdField || !otherEquipmentField) {
       console.error("Elementos necessários para manipular tipo de equipamento não encontrados!");
       console.log("Elementos encontrados:", {
@@ -261,71 +258,51 @@ const Maintenance = (() => {
       return;
     }
 
-    // Esconder todos os campos especiais primeiro
     equipmentIdField.style.display = 'none';
     otherEquipmentField.style.display = 'none';
     if (customIdField) customIdField.style.display = 'none';
-
-    // Desabilitar select de equipments para evitar dados inválidos
     document.getElementById('equipment-id').disabled = true;
 
-    // Mostrar campo apropriado baseado na seleção
     if (selectedType === 'Outro') {
       console.log("Mostrando campo para 'Outro' equipamento");
       otherEquipmentField.style.display = 'block';
     } else if (selectedType === 'Aspirador' || selectedType === 'Poliguindaste') {
       if (customIdField) {
         console.log(`Mostrando campo personalizado para ${selectedType}`);
-
-        // Atualizar o label para refletir o tipo selecionado
         const label = customIdField.querySelector('label');
         if (label) label.textContent = `Identificação ${selectedType}:`;
-
         customIdField.style.display = 'block';
       } else {
-        // Se não tiver o campo específico, mostrar o campo normal
         equipmentIdField.style.display = 'block';
       }
     } else if (selectedType) {
       console.log(`Mostrando dropdown de IDs para ${selectedType}`);
       equipmentIdField.style.display = 'block';
-
-      // Carregar IDs específicos para o tipo selecionado
       populateEquipmentIds(selectedType);
     }
   }
 
   function populateEquipmentIds(selectedType) {
     console.log(`Populando IDs para tipo: ${selectedType}`);
-
     const select = document.getElementById('equipment-id');
     if (!select) {
       console.error("Elemento select #equipment-id não encontrado!");
       return;
     }
-
-    // Limpar opções existentes
     select.innerHTML = '<option value="">Selecione o equipamento...</option>';
-
-    // Se não há tipo selecionado ou é "Outro", parar aqui
     if (!selectedType || !EQUIPMENT_IDS[selectedType]) {
       select.disabled = true;
       console.warn(`Nenhum tipo válido selecionado ou tipo ${selectedType} não encontrado em EQUIPMENT_IDS`);
       return;
     }
-
-    // Obter IDs para o tipo selecionado
     const ids = EQUIPMENT_IDS[selectedType] || [];
-
     if (ids.length > 0) {
-      // Adicionar opções ao select
       ids.forEach(id => {
         const option = document.createElement('option');
         option.value = id;
         option.textContent = id;
         select.appendChild(option);
       });
-
       select.disabled = false;
       console.log(`${ids.length} IDs carregados para tipo ${selectedType}`);
     } else {
@@ -337,32 +314,22 @@ const Maintenance = (() => {
   // --- Funções de UI ---
   function showStep(step) {
     console.log(`Tentando mostrar etapa ${step}`);
-
-    // Obter todas as etapas
     const steps = [
       document.getElementById('step-1-content'),
       document.getElementById('step-2-content'),
       document.getElementById('step-3-content')
     ];
-
-    // Verificar se todas as etapas existem
     if (steps.some(s => !s)) {
       console.error("Um ou mais elementos de etapa não foram encontrados!");
       console.log("Etapas encontradas:", steps.map(s => s ? s.id : 'não encontrado'));
       return;
     }
-
-    // Esconder todas as etapas
     steps.forEach(s => {
       if (s) s.style.display = 'none';
     });
-
-    // Mostrar apenas a etapa solicitada
     if (step >= 1 && step <= 3 && steps[step - 1]) {
       steps[step - 1].style.display = 'block';
       console.log(`Etapa ${step} mostrada com sucesso`);
-
-      // Atualizar indicadores de etapa
       updateStepIndicators(step);
     } else {
       console.error(`Etapa inválida: ${step}`);
@@ -381,45 +348,32 @@ const Maintenance = (() => {
   }
 
   function openMaintenanceForm(maintenanceId = null, data = null) {
-      console.log("Abrindo formulário de manutenção");
-  
-      // Configurar modo de edição primeiro
-      if (maintenanceId && data) {
-          isEditMode = true;
-          editingMaintenanceId = maintenanceId;
-          // Não resetamos o formulário quando estamos editando
-      } else {
-          isEditMode = false;
-          editingMaintenanceId = null;
-          // Resetar apenas se for um novo registro
-          resetForm();
-      }
-  
-      // Para modo de edição, preencher o formulário com os dados
-      if (isEditMode && data) {
-          populateFormForEdit(data);
-      }
-  
-      // Mostrar o modal
-      const modal = document.getElementById('maintenance-form-overlay');
-      if (modal) {
-          modal.style.display = 'flex';
-          console.log("Modal de manutenção aberto com sucesso");
-      } else {
-          console.error("Modal #maintenance-form-overlay não encontrado!");
-      }
-  
-      // Garantir que comece na primeira etapa
-      showStep(1);
+    console.log("Abrindo formulário de manutenção");
+    if (maintenanceId && data) {
+      isEditMode = true;
+      editingMaintenanceId = maintenanceId;
+    } else {
+      isEditMode = false;
+      editingMaintenanceId = null;
+      resetForm();
+    }
+    if (isEditMode && data) {
+      populateFormForEdit(data);
+    }
+    const modal = document.getElementById('maintenance-form-overlay');
+    if (modal) {
+      modal.style.display = 'flex';
+      console.log("Modal de manutenção aberto com sucesso");
+    } else {
+      console.error("Modal #maintenance-form-overlay não encontrado!");
+    }
+    showStep(1);
   }
 
   function populateFormForEdit(data) {
     console.log("Populando formulário para edição:", data);
-
-    // Campos da etapa 1
     setSelectValue('equipment-type', data.tipoEquipamento);
     setTimeout(() => {
-      // Após o tipo de equipamento ser definido e causar alterações de visibilidade
       if (data.tipoEquipamento === 'Outro') {
         setInputValue('other-equipment', data.equipamentoOutro);
       } else if (['Aspirador', 'Poliguindaste'].includes(data.tipoEquipamento)) {
@@ -427,29 +381,23 @@ const Maintenance = (() => {
       } else {
         setSelectValue('equipment-id', data.placaOuId);
       }
-
       setInputValue('technician-name', data.responsavel);
       setInputValue('maintenance-date', formatDateForInput(data.dataRegistro));
       setSelectValue('area', data.area);
       setInputValue('office', data.localOficina);
-      setSelectValue('maintenance-type-select', data.tipoManutencao); // Ajustado para refletir a alteração em validateStep1
+      setSelectValue('maintenance-type-select', data.tipoManutencao);
       setCheckboxValue('is-critical', data.eCritico);
-
-      // Atualizar título do formulário
       const formTitle = document.querySelector('.form-title');
       if (formTitle) formTitle.textContent = 'Editar Manutenção';
-    }, 100); // Pequeno delay para garantir que o DOM seja atualizado após o change de equipment-type
+    }, 100);
   }
 
   function setSelectValue(id, value) {
     const element = document.getElementById(id);
     if (element && value) {
-      // Procurar a opção com o valor correspondente
       for (let i = 0; i < element.options.length; i++) {
         if (element.options[i].value === value) {
           element.selectedIndex = i;
-
-          // Disparar evento de change para atualizar campos dependentes
           const event = new Event('change');
           element.dispatchEvent(event);
           return true;
@@ -481,15 +429,12 @@ const Maintenance = (() => {
 
   function formatDateForInput(dateString) {
     if (!dateString) return '';
-
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return '';
-
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
-
       return `${year}-${month}-${day}`;
     } catch (e) {
       console.error("Erro ao formatar data:", e);
@@ -499,7 +444,6 @@ const Maintenance = (() => {
 
   function closeForm() {
     console.log("Fechando formulário");
-
     const modal = document.getElementById('maintenance-form-overlay');
     if (modal) {
       modal.style.display = 'none';
@@ -511,36 +455,22 @@ const Maintenance = (() => {
   }
 
   function resetForm() {
-    // Reset básico do formulário
     const form = document.getElementById('maintenance-form');
     if (form) {
       form.reset();
       console.log("Formulário resetado");
     }
-
-    // Limpar estados
     isEditMode = false;
     editingMaintenanceId = null;
     formData = {};
-
-    // Esconder campos condicionais
     const otherEquipmentField = document.getElementById('other-equipment-field');
     if (otherEquipmentField) otherEquipmentField.style.display = 'none';
-
     const otherCategoryField = document.getElementById('other-category-field');
     if (otherCategoryField) otherCategoryField.style.display = 'none';
-
-    // Desabilitar select de equipamento
     const equipmentIdSelect = document.getElementById('equipment-id');
     if (equipmentIdSelect) equipmentIdSelect.disabled = true;
-
-    // Definir data atual novamente
     setCurrentDate();
-
-    // Voltar para primeira etapa
     showStep(1);
-
-    // Atualizar título do formulário para "Nova Manutenção"
     const formTitle = document.querySelector('.form-title');
     if (formTitle) formTitle.textContent = 'Registrar Nova Manutenção';
   }
@@ -548,14 +478,8 @@ const Maintenance = (() => {
   // --- Validação e Coleta de Dados ---
   function validateStep1() {
     console.log("Validando etapa 1...");
-
-    const requiredFields = [
-      { id: 'equipment-type', name: 'Tipo de Equipamento' }
-    ];
-
-    // Adicionar campos condicionais baseados no tipo de equipamento
+    const requiredFields = [{ id: 'equipment-type', name: 'Tipo de Equipamento' }];
     const equipType = document.getElementById('equipment-type').value;
-
     if (equipType === 'Outro') {
       requiredFields.push({ id: 'other-equipment', name: 'Especificar Equipamento' });
     } else if (equipType === 'Aspirador' || equipType === 'Poliguindaste') {
@@ -567,33 +491,26 @@ const Maintenance = (() => {
     } else if (equipType) {
       requiredFields.push({ id: 'equipment-id', name: 'Placa ou ID' });
     }
-
-    // Adicionar outros campos obrigatórios da etapa 1
     requiredFields.push(
       { id: 'technician-name', name: 'Responsável pelo Relatório' },
       { id: 'maintenance-date', name: 'Data da Manutenção' },
       { id: 'area', name: 'Área' },
       { id: 'office', name: 'Local/Oficina' },
-      { id: 'maintenance-type-select', name: 'Tipo de Manutenção' } // ATUALIZADO (Item 3 da nova instrução)
+      { id: 'maintenance-type-select', name: 'Tipo de Manutenção' }
     );
-
     return validateFields(requiredFields);
   }
 
   function validateStep2() {
     console.log("Validando etapa 2...");
-
     const requiredFields = [
-      { id: 'problem-category-select', name: 'Categoria do Problema' }, // Já estava correto ('problem-category-select')
+      { id: 'problem-category-select', name: 'Categoria do Problema' },
       { id: 'problem-description', name: 'Detalhes do Problema' }
     ];
-
-    // Verificar se "Outros" foi selecionado como categoria
-    const problemCategoryValue = document.getElementById('problem-category-select').value; // Usando o ID correto
-    if (problemCategoryValue === 'Outros') { // Comparando com "Outros" (conforme DEFAULT_PROBLEM_CATEGORIES)
+    const problemCategoryValue = document.getElementById('problem-category-select').value;
+    if (problemCategoryValue === 'Outros') {
       requiredFields.push({ id: 'other-category', name: 'Especificar Categoria' });
     }
-
     return validateFields(requiredFields);
   }
 
@@ -604,27 +521,20 @@ const Maintenance = (() => {
   function validateFields(fields) {
     let isValid = true;
     let firstInvalidField = null;
-
     fields.forEach(field => {
       const element = document.getElementById(field.id);
       if (!element) {
         console.warn(`Campo ${field.id} não encontrado no DOM!`);
-        return; // Pula para o próximo campo se não encontrar
+        return;
       }
-
       let fieldValue = element.value.trim();
       let fieldValid = fieldValue !== '';
-
-      // Se o campo é um select e está desabilitado, considerar válido
-      // Isso é importante para o select de equipment-id que pode estar desabilitado
       if (element.tagName === 'SELECT' && element.disabled) {
         fieldValid = true;
       }
-
       if (!fieldValid) {
         isValid = false;
         markFieldAsInvalid(element, `${field.name} é obrigatório`);
-
         if (!firstInvalidField) {
           firstInvalidField = element;
         }
@@ -632,64 +542,44 @@ const Maintenance = (() => {
         clearFieldValidation(element);
       }
     });
-
-    // Focar no primeiro campo inválido
     if (firstInvalidField) {
       firstInvalidField.focus();
     }
-
     return isValid;
   }
 
   function markFieldAsInvalid(element, message) {
-    // Adicionar classe de erro ao elemento
     element.classList.add('is-invalid');
-
-    // Procurar o container pai (form-group ou form-col)
     const formGroup = element.closest('.form-group, .form-col');
     if (formGroup) {
       formGroup.classList.add('has-error');
-
-      // Verificar se já existe mensagem de erro
       let errorElement = formGroup.querySelector('.error-message');
       if (!errorElement) {
         errorElement = document.createElement('div');
         errorElement.className = 'error-message';
-        // Inserir após o elemento inválido
         element.parentNode.insertBefore(errorElement, element.nextSibling);
       }
-
       errorElement.textContent = message;
-      errorElement.style.display = 'block'; // Garantir que esteja visível
+      errorElement.style.display = 'block';
     }
   }
 
   function clearFieldValidation(element) {
-    // Remover classe de erro do elemento
     element.classList.remove('is-invalid');
-
-    // Procurar o container pai (form-group ou form-col)
     const formGroup = element.closest('.form-group, .form-col');
     if (formGroup) {
       formGroup.classList.remove('has-error');
-
-      // Remover mensagem de erro se existir
       const errorElement = formGroup.querySelector('.error-message');
       if (errorElement) {
-        errorElement.remove(); // Ou errorElement.style.display = 'none';
+        errorElement.remove();
       }
     }
   }
 
   function saveStep1Data() {
     console.log("Salvando dados da etapa 1...");
-
-    // Capturar valores dos campos
     const equipType = document.getElementById('equipment-type').value;
-
     formData.tipoEquipamento = equipType;
-
-    // Capturar ID baseado no tipo de equipamento
     if (equipType === 'Outro') {
       formData.equipamentoOutro = document.getElementById('other-equipment').value;
       formData.placaOuId = formData.equipamentoOutro;
@@ -703,44 +593,32 @@ const Maintenance = (() => {
     } else {
       formData.placaOuId = document.getElementById('equipment-id').value;
     }
-
     formData.responsavel = document.getElementById('technician-name').value;
     formData.dataRegistro = document.getElementById('maintenance-date').value;
     formData.area = document.getElementById('area').value;
     formData.localOficina = document.getElementById('office').value;
-    formData.tipoManutencao = document.getElementById('maintenance-type-select').value; // Usando ID correto
+    formData.tipoManutencao = document.getElementById('maintenance-type-select').value;
     formData.eCritico = document.getElementById('is-critical').checked;
-
     console.log("Dados da etapa 1 salvos:", formData);
   }
 
   function saveStep2Data() {
     console.log("Salvando dados da etapa 2...");
-
-    // Capturar valores dos campos
-    const problemCategoryValue = document.getElementById('problem-category-select').value; // Usando ID correto
-
+    const problemCategoryValue = document.getElementById('problem-category-select').value;
     formData.categoriaProblema = problemCategoryValue;
-
-    // Se categoria for "Outros", salvar categoria específica
-    if (problemCategoryValue === 'Outros') { // Comparando com "Outros"
+    if (problemCategoryValue === 'Outros') {
       formData.categoriaProblemaOutro = document.getElementById('other-category').value;
     }
-
     formData.detalhesproblema = document.getElementById('problem-description').value;
-
     const additionalNotes = document.getElementById('additional-notes');
     if (additionalNotes) {
       formData.observacoes = additionalNotes.value;
     }
-
     console.log("Dados da etapa 2 salvos:", formData);
   }
 
   function updateSummary() {
     console.log("Atualizando resumo...");
-
-    // Mapear IDs dos elementos de resumo para as propriedades de formData
     const summaryElements = {
       'summary-equipment': formData.tipoEquipamento === 'Outro' ?
                            formData.equipamentoOutro :
@@ -750,14 +628,12 @@ const Maintenance = (() => {
       'summary-location': `${formData.area} - ${formData.localOficina}`,
       'summary-type': formData.tipoManutencao,
       'summary-critical': formData.eCritico ? 'Sim' : 'Não',
-      'summary-category': formData.categoriaProblema === 'Outros' ? // Comparando com "Outros"
+      'summary-category': formData.categoriaProblema === 'Outros' ?
                           formData.categoriaProblemaOutro :
                           formData.categoriaProblema,
       'summary-problem': formData.detalhesproblema,
       'summary-notes': formData.observacoes || 'Não informado'
     };
-
-    // Atualizar elementos no DOM
     Object.entries(summaryElements).forEach(([elementId, value]) => {
       const element = document.getElementById(elementId);
       if (element) {
@@ -766,20 +642,14 @@ const Maintenance = (() => {
         console.warn(`Elemento de resumo #${elementId} não encontrado!`);
       }
     });
-
     console.log("Resumo atualizado com sucesso");
   }
 
   function submitMaintenance() {
     console.log(`${isEditMode ? 'Atualizando' : 'Criando nova'} manutenção...`);
-
-    // Mostrar indicador de carregamento
     showLoading(true, `${isEditMode ? 'Atualizando' : 'Registrando'} manutenção...`);
-
-    // Preparar dados para envio
     const dataToSend = {
       ...formData,
-      // Adicionar mapeamentos de campos para o backend (se necessário)
       equipmentId: formData.placaOuId,
       date: formData.dataRegistro,
       equipmentType: formData.tipoEquipamento,
@@ -787,58 +657,41 @@ const Maintenance = (() => {
       location: formData.localOficina,
       maintenanceType: formData.tipoManutencao,
       isCritical: formData.eCritico,
-      problemCategory: formData.categoriaProblema === 'Outros' ? formData.categoriaProblemaOutro : formData.categoriaProblema, // Enviar a categoria correta
+      problemCategory: formData.categoriaProblema === 'Outros' ? formData.categoriaProblemaOutro : formData.categoriaProblema,
       problemDescription: formData.detalhesproblema,
       additionalNotes: formData.observacoes
     };
-
-    // Se estiver editando, incluir ID
     if (isEditMode && editingMaintenanceId) {
       dataToSend.id = editingMaintenanceId;
     } else if (isEditMode && !editingMaintenanceId) {
-        console.error("Tentando editar sem um ID de manutenção!");
-        showNotification("Erro: ID da manutenção não encontrado para edição.", "error");
-        showLoading(false);
-        return;
+      console.error("Tentando editar sem um ID de manutenção!");
+      showNotification("Erro: ID da manutenção não encontrado para edição.", "error");
+      showLoading(false);
+      return;
     }
-
-    // Chamar API para salvar os dados
     const apiCall = isEditMode ?
       API.updateMaintenance(editingMaintenanceId, dataToSend) :
       API.createMaintenance(dataToSend);
-
     apiCall
       .then(response => {
         if (response && response.success) {
           console.log("Manutenção salva com sucesso:", response);
-
-          // Mostrar notificação de sucesso
           const message = isEditMode ?
             "Manutenção atualizada com sucesso!" :
             "Nova manutenção registrada com sucesso!";
-
           showNotification(message, "success");
-
-          // Fechar o formulário
           closeForm();
-
-          // Recarregar a lista de manutenções
           loadMaintenanceList();
         } else {
           console.error("Erro ao salvar manutenção:", response);
-
-          // Mostrar notificação de erro
           showNotification(`Erro ao ${isEditMode ? 'atualizar' : 'registrar'} manutenção: ${response?.message || 'Erro desconhecido'}`, "error");
         }
       })
       .catch(error => {
         console.error("Falha ao salvar manutenção:", error);
-
-        // Mostrar notificação de erro
         showNotification(`Falha ao salvar dados: ${error.message || 'Erro desconhecido'}`, "error");
       })
       .finally(() => {
-        // Esconder indicador de carregamento
         showLoading(false);
       });
   }
@@ -846,32 +699,25 @@ const Maintenance = (() => {
   // --- Funções de Dados ---
   function loadMaintenanceList() {
     console.log("Carregando lista de manutenções...");
-
-    // Mostrar indicador de carregamento
     showLoading(true, "Carregando manutenções...");
-
-    // Indicador de carregamento na tabela
     const tableBody = document.getElementById('maintenance-tbody');
     if (tableBody) {
       tableBody.innerHTML = '<tr><td colspan="10" class="text-center">Carregando...</td></tr>';
     }
-
-    // Chamar API para obter dados
     if (window.API && typeof API.getMaintenanceList === 'function') {
       API.getMaintenanceList()
         .then(response => {
           if (response && response.success && Array.isArray(response.maintenances)) {
             fullMaintenanceList = response.maintenances;
             console.log("Lista de manutenções recebida:", fullMaintenanceList);
-            // renderMaintenanceTable(fullMaintenanceList); // A renderização agora é feita por applyFilters
-            applyFilters(); // Aplicar filtros (que também renderizam a tabela)
+            applyFilters();
           } else {
             console.error("Erro ao carregar manutenções:", response);
             if (tableBody) {
               tableBody.innerHTML = '<tr><td colspan="10" class="text-center error-message">Erro ao carregar dados.</td></tr>';
             }
-            fullMaintenanceList = []; // Limpar a lista em caso de erro
-            applyFilters(); // Para garantir que a mensagem de "nenhuma manutenção" apareça se a lista estiver vazia
+            fullMaintenanceList = [];
+            applyFilters();
           }
         })
         .catch(error => {
@@ -879,11 +725,10 @@ const Maintenance = (() => {
           if (tableBody) {
             tableBody.innerHTML = '<tr><td colspan="10" class="text-center error-message">Falha ao buscar dados.</td></tr>';
           }
-          fullMaintenanceList = []; // Limpar a lista em caso de erro
-          applyFilters(); // Para garantir que a mensagem de "nenhuma manutenção" apareça se a lista estiver vazia
+          fullMaintenanceList = [];
+          applyFilters();
         })
         .finally(() => {
-          // Esconder indicador de carregamento
           showLoading(false);
         });
     } else {
@@ -892,56 +737,38 @@ const Maintenance = (() => {
         tableBody.innerHTML = '<tr><td colspan="10" class="text-center error-message">API não disponível.</td></tr>';
       }
       showLoading(false);
-      fullMaintenanceList = []; // Limpar a lista
-      applyFilters(); // Para garantir que a mensagem de "nenhuma manutenção" apareça se a lista estiver vazia
+      fullMaintenanceList = [];
+      applyFilters();
     }
   }
 
-  // >>> INÍCIO DA FUNÇÃO ATUALIZADA <<< (Esta função já existia no código fornecido)
   function renderMaintenanceTable(maintenances) {
     console.log(`Renderizando tabela com ${maintenances?.length || 0} manutenções`);
-
     const tableBody = document.getElementById('maintenance-tbody');
     if (!tableBody) {
       console.error("Elemento #maintenance-tbody não encontrado!");
       return;
     }
-
-    // Limpar tabela
     tableBody.innerHTML = '';
-
-    // Se não há dados, mostrar mensagem
     if (!maintenances || maintenances.length === 0) {
       tableBody.innerHTML = '<tr><td colspan="10" class="text-center">Nenhuma manutenção encontrada.</td></tr>';
       return;
     }
-
-    // Renderizar cada linha
     maintenances.forEach(item => {
       const row = document.createElement('tr');
-      row.dataset.id = item.id; // Adicionar ID à linha para referência futura
-
-      // Determinar status e ações visíveis
-      const status = item.status || 'Pendente'; // Default para 'Pendente' se não houver status
+      row.dataset.id = item.id;
+      const status = item.status || 'Pendente';
       const statusClass = getStatusClass(status);
       const statusLower = status.toLowerCase();
-
-      // Determinar quais botões mostrar
       const showVerify = ['pendente', 'aguardando verificação', 'aguardando verificacao'].includes(statusLower);
       const showEdit = ['pendente', 'aguardando verificação', 'aguardando verificacao', 'ajustes'].includes(statusLower);
-
-      // Compatibilidade com nomes de campos diferentes (novos e antigos)
       const tipoManutencao = item.tipoManutencao || item.tipoManutenO || '-';
       const responsavel = item.responsavel || item.responsVel || '-';
       const area = item.area || item.reaInternaExterna || '-';
       const eCritico = item.eCritico || item.crTico || false;
-
-      // Determinar texto da categoria do problema
       const problemCategoryText = item.categoriaProblema === 'Outros'
         ? (item.categoriaProblemaOutro || 'Outro (não especificado)')
         : (item.categoriaProblema || '-');
-
-      // Gerar HTML da linha
       row.innerHTML = `
         <td>${item.id || '-'}</td>
         <td>${item.tipoEquipamento || '-'} (${item.placaOuId || '-'})</td>
@@ -958,27 +785,19 @@ const Maintenance = (() => {
           ${showVerify ? `<button class="btn-icon verify-maintenance" data-id="${item.id}" title="Verificar">✔️</button>` : ''}
         </td>
       `;
-
       tableBody.appendChild(row);
     });
-
-    // Configurar listeners para ações na tabela
     setupTableActionListeners();
   }
-  // >>> FIM DA FUNÇÃO ATUALIZADA <<<
 
   function setupTableActionListeners() {
     const tableBody = document.getElementById('maintenance-tbody');
     if (!tableBody) return;
-
-    // Usar delegação de eventos
     tableBody.addEventListener('click', function(event) {
       const button = event.target.closest('.btn-icon');
-      if (!button) return; // Clique não foi em um botão
-
+      if (!button) return;
       const maintenanceId = button.getAttribute('data-id');
-      if (!maintenanceId) return; // Botão sem data-id
-
+      if (!maintenanceId) return;
       if (button.classList.contains('view-maintenance')) {
         console.log(`Visualizar manutenção: ${maintenanceId}`);
         viewMaintenanceDetails(maintenanceId);
@@ -993,88 +812,74 @@ const Maintenance = (() => {
   }
 
   function viewMaintenanceDetails(id) {
-    // Buscar dados da manutenção
     const maintenanceData = findMaintenanceById(id);
-
     if (!maintenanceData) {
       showNotification("Erro: Dados da manutenção não encontrados.", "error");
       return;
     }
-
-    // Exibir detalhes usando o módulo Utilities ou fallback
     if (typeof Utilities !== 'undefined' && Utilities.viewMaintenanceDetails) {
-      // Passar a função de verificação como callback para o Utilities
       Utilities.viewMaintenanceDetails(id, maintenanceData, () => verifyMaintenance(id));
     } else {
-        console.warn("Módulo Utilities ou Utilities.viewMaintenanceDetails não encontrado. Usando fallback.");
-        // Implementação básica de fallback
-        const detailOverlay = document.getElementById('detail-overlay');
-        const detailContent = document.getElementById('maintenance-detail-content');
-
-        if (detailOverlay && detailContent) {
-            const detailsMap = [
-                { label: 'ID', value: maintenanceData.id },
-                { label: 'Equipamento', value: `${maintenanceData.tipoEquipamento || '-'} (${maintenanceData.placaOuId || '-'})` },
-                { label: 'Tipo de Manutenção', value: `${maintenanceData.tipoManutencao || '-'} ${maintenanceData.eCritico ? '⚠️ CRÍTICA' : ''}` },
-                { label: 'Data de Registro', value: formatDate(maintenanceData.dataRegistro) },
-                { label: 'Responsável', value: maintenanceData.responsavel },
-                { label: 'Local', value: `${maintenanceData.area || '-'} - ${maintenanceData.localOficina || '-'}` },
-                { label: 'Status', value: `<span class="status-badge status-${getStatusClass(maintenanceData.status)}">${maintenanceData.status || 'Pendente'}</span>` },
-            ];
-
-            const problemMap = [
-                { label: 'Categoria', value: maintenanceData.categoriaProblema === 'Outros' ? maintenanceData.categoriaProblemaOutro : maintenanceData.categoriaProblema }, // Comparando com "Outros"
-                { label: 'Detalhes', value: maintenanceData.detalhesproblema },
-                { label: 'Observações', value: maintenanceData.observacoes },
-            ];
-
-            let html = '<div class="detail-section"><h3>Informações Básicas</h3>';
-            detailsMap.forEach(item => {
-                html += `<div class="detail-item"><strong>${item.label}:</strong> ${item.value || '-'}</div>`;
-            });
-            html += '</div>';
-
-            html += '<div class="detail-section"><h3>Problema</h3>';
-            problemMap.forEach(item => {
-                html += `<div class="detail-item"><strong>${item.label}:</strong> ${item.value || '-'}</div>`;
-            });
-            html += '</div>';
-
-            if (maintenanceData.verificacao) {
-                const verificationMap = [
-                    { label: 'Verificador', value: maintenanceData.verificacao.verificador },
-                    { label: 'Data', value: formatDate(maintenanceData.verificacao.data) },
-                    { label: 'Resultado', value: maintenanceData.verificacao.resultado },
-                    { label: 'Comentários', value: maintenanceData.verificacao.comentarios },
-                ];
-                html += '<div class="detail-section"><h3>Verificação</h3>';
-                verificationMap.forEach(item => {
-                    html += `<div class="detail-item"><strong>${item.label}:</strong> ${item.value || '-'}</div>`;
-                });
-                html += '</div>';
-            }
-
-            detailContent.innerHTML = html;
-            detailOverlay.style.display = 'flex';
-
-            addSafeListener('close-detail', 'click', () => detailOverlay.style.display = 'none');
-            addSafeListener('close-detail-btn', 'click', () => detailOverlay.style.display = 'none');
-
-            const verifyBtn = document.getElementById('verify-maintenance-btn');
-            if (verifyBtn) {
-                const status = (maintenanceData.status || '').toLowerCase();
-                const canVerify = ['pendente', 'aguardando verificacao', 'aguardando verificação'].includes(status);
-                verifyBtn.style.display = canVerify ? 'inline-block' : 'none';
-                if (canVerify) {
-                    addSafeListener('verify-maintenance-btn', 'click', () => {
-                        detailOverlay.style.display = 'none';
-                        verifyMaintenance(id);
-                    });
-                }
-            }
-        } else {
-          alert(`Detalhes da manutenção ${id}:\n\nTipo: ${maintenanceData.tipoEquipamento}\nResponsável: ${maintenanceData.responsavel}\nStatus: ${maintenanceData.status || 'Pendente'}`);
+      console.warn("Módulo Utilities ou Utilities.viewMaintenanceDetails não encontrado. Usando fallback.");
+      const detailOverlay = document.getElementById('detail-overlay');
+      const detailContent = document.getElementById('maintenance-detail-content');
+      if (detailOverlay && detailContent) {
+        const detailsMap = [
+          { label: 'ID', value: maintenanceData.id },
+          { label: 'Equipamento', value: `${maintenanceData.tipoEquipamento || '-'} (${maintenanceData.placaOuId || '-'})` },
+          { label: 'Tipo de Manutenção', value: `${maintenanceData.tipoManutencao || '-'} ${maintenanceData.eCritico ? '⚠️ CRÍTICA' : ''}` },
+          { label: 'Data de Registro', value: formatDate(maintenanceData.dataRegistro) },
+          { label: 'Responsável', value: maintenanceData.responsavel },
+          { label: 'Local', value: `${maintenanceData.area || '-'} - ${maintenanceData.localOficina || '-'}` },
+          { label: 'Status', value: `<span class="status-badge status-${getStatusClass(maintenanceData.status)}">${maintenanceData.status || 'Pendente'}</span>` },
+        ];
+        const problemMap = [
+          { label: 'Categoria', value: maintenanceData.categoriaProblema === 'Outros' ? maintenanceData.categoriaProblemaOutro : maintenanceData.categoriaProblema },
+          { label: 'Detalhes', value: maintenanceData.detalhesproblema },
+          { label: 'Observações', value: maintenanceData.observacoes },
+        ];
+        let html = '<div class="detail-section"><h3>Informações Básicas</h3>';
+        detailsMap.forEach(item => {
+          html += `<div class="detail-item"><strong>${item.label}:</strong> ${item.value || '-'}</div>`;
+        });
+        html += '</div>';
+        html += '<div class="detail-section"><h3>Problema</h3>';
+        problemMap.forEach(item => {
+          html += `<div class="detail-item"><strong>${item.label}:</strong> ${item.value || '-'}</div>`;
+        });
+        html += '</div>';
+        if (maintenanceData.verificacao) {
+          const verificationMap = [
+            { label: 'Verificador', value: maintenanceData.verificacao.verificador },
+            { label: 'Data', value: formatDate(maintenanceData.verificacao.data) },
+            { label: 'Resultado', value: maintenanceData.verificacao.resultado },
+            { label: 'Comentários', value: maintenanceData.verificacao.comentarios },
+          ];
+          html += '<div class="detail-section"><h3>Verificação</h3>';
+          verificationMap.forEach(item => {
+            html += `<div class="detail-item"><strong>${item.label}:</strong> ${item.value || '-'}</div>`;
+          });
+          html += '</div>';
         }
+        detailContent.innerHTML = html;
+        detailOverlay.style.display = 'flex';
+        addSafeListener('close-detail', 'click', () => detailOverlay.style.display = 'none');
+        addSafeListener('close-detail-btn', 'click', () => detailOverlay.style.display = 'none');
+        const verifyBtn = document.getElementById('verify-maintenance-btn');
+        if (verifyBtn) {
+          const status = (maintenanceData.status || '').toLowerCase();
+          const canVerify = ['pendente', 'aguardando verificacao', 'aguardando verificação'].includes(status);
+          verifyBtn.style.display = canVerify ? 'inline-block' : 'none';
+          if (canVerify) {
+            addSafeListener('verify-maintenance-btn', 'click', () => {
+              detailOverlay.style.display = 'none';
+              verifyMaintenance(id);
+            });
+          }
+        }
+      } else {
+        alert(`Detalhes da manutenção ${id}:\n\nTipo: ${maintenanceData.tipoEquipamento}\nResponsável: ${maintenanceData.responsavel}\nStatus: ${maintenanceData.status || 'Pendente'}`);
+      }
     }
   }
 
@@ -1093,73 +898,64 @@ const Maintenance = (() => {
       showNotification("Erro: Dados da manutenção não encontrados para verificação.", "error");
       return;
     }
-
     if (typeof Verification !== 'undefined' && Verification.openVerificationForm) {
       Verification.openVerificationForm(id, maintenanceData);
     } else {
       console.warn("Módulo Verification não encontrado. Usando formulário de verificação interno/fallback.");
       const verificationOverlay = document.getElementById('verification-form-overlay');
       const verificationForm = document.getElementById('verification-form');
-
       if (verificationOverlay && verificationForm) {
         document.getElementById('verification-id').value = id;
         document.getElementById('verification-equipment').value = `${maintenanceData.tipoEquipamento} (${maintenanceData.placaOuId})`;
         document.getElementById('verification-type').value = maintenanceData.tipoManutencao;
-
         setInputValue('verifier-name', '');
         document.querySelectorAll('input[name="verification-result"]').forEach(radio => { radio.checked = false; });
         setInputValue('verification-comments', '');
         clearFieldValidation(document.getElementById('verifier-name'));
         clearFieldValidation(document.getElementById('verification-comments'));
         const radioContainer = document.querySelector('input[name="verification-result"]').closest('.form-group');
-        if(radioContainer) clearFieldValidation(radioContainer);
-
+        if (radioContainer) clearFieldValidation(radioContainer);
         verificationOverlay.style.display = 'flex';
-
         addSafeListener('close-verification-form', 'click', () => verificationOverlay.style.display = 'none');
         addSafeListener('cancel-verification', 'click', () => verificationOverlay.style.display = 'none');
-
         addSafeListener('submit-verification-btn', 'click', function(event) {
-           event.preventDefault();
-           const verifierNameInput = document.getElementById('verifier-name');
-           const resultRadio = document.querySelector('input[name="verification-result"]:checked');
-           const commentsInput = document.getElementById('verification-comments');
-
-           const verificationData = {
-               maintenanceId: id,
-               verifierName: verifierNameInput.value.trim(),
-               result: resultRadio ? resultRadio.value : null,
-               comments: commentsInput.value.trim()
-           };
-
-           let isVerificationValid = true;
-           if (!verificationData.verifierName) {
-               markFieldAsInvalid(verifierNameInput, 'Nome do verificador é obrigatório.');
-               isVerificationValid = false;
-           } else {
-                clearFieldValidation(verifierNameInput);
-           }
-           if (!verificationData.result) {
-               const radioGroup = document.querySelector('input[name="verification-result"]').closest('.form-group');
-               if(radioGroup) markFieldAsInvalid(radioGroup, 'Selecione um resultado.');
-               isVerificationValid = false;
-           } else {
-               const radioGroup = document.querySelector('input[name="verification-result"]').closest('.form-group');
-               if(radioGroup) clearFieldValidation(radioGroup);
-           }
-            if (!verificationData.comments) {
-               markFieldAsInvalid(commentsInput, 'Comentários são obrigatórios.');
-               isVerificationValid = false;
-           } else {
-                clearFieldValidation(commentsInput);
-           }
-
-           if (!isVerificationValid) {
-               showNotification("Por favor, preencha todos os campos obrigatórios da verificação.", "warning");
-               return;
-           }
-           submitVerification(verificationData);
-       });
+          event.preventDefault();
+          const verifierNameInput = document.getElementById('verifier-name');
+          const resultRadio = document.querySelector('input[name="verification-result"]:checked');
+          const commentsInput = document.getElementById('verification-comments');
+          const verificationData = {
+            maintenanceId: id,
+            verifierName: verifierNameInput.value.trim(),
+            result: resultRadio ? resultRadio.value : null,
+            comments: commentsInput.value.trim()
+          };
+          let isVerificationValid = true;
+          if (!verificationData.verifierName) {
+            markFieldAsInvalid(verifierNameInput, 'Nome do verificador é obrigatório.');
+            isVerificationValid = false;
+          } else {
+            clearFieldValidation(verifierNameInput);
+          }
+          if (!verificationData.result) {
+            const radioGroup = document.querySelector('input[name="verification-result"]').closest('.form-group');
+            if (radioGroup) markFieldAsInvalid(radioGroup, 'Selecione um resultado.');
+            isVerificationValid = false;
+          } else {
+            const radioGroup = document.querySelector('input[name="verification-result"]').closest('.form-group');
+            if (radioGroup) clearFieldValidation(radioGroup);
+          }
+          if (!verificationData.comments) {
+            markFieldAsInvalid(commentsInput, 'Comentários são obrigatórios.');
+            isVerificationValid = false;
+          } else {
+            clearFieldValidation(commentsInput);
+          }
+          if (!isVerificationValid) {
+            showNotification("Por favor, preencha todos os campos obrigatórios da verificação.", "warning");
+            return;
+          }
+          submitVerification(verificationData);
+        });
       } else {
         alert(`Formulário de verificação para a manutenção ${id} não encontrado! Verifique os IDs 'verification-form-overlay' e 'verification-form'.`);
       }
@@ -1169,7 +965,6 @@ const Maintenance = (() => {
   function submitVerification(data) {
     console.log("Submetendo verificação:", data);
     showLoading(true, "Registrando verificação...");
-
     if (window.API && typeof API.submitVerification === 'function') {
       API.submitVerification(data)
         .then(response => {
@@ -1199,7 +994,7 @@ const Maintenance = (() => {
       showLoading(false);
       const verificationOverlay = document.getElementById('verification-form-overlay');
       if (verificationOverlay) {
-          verificationOverlay.style.display = 'none';
+        verificationOverlay.style.display = 'none';
       }
     }
   }
@@ -1217,24 +1012,24 @@ const Maintenance = (() => {
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) {
-          const parts = dateString.split('/');
-          if (parts.length === 3) {
-              const isoDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
-              if (!isNaN(isoDate.getTime())) {
-                  const day = String(isoDate.getDate()).padStart(2, '0');
-                  const month = String(isoDate.getMonth() + 1).padStart(2, '0');
-                  const year = isoDate.getFullYear();
-                  return `${day}/${month}/${year}`;
-              }
+        const parts = dateString.split('/');
+        if (parts.length === 3) {
+          const isoDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
+          if (!isNaN(isoDate.getTime())) {
+            const day = String(isoDate.getDate()).padStart(2, '0');
+            const month = String(isoDate.getMonth() + 1).padStart(2, '0');
+            const year = isoDate.getFullYear();
+            return `${day}/${month}/${year}`;
           }
-          console.warn(`Formato de data inválido ou não reconhecido: ${dateString}`);
-          return dateString;
+        }
+        console.warn(`Formato de data inválido ou não reconhecido: ${dateString}`);
+        return dateString;
       }
       const day = String(date.getDate()).padStart(2, '0');
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const year = date.getFullYear();
       return `${day}/${month}/${year}`;
-    } catch(e) {
+    } catch (e) {
       console.error("Erro ao formatar data:", e);
       return dateString;
     }
@@ -1266,14 +1061,14 @@ const Maintenance = (() => {
     console.log(`[${type.toUpperCase()}] ${message}`);
     let container = document.getElementById('notification-container');
     if (!container) {
-        container = document.createElement('div');
-        container.id = 'notification-container';
-        container.style.position = 'fixed';
-        container.style.top = '20px';
-        container.style.right = '20px';
-        container.style.zIndex = '1050';
-        container.style.width = '300px';
-        document.body.appendChild(container);
+      container = document.createElement('div');
+      container.id = 'notification-container';
+      container.style.position = 'fixed';
+      container.style.top = '20px';
+      container.style.right = '20px';
+      container.style.zIndex = '1050';
+      container.style.width = '300px';
+      document.body.appendChild(container);
     }
     const notification = document.createElement('div');
     notification.classList.add('notification', `notification-${type}`);
@@ -1292,7 +1087,7 @@ const Maintenance = (() => {
       setTimeout(() => {
         notification.remove();
         if (container.children.length === 0) {
-            // container.remove();
+          // container.remove();
         }
       }, 500);
     }, 4000);
@@ -1306,46 +1101,46 @@ const Maintenance = (() => {
     let loader = document.getElementById('global-loader');
     let loaderMessageElement = document.getElementById('global-loader-message');
     if (!loader) {
-        loader = document.createElement('div');
-        loader.id = 'global-loader';
-        loader.style.position = 'fixed';
-        loader.style.top = '0';
-        loader.style.left = '0';
-        loader.style.width = '100%';
-        loader.style.height = '100%';
-        loader.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        loader.style.display = 'none';
-        loader.style.justifyContent = 'center';
-        loader.style.alignItems = 'center';
-        loader.style.zIndex = '1060';
-        const spinner = document.createElement('div');
-        spinner.style.border = '4px solid #f3f3f3';
-        spinner.style.borderTop = '4px solid #3498db';
-        spinner.style.borderRadius = '50%';
-        spinner.style.width = '40px';
-        spinner.style.height = '40px';
-        spinner.style.animation = 'spin 1s linear infinite';
-        loaderMessageElement = document.createElement('p');
-        loaderMessageElement.id = 'global-loader-message';
-        loaderMessageElement.style.color = 'white';
-        loaderMessageElement.style.marginLeft = '15px';
-        loaderMessageElement.style.fontSize = '1.2em';
-        loader.appendChild(spinner);
-        loader.appendChild(loaderMessageElement);
-        document.body.appendChild(loader);
-        const styleSheet = document.styleSheets[0];
-        try {
-             if (styleSheet) {
-                styleSheet.insertRule(`
-                    @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                `, styleSheet.cssRules.length);
+      loader = document.createElement('div');
+      loader.id = 'global-loader';
+      loader.style.position = 'fixed';
+      loader.style.top = '0';
+      loader.style.left = '0';
+      loader.style.width = '100%';
+      loader.style.height = '100%';
+      loader.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+      loader.style.display = 'none';
+      loader.style.justifyContent = 'center';
+      loader.style.alignItems = 'center';
+      loader.style.zIndex = '1060';
+      const spinner = document.createElement('div');
+      spinner.style.border = '4px solid #f3f3f3';
+      spinner.style.borderTop = '4px solid #3498db';
+      spinner.style.borderRadius = '50%';
+      spinner.style.width = '40px';
+      spinner.style.height = '40px';
+      spinner.style.animation = 'spin 1s linear infinite';
+      loaderMessageElement = document.createElement('p');
+      loaderMessageElement.id = 'global-loader-message';
+      loaderMessageElement.style.color = 'white';
+      loaderMessageElement.style.marginLeft = '15px';
+      loaderMessageElement.style.fontSize = '1.2em';
+      loader.appendChild(spinner);
+      loader.appendChild(loaderMessageElement);
+      document.body.appendChild(loader);
+      const styleSheet = document.styleSheets[0];
+      try {
+        if (styleSheet) {
+          styleSheet.insertRule(`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
             }
-        } catch (e) {
-            console.warn("Não foi possível inserir a regra @keyframes spin:", e);
+          `, styleSheet.cssRules.length);
         }
+      } catch (e) {
+        console.warn("Não foi possível inserir a regra @keyframes spin:", e);
+      }
     }
     if (show) {
       if (loaderMessageElement) loaderMessageElement.textContent = message;
@@ -1355,7 +1150,7 @@ const Maintenance = (() => {
     }
   }
 
-  // --- Sistema de Filtros --- (Adicionado conforme Passo 8)
+  // --- Sistema de Filtros ---
   let filters = {
     search: '',
     equipmentType: '',
@@ -1365,7 +1160,6 @@ const Maintenance = (() => {
   };
 
   function setupFilterListeners() {
-    // Campo de busca
     const searchInput = document.getElementById('maintenance-search');
     if (searchInput) {
       searchInput.addEventListener('input', function() {
@@ -1373,51 +1167,61 @@ const Maintenance = (() => {
         applyFilters();
       });
     }
-    
-    // Filtros de dropdown
     const equipmentTypeFilter = document.getElementById('equipment-type-filter');
     const statusFilter = document.getElementById('status-filter');
     const maintenanceTypeFilter = document.getElementById('maintenance-type-filter');
     const problemCategoryFilter = document.getElementById('problem-category-filter');
-    
     if (equipmentTypeFilter) {
       equipmentTypeFilter.addEventListener('change', function() {
         filters.equipmentType = this.value;
         applyFilters();
       });
     }
-    
     if (statusFilter) {
       statusFilter.addEventListener('change', function() {
         filters.status = this.value;
         applyFilters();
       });
     }
-    
     if (maintenanceTypeFilter) {
       maintenanceTypeFilter.addEventListener('change', function() {
         filters.maintenanceType = this.value;
         applyFilters();
       });
     }
-    
     if (problemCategoryFilter) {
       problemCategoryFilter.addEventListener('change', function() {
         filters.problemCategory = this.value;
         applyFilters();
       });
     }
-    
-    // Botão para limpar filtros
     const clearFiltersBtn = document.getElementById('clear-filters');
     if (clearFiltersBtn) {
       clearFiltersBtn.addEventListener('click', function() {
         resetFilters();
       });
     }
-    
-    // Preencher categorias de problema dinamicamente
     populateProblemCategoryFilter();
+  }
+
+  // Adicione após setupFilterListeners() (Adicionado conforme solicitação)
+  function setupFilterToggle() {
+    const filterToggleBtn = document.getElementById('maintenance-filter-toggle');
+    const filtersExpanded = document.getElementById('maintenance-filters-expanded');
+    
+    if (filterToggleBtn && filtersExpanded) {
+      filterToggleBtn.addEventListener('click', function() {
+        filtersExpanded.classList.toggle('show');
+        filterToggleBtn.classList.toggle('active');
+        
+        // Alterar texto do botão
+        if (filterToggleBtn.classList.contains('active')) {
+          filterToggleBtn.innerHTML = '<i class="fas fa-times"></i> Fechar Filtros';
+        } else {
+          filterToggleBtn.innerHTML = '<i class="fas fa-filter"></i> Filtros';
+        }
+      });
+    }
   }
 
   function resetFilters() {
@@ -1428,8 +1232,6 @@ const Maintenance = (() => {
       maintenanceType: '',
       problemCategory: ''
     };
-    
-    // Resetar valores dos elementos de filtro
     const elements = [
       'maintenance-search',
       'equipment-type-filter',
@@ -1437,7 +1239,6 @@ const Maintenance = (() => {
       'maintenance-type-filter',
       'problem-category-filter'
     ];
-    
     elements.forEach(id => {
       const element = document.getElementById(id);
       if (element) {
@@ -1448,21 +1249,15 @@ const Maintenance = (() => {
         }
       }
     });
-    
-    // Aplicar filtros resetados
     applyFilters();
   }
 
   function populateProblemCategoryFilter() {
     const filterSelect = document.getElementById('problem-category-filter');
     if (!filterSelect) return;
-    
-    // Limpar opções existentes mantendo a primeira
     while (filterSelect.options.length > 1) {
       filterSelect.remove(1);
     }
-    
-    // Adicionar categorias do array DEFAULT_PROBLEM_CATEGORIES
     DEFAULT_PROBLEM_CATEGORIES.forEach(category => {
       const option = document.createElement('option');
       option.value = category;
@@ -1474,13 +1269,11 @@ const Maintenance = (() => {
   function applyFilters() {
     if (!fullMaintenanceList || !Array.isArray(fullMaintenanceList)) {
       console.error("Lista de manutenções não disponível para filtrar");
-      renderMaintenanceTable([]); // Renderiza tabela vazia ou com mensagem de erro
+      renderMaintenanceTable([]);
       updateFilterResultsCount(0, 0);
       return;
     }
-    
     const filteredList = fullMaintenanceList.filter(item => {
-      // Aplicar filtro de busca por texto
       if (filters.search) {
         const searchTerms = [
           item.id,
@@ -1489,85 +1282,57 @@ const Maintenance = (() => {
           item.tipoEquipamento,
           item.localOficina
         ];
-        
-        const matchesSearch = searchTerms.some(term => 
+        const matchesSearch = searchTerms.some(term =>
           term && String(term).toLowerCase().includes(filters.search)
         );
-        
         if (!matchesSearch) return false;
       }
-      
-      // Aplicar filtro de tipo de equipamento
       if (filters.equipmentType && item.tipoEquipamento !== filters.equipmentType) {
         return false;
       }
-      
-      // Aplicar filtro de status
       if (filters.status && item.status !== filters.status) {
         return false;
       }
-      
-      // Aplicar filtro de tipo de manutenção
       if (filters.maintenanceType && item.tipoManutencao !== filters.maintenanceType) {
         return false;
       }
-      
-      // Aplicar filtro de categoria de problema
-      // Considerar que item.categoriaProblema pode ser o texto de "Outros" ou a categoria específica
-      // Se o filtro for "Outros", precisamos verificar se item.categoriaProblema é "Outros"
-      // Se o filtro for uma categoria específica, verificamos se item.categoriaProblema é essa categoria
-      // ou, se item.categoriaProblema é "Outros", verificamos item.categoriaProblemaOutro.
       if (filters.problemCategory) {
         if (filters.problemCategory === 'Outros') {
           if (item.categoriaProblema !== 'Outros') return false;
         } else {
           const problemCategoryText = item.categoriaProblema === 'Outros'
-                                      ? item.categoriaProblemaOutro
-                                      : item.categoriaProblema;
+            ? item.categoriaProblemaOutro
+            : item.categoriaProblema;
           if (problemCategoryText !== filters.problemCategory) return false;
         }
       }
-      
       return true;
     });
-    
-    // Renderizar a tabela com a lista filtrada
     renderMaintenanceTable(filteredList);
-    
-    // Exibir contador de resultados
     updateFilterResultsCount(filteredList.length, fullMaintenanceList.length);
   }
 
   function updateFilterResultsCount(filteredCount, totalCount) {
     const filterCountElement = document.getElementById('filter-results-count');
-    
     if (!filterCountElement) {
-      // Criar elemento se não existir (código fornecido na instrução)
       const countDisplay = document.createElement('div');
       countDisplay.id = 'filter-results-count';
       countDisplay.className = 'filter-results-info';
-      
-      // Encontrar onde inserir
       const filtersContainer = document.querySelector('.filters-container');
       if (filtersContainer) {
         filtersContainer.appendChild(countDisplay);
       } else {
-          // Fallback se .filters-container não existir, para evitar erro.
-          // Poderia adicionar a um elemento pai padrão ou logar um aviso.
-          console.warn("Contêiner de filtros '.filters-container' não encontrado para adicionar 'filter-results-count'.");
-          // Adiciona ao body como último recurso, mas idealmente o HTML deveria ter o container.
-          document.body.appendChild(countDisplay);
+        console.warn("Contêiner de filtros '.filters-container' não encontrado para adicionar 'filter-results-count'.");
+        document.body.appendChild(countDisplay);
       }
     }
-    
-    // Agora que temos certeza que o elemento existe (ou foi criado), podemos usá-lo.
     const elementToUpdate = document.getElementById('filter-results-count');
     if (elementToUpdate) {
       if (filteredCount < totalCount) {
         elementToUpdate.textContent = `Mostrando ${filteredCount} de ${totalCount} manutenções`;
         elementToUpdate.style.display = 'block';
       } else {
-        elementToUpdate.textContent = ''; // Limpa o texto se todos os itens são mostrados
+        elementToUpdate.textContent = '';
         elementToUpdate.style.display = 'none';
       }
     }
@@ -1578,8 +1343,8 @@ const Maintenance = (() => {
     initialize,
     openMaintenanceForm,
     loadMaintenanceList,
-    viewMaintenanceDetails,  // Adicionado para acesso externo (já existia)
-    fullMaintenanceList      // Adicionado para compartilhar dados (já existia)
+    viewMaintenanceDetails,
+    fullMaintenanceList
   };
 })();
 
@@ -1589,7 +1354,7 @@ document.addEventListener('DOMContentLoaded', () => {
   Maintenance.initialize();
 });
 
-// Torna os dados de manutenções acessíveis globalmente (Adicionado conforme Passo 1)
+// Torna os dados de manutenções acessíveis globalmente
 window.maintenanceDataShared = {
   getMaintenanceById: function(id) {
     if (Maintenance && Maintenance.fullMaintenanceList) {
