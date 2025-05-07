@@ -886,73 +886,76 @@ const Maintenance = (() => {
     }
   }
 
+  // >>> INÍCIO DA FUNÇÃO ATUALIZADA <<<
   function renderMaintenanceTable(maintenances) {
-      console.log(`Renderizando tabela com ${maintenances?.length || 0} manutenções`);
-  
-      const tableBody = document.getElementById('maintenance-tbody');
-      if (!tableBody) {
-          console.error("Elemento #maintenance-tbody não encontrado!");
-          return;
-      }
-  
-      // Limpar tabela
-      tableBody.innerHTML = '';
-  
-      // Se não há dados, mostrar mensagem
-      if (!maintenances || maintenances.length === 0) {
-          tableBody.innerHTML = '<tr><td colspan="10" class="text-center">Nenhuma manutenção encontrada.</td></tr>';
-          return;
-      }
-  
-      // Renderizar cada linha
-      maintenances.forEach(item => {
-          const row = document.createElement('tr');
-          row.dataset.id = item.id; // Adicionar ID à linha para referência futura
-  
-          // Determinar status e ações visíveis
-          const status = item.status || 'Pendente'; // Default para 'Pendente' se não houver status
-          const statusClass = getStatusClass(status);
-          const statusLower = status.toLowerCase();
-  
-          // Determinar quais botões mostrar
-          const showVerify = ['pendente', 'aguardando verificação', 'aguardando verificacao'].includes(statusLower);
-          const showEdit = ['pendente', 'aguardando verificação', 'aguardando verificacao', 'ajustes'].includes(statusLower);
-  
-          // USAR OS NOMES CORRETOS DOS CAMPOS CONFORME IDENTIFICADOS NO DEBUG
-          const tipoManutencao = item.tipoManutenO || item.tipoManutencao || '-';
-          const responsavel = item.responsVel || item.responsavel || '-';
-          const area = item.reaInternaExterna || item.area || '-';
-          const eCritico = item.crTico || item.eCritico || false;
-  
-          // Determinar texto da categoria do problema
-          const problemCategoryText = item.categoriaProblema === 'Outros'
-              ? (item.categoriaProblemaOutro || 'Outro (não especificado)')
-              : (item.categoriaProblema || '-');
-  
-          // Gerar HTML da linha
-          row.innerHTML = `
-              <td>${item.id || '-'}</td>
-              <td>${item.tipoEquipamento || '-'} (${item.placaOuId || '-'})</td>
-              <td>${tipoManutencao} ${eCritico ? '<span class="critical-badge" title="Manutenção Crítica">⚠️</span>' : ''}</td>
-              <td>${formatDate(item.dataRegistro) || '-'}</td>
-              <td>${responsavel}</td>
-              <td>${area}</td>
-              <td>${item.localOficina || '-'}</td>
-              <td>${problemCategoryText}</td>
-              <td><span class="status-badge status-${statusClass}">${status}</span></td>
-              <td>
-                  <button class="btn-icon view-maintenance" data-id="${item.id}" title="Ver Detalhes">👁️</button>
-                  ${showEdit ? `<button class="btn-icon edit-maintenance" data-id="${item.id}" title="Editar">✏️</button>` : ''}
-                  ${showVerify ? `<button class="btn-icon verify-maintenance" data-id="${item.id}" title="Verificar">✔️</button>` : ''}
-              </td>
-          `;
-  
-          tableBody.appendChild(row);
-      });
-  
-      // Configurar listeners para ações na tabela
-      setupTableActionListeners();
+    console.log(`Renderizando tabela com ${maintenances?.length || 0} manutenções`);
+
+    const tableBody = document.getElementById('maintenance-tbody');
+    if (!tableBody) {
+      console.error("Elemento #maintenance-tbody não encontrado!");
+      return;
+    }
+
+    // Limpar tabela
+    tableBody.innerHTML = '';
+
+    // Se não há dados, mostrar mensagem
+    if (!maintenances || maintenances.length === 0) {
+      tableBody.innerHTML = '<tr><td colspan="10" class="text-center">Nenhuma manutenção encontrada.</td></tr>';
+      return;
+    }
+
+    // Renderizar cada linha
+    maintenances.forEach(item => {
+      const row = document.createElement('tr');
+      row.dataset.id = item.id; // Adicionar ID à linha para referência futura
+
+      // Determinar status e ações visíveis
+      const status = item.status || 'Pendente'; // Default para 'Pendente' se não houver status
+      const statusClass = getStatusClass(status);
+      const statusLower = status.toLowerCase();
+
+      // Determinar quais botões mostrar
+      const showVerify = ['pendente', 'aguardando verificação', 'aguardando verificacao'].includes(statusLower);
+      const showEdit = ['pendente', 'aguardando verificação', 'aguardando verificacao', 'ajustes'].includes(statusLower);
+
+      // Compatibilidade com nomes de campos diferentes (novos e antigos)
+      const tipoManutencao = item.tipoManutencao || item.tipoManutenO || '-';
+      const responsavel = item.responsavel || item.responsVel || '-';
+      const area = item.area || item.reaInternaExterna || '-';
+      const eCritico = item.eCritico || item.crTico || false;
+
+      // Determinar texto da categoria do problema
+      const problemCategoryText = item.categoriaProblema === 'Outros'
+        ? (item.categoriaProblemaOutro || 'Outro (não especificado)')
+        : (item.categoriaProblema || '-');
+
+      // Gerar HTML da linha
+      row.innerHTML = `
+        <td>${item.id || '-'}</td>
+        <td>${item.tipoEquipamento || '-'} (${item.placaOuId || '-'})</td>
+        <td>${tipoManutencao} ${eCritico ? '<span class="critical-badge" title="Manutenção Crítica">⚠️</span>' : ''}</td>
+        <td>${formatDate(item.dataRegistro) || '-'}</td>
+        <td>${responsavel}</td>
+        <td>${area}</td>
+        <td>${item.localOficina || '-'}</td>
+        <td>${problemCategoryText}</td>
+        <td><span class="status-badge status-${statusClass}">${status}</span></td>
+        <td>
+          <button class="btn-icon view-maintenance" data-id="${item.id}" title="Ver Detalhes">👁️</button>
+          ${showEdit ? `<button class="btn-icon edit-maintenance" data-id="${item.id}" title="Editar">✏️</button>` : ''}
+          ${showVerify ? `<button class="btn-icon verify-maintenance" data-id="${item.id}" title="Verificar">✔️</button>` : ''}
+        </td>
+      `;
+
+      tableBody.appendChild(row);
+    });
+
+    // Configurar listeners para ações na tabela
+    setupTableActionListeners();
   }
+  // >>> FIM DA FUNÇÃO ATUALIZADA <<<
+
   function setupTableActionListeners() {
     const tableBody = document.getElementById('maintenance-tbody');
     if (!tableBody) return;
