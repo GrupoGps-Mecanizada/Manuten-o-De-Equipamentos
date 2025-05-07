@@ -918,21 +918,22 @@ const Maintenance = (() => {
           const showVerify = ['pendente', 'aguardando verificação', 'aguardando verificacao'].includes(statusLower);
           const showEdit = ['pendente', 'aguardando verificação', 'aguardando verificacao', 'ajustes'].includes(statusLower);
   
-          // AQUI ESTÁ A CORREÇÃO - Tentar diferentes possíveis nomes de campo para cada valor
-          const tipoManutencao = item.tipoManutencao || item.maintenanceType || '-';
-          const responsavel = item.responsavel || item.technician || '-';
-          const area = item.area || '-';
+          // USAR OS NOMES CORRETOS DOS CAMPOS CONFORME IDENTIFICADOS NO DEBUG
+          const tipoManutencao = item.tipoManutenO || item.tipoManutencao || '-';
+          const responsavel = item.responsVel || item.responsavel || '-';
+          const area = item.reaInternaExterna || item.area || '-';
+          const eCritico = item.crTico || item.eCritico || false;
   
           // Determinar texto da categoria do problema
           const problemCategoryText = item.categoriaProblema === 'Outros'
               ? (item.categoriaProblemaOutro || 'Outro (não especificado)')
               : (item.categoriaProblema || '-');
   
-          // Gerar HTML da linha com os campos ajustados
+          // Gerar HTML da linha
           row.innerHTML = `
               <td>${item.id || '-'}</td>
               <td>${item.tipoEquipamento || '-'} (${item.placaOuId || '-'})</td>
-              <td>${tipoManutencao} ${item.eCritico ? '<span class="critical-badge" title="Manutenção Crítica">⚠️</span>' : ''}</td>
+              <td>${tipoManutencao} ${eCritico ? '<span class="critical-badge" title="Manutenção Crítica">⚠️</span>' : ''}</td>
               <td>${formatDate(item.dataRegistro) || '-'}</td>
               <td>${responsavel}</td>
               <td>${area}</td>
@@ -952,7 +953,6 @@ const Maintenance = (() => {
       // Configurar listeners para ações na tabela
       setupTableActionListeners();
   }
-
   function setupTableActionListeners() {
     const tableBody = document.getElementById('maintenance-tbody');
     if (!tableBody) return;
