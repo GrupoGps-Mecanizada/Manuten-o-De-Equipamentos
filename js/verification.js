@@ -14,7 +14,10 @@ const Verification = (() => {
     setupListeners();
     
     // Configurar listeners de filtro
-    setupFilterListeners(); // Adicionar esta linha
+    setupFilterListeners();
+    
+    // Configurar toggle de filtros
+    setupFilterToggle(); // Adicionada esta linha
     
     // Carregar lista se a aba estiver ativa
     if (document.querySelector('.tab[data-tab="verification"].active')) {
@@ -519,6 +522,26 @@ const Verification = (() => {
     }
   }
 
+  // Adicione após setupFilterListeners()
+  function setupFilterToggle() {
+    const filterToggleBtn = document.getElementById('verification-filter-toggle');
+    const filtersExpanded = document.getElementById('verification-filters-expanded');
+    
+    if (filterToggleBtn && filtersExpanded) {
+      filterToggleBtn.addEventListener('click', function() {
+        filtersExpanded.classList.toggle('show');
+        filterToggleBtn.classList.toggle('active');
+        
+        // Alterar texto do botão
+        if (filterToggleBtn.classList.contains('active')) {
+          filterToggleBtn.innerHTML = '<i class="fas fa-times"></i> Fechar Filtros';
+        } else {
+          filterToggleBtn.innerHTML = '<i class="fas fa-filter"></i> Filtros';
+        }
+      });
+    }
+  }
+
   function resetFilters() {
     verificationFilters = {
       search: '',
@@ -633,7 +656,7 @@ const Verification = (() => {
     initialize,
     loadVerificationData,
     openVerificationForm,
-    continueWithVerificationForm // Adicionada essa linha
+    continueWithVerificationForm
   };
 })();
 
