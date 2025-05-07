@@ -38,6 +38,7 @@
       </div>
 
       <!-- Painel de Filtros Inteligentes -->
+      <!-- =============================== INÍCIO DO BLOCO DE FILTROS =============================== -->
       <div class="dashboard-filters">
         <input type="text" id="filter-search" placeholder="🔍 Pesquisar..." />
         <select id="filter-status">
@@ -51,6 +52,7 @@
         <button id="filter-apply" class="btn btn-sm">Aplicar</button>
         <button id="filter-clear" class="btn btn-sm">Limpar</button>
       </div>
+      <!-- =============================== FIM DO BLOCO DE FILTROS ================================= -->
 
       <div class="summary-cards">
         <div class="card">
@@ -1182,7 +1184,7 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('DOMContentLoaded', function() {
   console.log("Aplicando patch de correção para formulário de manutenção");
   
-  // Adiciona listener ao botão de nova manutenção para tentar carregar o formulário manually
+  // Adiciona listener ao botão de nova manutenção para tentar carregar o formulário manualmente
   const newMaintenanceBtn = document.getElementById('new-maintenance');
   if (newMaintenanceBtn) {
     // Preservar o handler original
