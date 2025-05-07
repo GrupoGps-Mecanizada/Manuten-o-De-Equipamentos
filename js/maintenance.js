@@ -39,10 +39,10 @@ const Maintenance = (() => {
     setupBasicListeners();
 
     // Configurar listeners de filtro
-    setupFilterListeners();
+    setupFilterListeners(); // Esta função agora também chama setupFilterToggle
   
-    // Configurar toggle de filtros
-    setupFilterToggle(); // Adicionado conforme solicitação
+    // Configurar toggle de filtro
+    setupFilterToggle(); // Chamada explícita mantida/adicionada conforme instrução
 
     // Carregar lista de manutenções
     loadMaintenanceList();
@@ -1159,7 +1159,29 @@ const Maintenance = (() => {
     problemCategory: ''
   };
 
+  // Configurar os toggles de filtro (NOVA VERSÃO SUBSTITUÍDA)
+  function setupFilterToggle() {
+    const filterToggleBtn = document.getElementById('toggle-filters-btn'); // ID ATUALIZADO
+    const expandedFilters = document.getElementById('expanded-filters'); // ID ATUALIZADO
+    
+    if (filterToggleBtn && expandedFilters) {
+      filterToggleBtn.addEventListener('click', function() {
+        expandedFilters.classList.toggle('show');
+        this.classList.toggle('active'); // 'this' refere-se ao filterToggleBtn
+        
+        // Atualizar texto do botão
+        if (this.classList.contains('active')) {
+          this.innerHTML = '<i class="fas fa-times"></i> Fechar Filtros';
+        } else {
+          this.innerHTML = '<i class="fas fa-filter"></i> Filtros';
+        }
+      });
+    }
+  }
+
+  // Atualizar setupFilterListeners (VERSÃO ATUALIZADA)
   function setupFilterListeners() {
+    // Campo de busca
     const searchInput = document.getElementById('maintenance-search');
     if (searchInput) {
       searchInput.addEventListener('input', function() {
@@ -1167,63 +1189,58 @@ const Maintenance = (() => {
         applyFilters();
       });
     }
+    
+    // Filtros de dropdown
     const equipmentTypeFilter = document.getElementById('equipment-type-filter');
     const statusFilter = document.getElementById('status-filter');
     const maintenanceTypeFilter = document.getElementById('maintenance-type-filter');
     const problemCategoryFilter = document.getElementById('problem-category-filter');
+    
     if (equipmentTypeFilter) {
       equipmentTypeFilter.addEventListener('change', function() {
         filters.equipmentType = this.value;
         applyFilters();
       });
     }
+    
     if (statusFilter) {
       statusFilter.addEventListener('change', function() {
         filters.status = this.value;
         applyFilters();
       });
     }
+    
     if (maintenanceTypeFilter) {
       maintenanceTypeFilter.addEventListener('change', function() {
         filters.maintenanceType = this.value;
         applyFilters();
       });
     }
+    
     if (problemCategoryFilter) {
       problemCategoryFilter.addEventListener('change', function() {
         filters.problemCategory = this.value;
         applyFilters();
       });
     }
+    
+    // Botão para limpar filtros
     const clearFiltersBtn = document.getElementById('clear-filters');
     if (clearFiltersBtn) {
       clearFiltersBtn.addEventListener('click', function() {
         resetFilters();
       });
     }
-    populateProblemCategoryFilter();
-  }
-
-  // Adicione após setupFilterListeners() (Adicionado conforme solicitação)
-  function setupFilterToggle() {
-    const filterToggleBtn = document.getElementById('maintenance-filter-toggle');
-    const filtersExpanded = document.getElementById('maintenance-filters-expanded');
     
-    if (filterToggleBtn && filtersExpanded) {
-      filterToggleBtn.addEventListener('click', function() {
-        filtersExpanded.classList.toggle('show');
-        filterToggleBtn.classList.toggle('active');
-        
-        // Alterar texto do botão
-        if (filterToggleBtn.classList.contains('active')) {
-          filterToggleBtn.innerHTML = '<i class="fas fa-times"></i> Fechar Filtros';
-        } else {
-          filterToggleBtn.innerHTML = '<i class="fas fa-filter"></i> Filtros';
-        }
-      });
-    }
+    // Preencher categorias de problema dinamicamente
+    populateProblemCategoryFilter();
+    
+    // Configurar toggle de filtros
+    setupFilterToggle(); // Chamada interna adicionada
   }
 
+
+  // Função reset melhorada (VERSÃO ATUALIZADA)
   function resetFilters() {
     filters = {
       search: '',
@@ -1232,6 +1249,8 @@ const Maintenance = (() => {
       maintenanceType: '',
       problemCategory: ''
     };
+    
+    // Resetar valores dos elementos de filtro
     const elements = [
       'maintenance-search',
       'equipment-type-filter',
@@ -1239,6 +1258,7 @@ const Maintenance = (() => {
       'maintenance-type-filter',
       'problem-category-filter'
     ];
+    
     elements.forEach(id => {
       const element = document.getElementById(id);
       if (element) {
@@ -1249,6 +1269,20 @@ const Maintenance = (() => {
         }
       }
     });
+    
+    // Fechar os filtros expandidos
+    const expandedFilters = document.getElementById('expanded-filters'); // ID ATUALIZADO
+    const filterToggleBtn = document.getElementById('toggle-filters-btn'); // ID ATUALIZADO
+    
+    if (expandedFilters && expandedFilters.classList.contains('show')) {
+      expandedFilters.classList.remove('show');
+      if (filterToggleBtn) {
+        filterToggleBtn.classList.remove('active');
+        filterToggleBtn.innerHTML = '<i class="fas fa-filter"></i> Filtros';
+      }
+    }
+    
+    // Aplicar filtros resetados
     applyFilters();
   }
 
@@ -1318,17 +1352,24 @@ const Maintenance = (() => {
       const countDisplay = document.createElement('div');
       countDisplay.id = 'filter-results-count';
       countDisplay.className = 'filter-results-info';
-      const filtersContainer = document.querySelector('.filters-container');
+      const filtersContainer = document.querySelector('.filters-container'); // Este seletor pode precisar ser ajustado para o novo HTML
       if (filtersContainer) {
         filtersContainer.appendChild(countDisplay);
       } else {
-        console.warn("Contêiner de filtros '.filters-container' não encontrado para adicionar 'filter-results-count'.");
-        document.body.appendChild(countDisplay);
+        // Se '.filters-container' não existe, tentar adicionar ao pai do 'toggle-filters-btn' ou similar
+        const toggleBtn = document.getElementById('toggle-filters-btn');
+        if (toggleBtn && toggleBtn.parentElement) {
+            toggleBtn.parentElement.insertAdjacentElement('afterend', countDisplay);
+            console.warn("Contêiner de filtros '.filters-container' não encontrado. 'filter-results-count' adicionado após o botão de toggle.");
+        } else {
+            console.warn("Contêiner de filtros '.filters-container' e botão 'toggle-filters-btn' não encontrados para adicionar 'filter-results-count'. Adicionando ao body.");
+            document.body.appendChild(countDisplay);
+        }
       }
     }
     const elementToUpdate = document.getElementById('filter-results-count');
     if (elementToUpdate) {
-      if (filteredCount < totalCount) {
+      if (filteredCount < totalCount && totalCount > 0) { // Condição ajustada para mostrar apenas se houver filtragem real e itens totais
         elementToUpdate.textContent = `Mostrando ${filteredCount} de ${totalCount} manutenções`;
         elementToUpdate.style.display = 'block';
       } else {
