@@ -1354,6 +1354,7 @@ const Maintenance = (() => {
     openMaintenanceForm,
     loadMaintenanceList,
     viewMaintenanceDetails,
+    fullMaintenanceList
   };
 })();
 
