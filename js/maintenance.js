@@ -1353,6 +1353,7 @@ const Maintenance = (() => {
     initialize,
     openMaintenanceForm,
     loadMaintenanceList,
+    viewMaintenanceDetails,
   };
 })();
 
