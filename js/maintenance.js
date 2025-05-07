@@ -378,32 +378,36 @@ const Maintenance = (() => {
   }
 
   function openMaintenanceForm(maintenanceId = null, data = null) {
-    console.log("Abrindo formulário de manutenção");
-
-    // Reset do formulário
-    resetForm();
-
-    // Configurar modo de edição se necessário
-    if (maintenanceId && data) {
-      isEditMode = true;
-      editingMaintenanceId = maintenanceId;
-      populateFormForEdit(data);
-    } else {
-      isEditMode = false;
-      editingMaintenanceId = null;
-    }
-
-    // Mostrar o modal
-    const modal = document.getElementById('maintenance-form-overlay');
-    if (modal) {
-      modal.style.display = 'flex'; // Usando 'flex' em vez de 'block' para o overlay
-      console.log("Modal de manutenção aberto com sucesso");
-    } else {
-      console.error("Modal #maintenance-form-overlay não encontrado!");
-    }
-
-    // Garantir que comece na primeira etapa
-    showStep(1);
+      console.log("Abrindo formulário de manutenção");
+  
+      // Configurar modo de edição primeiro
+      if (maintenanceId && data) {
+          isEditMode = true;
+          editingMaintenanceId = maintenanceId;
+          // Não resetamos o formulário quando estamos editando
+      } else {
+          isEditMode = false;
+          editingMaintenanceId = null;
+          // Resetar apenas se for um novo registro
+          resetForm();
+      }
+  
+      // Para modo de edição, preencher o formulário com os dados
+      if (isEditMode && data) {
+          populateFormForEdit(data);
+      }
+  
+      // Mostrar o modal
+      const modal = document.getElementById('maintenance-form-overlay');
+      if (modal) {
+          modal.style.display = 'flex';
+          console.log("Modal de manutenção aberto com sucesso");
+      } else {
+          console.error("Modal #maintenance-form-overlay não encontrado!");
+      }
+  
+      // Garantir que comece na primeira etapa
+      showStep(1);
   }
 
   function populateFormForEdit(data) {
