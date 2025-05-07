@@ -10,25 +10,25 @@
   --primary-light: #3584e4;         /* Variação mais clara para hover */
   --primary-dark: #15487d;          /* Variação mais escura para elementos ativos */
   --secondary-color: #424242;       /* Cinza escuro para textos e bordas */
-
+  
   /* Status Colors - refinados para maior clareza e profissionalismo */
   --status-pending: #f0ad4e;        /* Amarelo âmbar mais suave */
   --status-verification: #0066cc;   /* Azul distintivo para verificação */
   --status-completed: #2b9348;      /* Verde mais profissional */
   --status-danger: #cc0000;         /* Vermelho mais intenso para alertas */
   --status-rejected: #e63946;       /* Vermelho-coral para rejeições */
-  --status-adjustments: #f9c74f;    /* Amarelo-ouro para a classe 'status-adjustments' (se usada) */
-
+  --status-adjustments: #f9c74f;    /* Amarelo-ouro para ajustes */
+  
   /* Cores de fundo */
   --bg-color: #f5f7fa;              /* Cinza mais azulado para fundo */
   --card-bg: #ffffff;               /* Branco puro para cards */
   --header-bg: var(--primary-color);/* Azul primário para cabeçalho */
-
+  
   /* Cores de texto */
   --text-dark: #333333;             /* Quase preto para melhor contraste */
   --text-light: #5e6c84;            /* Cinza médio para textos secundários */
   --text-lighter: #8093a7;          /* Cinza claro para textos terciários */
-
+  
   /* Efeitos e sombras */
   --border-radius: 6px;             /* Raio de borda mais suave */
   --box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08); /* Sombra mais suave */
@@ -304,6 +304,7 @@ body, html {
   box-shadow: var(--card-shadow);
 }
 
+/* Atualizado pela instrução 2.2 */
 .section-title,
 .section h3,
 .section h4 {
@@ -329,6 +330,8 @@ body, html {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
+/* Atualizado pela instrução 2.2 */
+/* Substituir ou adicionar estes estilos para gráficos */
 .grid-container {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
@@ -336,6 +339,7 @@ body, html {
   margin-bottom: 2rem;
 }
 
+/* Atualizado pela instrução 2.2 */
 .chart-container {
   position: relative;
   min-height: 280px;
@@ -346,6 +350,7 @@ body, html {
   transition: all 0.2s ease;
 }
 
+/* Adicionado pela instrução 2.2 */
 .chart-container:hover {
   box-shadow: 0 3px 8px rgba(0,0,0,0.1);
   transform: translateY(-2px);
@@ -389,8 +394,8 @@ th:after {
   left: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(90deg,
-    rgba(var(--primary-color-rgb), 0.8),
+  background: linear-gradient(90deg, 
+    rgba(var(--primary-color-rgb), 0.8), 
     rgba(var(--primary-color-rgb), 0.3)
   );
   opacity: 0;
@@ -454,8 +459,6 @@ td.action-buttons {
 .status-adjustments { background-color: var(--status-adjustments); }
 .status-critical, .status-danger { background-color: var(--status-danger); }
 .status-default { background-color: var(--text-lighter); }
-/* .status-badge.status-ajustes é definido ao final do arquivo, conforme nova instrução */
-
 
 /* Botões */
 .btn, button.btn {
@@ -525,14 +528,14 @@ td.action-buttons {
 .btn-danger { background-color: var(--status-danger); }
 .btn-danger:hover { background-color: #b20000; }
 
-.btn-warning {
-  background-color: var(--status-pending);
-  color: var(--text-dark);
+.btn-warning { 
+  background-color: var(--status-pending); 
+  color: var(--text-dark); 
 }
 .btn-warning:hover { background-color: #e09d43; }
 
-.btn-secondary {
-  background-color: var(--secondary-color);
+.btn-secondary { 
+  background-color: var(--secondary-color); 
 }
 .btn-secondary:hover { background-color: #333333; }
 
@@ -735,6 +738,9 @@ select.form-control {
   background-color: rgba(204, 0, 0, 0.1);
 }
 
+/* Steps de formulário aprimorados */
+/* Atualizado pela instrução 4.1 */
+/* Substituir os estilos existentes da form-steps */
 .form-steps {
   display: flex;
   justify-content: center;
@@ -1219,32 +1225,32 @@ select.form-control {
   .container {
     padding: 1rem;
   }
-
+  
   .header {
     padding: 1.25rem;
   }
-
+  
   .tabs {
     flex-wrap: wrap;
   }
-
+  
   .tab {
     flex-basis: 50%;
     padding: 0.75rem 0.5rem;
   }
-
+  
   .form-step {
     padding: 0 0.5rem;
   }
-
+  
   .step-label {
     font-size: 0.75rem;
   }
-
+  
   .form-step:not(:last-child)::after {
     width: calc(100% - 20px);
   }
-
+  
   .detail-grid {
     grid-template-columns: 1fr;
   }
@@ -1262,8 +1268,7 @@ select.form-control {
 
 /* Add primary-color-rgb for rgba usage */
 :root {
-  /* Esta variável já foi definida no topo, garantindo que não haja duplicação */
-  /* --primary-color-rgb: 26, 95, 180; */
+  --primary-color-rgb: 26, 95, 180;
 }
 
 /* Graceful initialization - prevent FOUC */
@@ -1276,7 +1281,8 @@ select.form-control {
   opacity: 1;
 }
 
-/* Estilos para o dropdown de filtros (Mantido, pode ser usado por outros componentes) */
+/* Adicionado pela instrução 2.1 */
+/* Estilos para o dropdown de filtros */
 .filter-dropdown {
   position: relative;
   display: inline-block;
@@ -1325,7 +1331,7 @@ select.form-control {
   margin-top: 10px;
 }
 
-/* Smart Filter Container (Mantido, pode ser usado por outros componentes) */
+/* Adicione ao final do arquivo enhanced-style.css */
 .smart-filter-container {
     background-color: #f8f9fa;
     border-radius: 8px;
@@ -1352,14 +1358,13 @@ select.form-control {
     font-size: 0.9rem;
 }
 
-.smart-filter-container .filter-dropdown {
+.filter-dropdown { /* Note: Este seletor já existe acima, mas a instrução pedia para adicionar este bloco inteiro. Mantendo como solicitado. */
     min-width: 150px;
     padding: 6px 12px;
     border: 1px solid #dee2e6;
     border-radius: 4px;
     font-size: 0.9rem;
 }
-
 
 .date-filter-group {
     display: flex;
@@ -1392,11 +1397,10 @@ select.form-control {
     font-size: 0.9rem;
 }
 
-.smart-filter-container .filter-actions {
+.filter-actions { /* Note: Este seletor já existe acima, mas a instrução pedia para adicionar este bloco inteiro. Mantendo como solicitado. */
     display: flex;
     gap: 8px;
 }
-
 
 .smart-filter-toggle {
     background-color: var(--primary-color);
@@ -1420,44 +1424,10 @@ select.form-control {
         flex-direction: column;
         align-items: stretch;
     }
-
-    .smart-filter-container .filter-group,
-    .smart-filter-container .date-filter-group {
+    
+    .filter-group, .date-filter-group {
         flex-direction: column;
         align-items: stretch;
     }
 }
 
-/* ===== Filtros Dashboard ===== */
-.dashboard-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 16px 0;
-  align-items: center;
-}
-.dashboard-filters input,
-.dashboard-filters select {
-  padding: 4px 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 0.9rem;
-}
-.dashboard-filters button {
-  padding: 4px 12px;
-  background-color: var(--primary-color, #0052cc);
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-.dashboard-filters button:hover {
-  opacity: 0.9;
-}
-
-/* ===== Badge Ajustes ===== */
-.status-badge.status-ajustes {
-  background-color: #6c757d;
-  color: #000; /* texto preto para maior contraste */
-}
