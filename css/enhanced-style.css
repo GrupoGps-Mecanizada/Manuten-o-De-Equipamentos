@@ -451,10 +451,10 @@ td.action-buttons {
 .status-verified, .status-verification { background-color: var(--status-verification); }
 .status-completed { background-color: var(--status-completed); }
 .status-rejected { background-color: var(--status-rejected); }
-.status-adjustments { background-color: var(--status-adjustments); } /* Para a classe 'status-adjustments' (termo em inglês ou uso geral), usa a variável amarela. */
-/* .status-badge.status-ajustes é definido ao final do arquivo, conforme instrução */
+.status-adjustments { background-color: var(--status-adjustments); }
 .status-critical, .status-danger { background-color: var(--status-danger); }
 .status-default { background-color: var(--text-lighter); }
+/* .status-badge.status-ajustes é definido ao final do arquivo, conforme nova instrução */
 
 
 /* Botões */
@@ -1428,14 +1428,7 @@ select.form-control {
     }
 }
 
-/* Layout unificado: controles + filtros - Antigo, removido para dar lugar ao novo bloco abaixo */
-/* #tab-dashboard .dashboard-header {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-} */
-
-/* INÍCIO: Estilos de Filtros adicionados conforme instrução 3 */
+/* ===== Filtros Dashboard ===== */
 .dashboard-filters {
   display: flex;
   flex-wrap: wrap;
@@ -1462,8 +1455,9 @@ select.form-control {
 .dashboard-filters button:hover {
   opacity: 0.9;
 }
-/* FIM: Estilos de Filtros adicionados conforme instrução 3 */
 
-/* INÍCIO: Badge "Ajustes" adicionado conforme instrução 6 */
-.status-badge.status-ajustes { background-color: #6c757d; color: #fff; }
-/* FIM: Badge "Ajustes" adicionado conforme instrução 6 */
+/* ===== Badge Ajustes ===== */
+.status-badge.status-ajustes {
+  background-color: #6c757d;
+  color: #000; /* texto preto para maior contraste */
+}
