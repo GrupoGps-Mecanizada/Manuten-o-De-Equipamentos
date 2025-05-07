@@ -32,15 +32,14 @@
       <div class="tab" data-tab="reports">Relatórios</div>
     </div>
 
-    <!-- O bloco de filtros global que estava aqui foi removido -->
-
     <div class="tab-content active" id="tab-dashboard">
       <div class="dashboard-header">
         <h2>Visão Geral</h2>
       </div>
 
-      <!-- Painel de Filtros Inteligentes (Específico para Dashboard) -->
-      <!-- =============================== INÍCIO DO BLOCO DE FILTROS DO DASHBOARD =============================== -->
+      <!-- Se existisse um <div class="dashboard-controls">, o bloco abaixo seria inserido após ele.
+           Como não existe no código fornecido, ele será inserido após o dashboard-header. -->
+      <!-- Painel de Filtros Inteligentes -->
       <div class="dashboard-filters">
         <input type="text" id="filter-search" placeholder="🔍 Pesquisar..." />
         <select id="filter-status">
@@ -55,7 +54,6 @@
         <button id="filter-apply" class="btn btn-sm">Aplicar</button>
         <button id="filter-clear" class="btn btn-sm">Limpar</button>
       </div>
-      <!-- =============================== FIM DO BLOCO DE FILTROS DO DASHBOARD ================================= -->
 
       <div class="summary-cards">
         <div class="card">
