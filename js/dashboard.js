@@ -249,11 +249,11 @@ const Dashboard = (function() {
              console.log(`Carregando dados (${isInitialLoad ? 'inicial' : (!dashboardData ? 'sem dados' : 'atualização')})`);
 
              // Verifica se um filtro de data customizado está ativo para o carregamento inicial
-             const startDate = document.getElementById('filterStartDate')?.value;
-             const endDate = document.getElementById('filterEndDate')?.value;
+             const startDateInput = document.getElementById('filterStartDate')?.value; // Note: Renomeado de filterStartDate para filter-start-date no HTML do filtro
+             const endDateInput = document.getElementById('filterEndDate')?.value;     // Note: Renomeado de filterEndDate para filter-end-date no HTML do filtro
              let period;
-             if(startDate && endDate && !isInitialLoad) { // Não usar custom no load inicial forçado, usar o default
-                period = `custom:${startDate}:${endDate}`;
+             if(startDateInput && endDateInput && !isInitialLoad) { // Não usar custom no load inicial forçado, usar o default
+                period = `custom:${startDateInput}:${endDateInput}`;
              } else {
                 const activeButton = document.querySelector('#tab-dashboard .period-btn.active');
                 period = activeButton ? activeButton.getAttribute('data-period') : 'current-month';
@@ -318,7 +318,7 @@ const Dashboard = (function() {
   }
 
   /** Renderiza o dashboard completo com os dados recebidos */
-  function renderDashboard(data) {
+  function renderDashboard(data) { // Esta função será decorada mais abaixo
     cleanupCharts(); // Limpa gráficos antigos
     console.log("Renderizando dashboard com dados:", data);
     data = data || createEmptyDashboardResponse("Dados nulos recebidos"); // Garante que data seja um objeto
@@ -357,6 +357,73 @@ const Dashboard = (function() {
     }
   }
 
+  // Configuração dos filtros de tabela (ATUALIZAÇÃO 2)
+  function setupTableFilters() {
+    const applyBtn = document.getElementById('filter-apply');
+    const clearBtn = document.getElementById('filter-clear');
+    const searchInput = document.getElementById('filter-search');
+    const statusSelect = document.getElementById('filter-status');
+    const startDate = document.getElementById('filter-start-date');
+    const endDate = document.getElementById('filter-end-date');
+
+    // Verifica se os elementos do filtro existem antes de adicionar listeners
+    if (!applyBtn || !clearBtn || !searchInput || !statusSelect || !startDate || !endDate) {
+        console.warn("Elementos do filtro da tabela não encontrados. A filtragem pode não funcionar.");
+        return;
+    }
+
+    function applyFilter() {
+      const text = searchInput.value.trim().toLowerCase();
+      const status = statusSelect.value;
+      const from = startDate.value; // Formato YYYY-MM-DD esperado para comparação de string direta
+      const to = endDate.value;     // Formato YYYY-MM-DD esperado
+
+      document.querySelectorAll('#recent-maintenance-tbody tr').forEach(row => {
+        const cols = row.querySelectorAll('td');
+        if (cols.length < 6) { // Garante que a linha tem colunas suficientes
+            row.style.display = ''; // ou 'none' dependendo da lógica desejada para linhas malformadas
+            return;
+        }
+
+        // A data na tabela está em formato DD/MM/YYYY. Precisa converter para YYYY-MM-DD para comparação de string.
+        const dateParts = cols[3].textContent.trim().split('/');
+        const rowDateStr = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : '';
+
+        const stat = cols[5].textContent.trim(); // O status já está como texto
+        const rowText = row.textContent.toLowerCase();
+        let visible = true;
+
+        if (text && !rowText.includes(text)) visible = false;
+        if (status && stat !== status) visible = false; // Comparação direta de string para status
+        if (from && rowDateStr && rowDateStr < from) visible = false;
+        if (to && rowDateStr && rowDateStr > to) visible = false;
+        
+        row.style.display = visible ? '' : 'none';
+      });
+    }
+
+    applyBtn.addEventListener('click', applyFilter);
+    clearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      statusSelect.value = '';
+      startDate.value = '';
+      endDate.value = '';
+      applyFilter(); // Reaplica para mostrar tudo
+    });
+    console.log("Filtros da tabela de manutenções recentes configurados.");
+  }
+
+  // Chamar setupTableFilters sempre após renderDashboard (ATUALIZAÇÃO 2 - DECORATOR)
+  // É importante que 'renderDashboard' já esteja definida antes deste ponto.
+  // E 'setupTableFilters' também.
+  // Esta é uma forma de "decorar" a função original.
+  const originalRenderDashboard = renderDashboard; // Guarda a referência da função original
+  renderDashboard = function(data) { // Sobrescreve renderDashboard
+    originalRenderDashboard.call(this, data); // Chama a função original com o mesmo contexto e argumentos
+    setupTableFilters(); // Chama a nova função depois
+  };
+
+
   /** Renderiza cartões de sumário - VERSÃO CORRIGIDA */
   function renderSummaryCards(summary) {
     // Mapeamento: Chave do objeto 'summary' da API -> ID do elemento HTML que contém o valor
@@ -366,10 +433,6 @@ const Dashboard = (function() {
       'completed': 'completed-verifications', // Este ID existe no HTML
       'critical': 'critical-maintenance'
     };
-    // A função createSummaryCardsIfNeeded() não é mais necessária aqui,
-    // pois o HTML já contém os cards. Se precisar criá-los dinamicamente,
-    // a lógica original em createSummaryCardsIfNeeded() deve garantir que
-    // os IDs correspondam aos usados aqui.
 
     Object.entries(cardValueMap).forEach(([summaryKey, elementId]) => {
       const valueElement = document.getElementById(elementId); // Busca pelo ID diretamente
@@ -377,20 +440,13 @@ const Dashboard = (function() {
         const value = summary[summaryKey] ?? 0; // Usa ?? para tratar null/undefined como 0
         valueElement.textContent = value; // Define o texto do elemento encontrado pelo ID
       } else {
-        // Ajuste no log de erro para refletir a busca por ID
         console.warn(`Elemento de valor #${elementId} não encontrado para o card ${summaryKey}.`);
       }
     });
-     // console.log("Cards de sumário renderizados com:", summary); // Log opcional
   }
 
    /** Cria cards de sumário se necessário (inclui ícones Font Awesome) */
    function createSummaryCardsIfNeeded() {
-       // Esta função é chamada no initialize() caso os cards não existam no HTML.
-       // Se os cards já estão no HTML (como no index.html fornecido),
-       // esta função não fará nada ou pode ser removida do initialize().
-       // Certifique-se que, se usada, ela crie elementos com os IDs corretos
-       // usados em renderSummaryCards (ex: #total-maintenance).
        const dashboardContent = document.getElementById('tab-dashboard');
        if (!dashboardContent || dashboardContent.querySelector('.summary-cards')) return;
 
@@ -398,7 +454,6 @@ const Dashboard = (function() {
        const cardsContainer = document.createElement('div');
        cardsContainer.className = 'summary-cards';
        const cards = [
-         // Ajustar IDs e estrutura aqui se necessário para bater com o HTML
          { valueId: 'total-maintenance', icon: 'fa-clipboard-list', color: 'blue', label: 'Total Manutenções' },
          { valueId: 'pending-verification', icon: 'fa-clock', color: 'yellow', label: 'Aguardando Verificação' },
          { valueId: 'completed-verifications', icon: 'fa-check-circle', color: 'green', label: 'Concluídas/Verificadas' },
@@ -406,8 +461,7 @@ const Dashboard = (function() {
        ];
        cards.forEach(card => {
            const cardElement = document.createElement('div');
-           cardElement.className = 'card'; // Usa a classe 'card' do HTML
-           // A estrutura interna precisa bater com o HTML ou ser ajustada
+           cardElement.className = 'card';
            cardElement.innerHTML = `
              <div class="card-title">
                <i class="icon fas ${card.icon}"></i> ${card.label}
@@ -424,16 +478,14 @@ const Dashboard = (function() {
   /** Chama as funções de renderização para todos os gráficos */
   function renderCharts(chartData) {
       console.log("Renderizando gráficos...");
-      // IDs dos Canvas conforme HTML
       renderStatusChart(chartData.status || [], 'maintenance-status-chart');
-      renderProblemCategoriesChart(chartData.problemCategories || [], 'problem-categories-chart'); // <<< Usa dados de Categoria
+      renderProblemCategoriesChart(chartData.problemCategories || [], 'problem-categories-chart');
       renderMonthlyTrendChart(chartData.monthlyTrend || [], 'monthly-trend-chart');
-      renderAreaDistributionChart(chartData.areaDistribution || [], 'area-distribution-chart'); // <<< Usa dados de Local/Oficina
+      renderAreaDistributionChart(chartData.areaDistribution || [], 'area-distribution-chart');
       renderCriticalVsRegularChart(chartData.criticalVsRegular || [], 'critical-vs-regular-chart');
       renderVerificationResultsChart(chartData.verificationResults || [], 'verification-results-chart');
       renderMaintenanceFrequencyChart('maintenance-frequency-chart', chartData.maintenanceFrequency || []);
 
-      // Gráfico Opcional: Manutenções por TIPO (se o canvas 'maintenance-type-chart' existir)
       if(document.getElementById('maintenance-type-chart')) {
           renderMaintenanceTypeChart(chartData.maintenanceTypes || [], 'maintenance-type-chart');
       }
@@ -443,112 +495,109 @@ const Dashboard = (function() {
   /** Renderiza gráfico de frequência apenas com dados válidos */
   function renderMaintenanceFrequencyChart(chartId, data) {
     const container = document.getElementById(chartId)?.parentElement;
-    // Se não há dados, exibe mensagem e sai
     if (!data || !data.length) {
       if (container && !container.querySelector('.no-data-message')) {
         const msg = document.createElement('div');
         msg.className = 'no-data-message';
         msg.textContent = 'Sem dados para intervalo de manutenção.';
+        // Limpa o conteúdo anterior do container antes de adicionar a mensagem
+        if (container.firstChild && container.firstChild.id === chartId) { // Se o canvas existe
+            try {
+                if(chartInstances['frequencyChart']) chartInstances['frequencyChart'].destroy();
+            } catch(e) { console.warn("Erro ao limpar canvas para msg sem dados (freq):", e);}
+            container.innerHTML = ''; // Limpa o canvas e qualquer outra coisa
+        }
         container.appendChild(msg);
       }
       return;
     }
-    // Se havia mensagem de "sem dados", remove-a
     const oldMsg = container.querySelector('.no-data-message');
     if (oldMsg) oldMsg.remove();
+
+    // Se o canvas não existir (foi removido pela mensagem de 'sem dados'), recria
+    if (!document.getElementById(chartId) && container) {
+        const newCanvas = document.createElement('canvas');
+        newCanvas.id = chartId;
+        newCanvas.style.height = '200px'; // ou a altura que você usa
+        container.appendChild(newCanvas);
+    }
     renderGenericChart(chartId, 'line', data, { /* suas opções */ }, 'frequencyChart');
   }
 
-  // ===========================================================
-  // FUNÇÕES DE RENDERIZAÇÃO DE GRÁFICOS (Refatoradas para reutilização)
-  // ===========================================================
 
   /** Função genérica para renderizar um gráfico */
   function renderGenericChart(chartId, chartType, chartData, options = {}, chartKey = null) {
-      const canvas = document.getElementById(chartId);
+      let canvas = document.getElementById(chartId); // Use let pois pode ser recriado
       if (!canvas) { console.error(`Canvas #${chartId} não encontrado!`); return; }
       if (typeof Chart === 'undefined') { console.error(`Chart.js não carregado para ${chartId}!`); return; }
 
-      // Limpa qualquer mensagem de 'sem dados' que possa existir no PAI do canvas
       const parent = canvas.parentElement;
       const noDataMessage = parent?.querySelector('.no-data-message');
-      if (noDataMessage) {
-        // Se a mensagem existe, remove ela e re-cria o canvas antes de desenhar
-        parent.innerHTML = ''; // Limpa o container
+      if (noDataMessage && parent) { // Se a mensagem existe no PAI
+        parent.innerHTML = ''; // Limpa o container (remove a mensagem)
         const newCanvas = document.createElement('canvas');
         newCanvas.id = chartId;
-        // Preservar altura/largura se definidos ou usar defaults
-        newCanvas.style.height = canvas.style.height || '200px'; // Altura default
+        newCanvas.style.height = canvas.style.height || '200px';
         newCanvas.style.width = canvas.style.width || '100%';
         parent.appendChild(newCanvas);
-        canvas = newCanvas; // Usa o novo canvas a partir de agora
+        canvas = newCanvas; // Atualiza a referência do canvas
         console.log(`Canvas #${chartId} recriado após remover mensagem 'sem dados'.`);
       }
 
       const isValidData = chartData && Array.isArray(chartData) && chartData.length > 0 && chartData.some(item => (item.count || 0) > 0);
-      // Para o placeholder, só criamos se a função específica não tratar disso (como a de frequência faz agora)
-      // A função de frequência agora tem seu próprio tratamento de 'sem dados', então não precisamos do placeholder aqui
-      // const dataToRender = isValidData ? chartData : [{ label: 'Sem Dados', count: 1 }];
-      // const isPlaceholder = !isValidData;
-      // if (isPlaceholder) console.warn(`Dados inválidos/vazios para ${chartId}. Usando placeholder.`);
 
-      // Se a função específica não for a de frequência e não houver dados, podemos AINDA mostrar um placeholder
-      if (!isValidData && chartId !== 'maintenance-frequency-chart') {
+      if (!isValidData && chartId !== 'maintenance-frequency-chart') { // Manter o placeholder para outros gráficos
         console.warn(`Dados inválidos/vazios para ${chartId}. Usando placeholder.`);
-        // Desenha um placeholder simples
         const ctx = canvas.getContext('2d');
-        canvas.height = 150; // Altura padrão para placeholder
+        canvas.height = 150;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = '#6c757d';
         ctx.textAlign = 'center';
         ctx.font = '14px Arial';
         ctx.fillText('Sem dados para exibir', canvas.width / 2, canvas.height / 2);
-         // Destruir instância antiga se existir, mesmo para placeholder
-         const instanceKey = chartKey || chartId;
-         if (chartInstances[instanceKey]) {
-             try { chartInstances[instanceKey].destroy(); } catch(e){}
-             delete chartInstances[instanceKey];
-         }
-        return; // Não renderiza Chart.js
+        const instanceKey = chartKey || chartId;
+        if (chartInstances[instanceKey]) {
+            try { chartInstances[instanceKey].destroy(); } catch(e){}
+            delete chartInstances[instanceKey];
+        }
+        return;
       }
-       // Se dados são válidos, prossegue
-      const dataToRender = chartData; // Usa os dados reais
+      // Para maintenance-frequency-chart, se chegou aqui, os dados são válidos (tratamento prévio)
 
+      const dataToRender = chartData;
 
       try {
-          // Usa uma chave única para a instância do gráfico
           const instanceKey = chartKey || chartId;
-          if (chartInstances[instanceKey]) chartInstances[instanceKey].destroy();
+          if (chartInstances[instanceKey]) {
+            try { chartInstances[instanceKey].destroy(); } catch(e){ console.warn("Erro ao destruir chart (generic):", e); }
+          }
 
           const labels = dataToRender.map(item => item.label || 'N/A');
           const counts = dataToRender.map(item => item.count || 0);
-          let colors = generateColorPalette(labels.length); // Não mais placeholder
+          let colors = generateColorPalette(labels.length);
 
-          // Personaliza cores para tipos específicos
           if (chartId === 'maintenance-status-chart') {
               colors = labels.map(l => getStatusColor(l));
           } else if (chartId === 'critical-vs-regular-chart') {
-              colors = labels.map(l => l === 'Críticas' ? '#FF5630' : '#36B37E'); // Danger e Success
+              colors = labels.map(l => l === 'Críticas' ? '#FF5630' : '#36B37E');
           } else if (chartId === 'verification-results-chart') {
-              colors = labels.map(l => getStatusColor(l)); // Reutiliza cores de status
+              colors = labels.map(l => getStatusColor(l));
           }
 
-          // Configurações padrão e específicas do tipo
           const defaultOptions = {
               responsive: true, maintainAspectRatio: false,
-              plugins: { legend: { display: true }, tooltip: { enabled: true } } // Habilita por padrão
+              plugins: { legend: { display: true }, tooltip: { enabled: true } }
           };
-          // Ajustes de opções específicos baseados no tipo/ID
           if (chartType === 'doughnut' || chartType === 'pie') {
              defaultOptions.plugins.legend.position = 'right';
-             if(labels.length > 10) defaultOptions.plugins.legend.display = false; // Esconde legenda se muitos itens
+             if(labels.length > 10) defaultOptions.plugins.legend.display = false;
           }
           if (chartType === 'bar') {
-             defaultOptions.plugins.legend.display = false; // Geralmente não precisa de legenda para barras simples
+             defaultOptions.plugins.legend.display = false;
              defaultOptions.scales = { y: { beginAtZero: true, ticks: { precision: 0 } } };
-             if (options?.indexAxis === 'y') { // Se for barra horizontal
-                 defaultOptions.scales = { x: { beginAtZero: true, ticks: { precision: 0 } } }; // Eixo X é a contagem
-                 delete defaultOptions.scales.y; // Remove config do eixo Y
+             if (options?.indexAxis === 'y') {
+                 defaultOptions.scales = { x: { beginAtZero: true, ticks: { precision: 0 } } };
+                 delete defaultOptions.scales.y;
              }
           }
           if (chartType === 'line') {
@@ -557,9 +606,8 @@ const Dashboard = (function() {
               defaultOptions.elements = { line: { tension: 0.1, fill: true }, point: { radius: 3 } };
           }
 
-          const mergedOptions = deepMerge(defaultOptions, options); // Combina opções padrão com específicas
+          const mergedOptions = deepMerge(defaultOptions, options);
 
-          // Cria o gráfico
           chartInstances[instanceKey] = new Chart(canvas.getContext('2d'), {
               type: chartType,
               data: { labels, datasets: [{ data: counts, backgroundColor: colors, borderWidth: (chartType === 'pie' || chartType === 'doughnut') ? 0 : 1 }] },
@@ -570,89 +618,80 @@ const Dashboard = (function() {
       } catch (error) { console.error(`Erro ao renderizar ${chartId}:`, error); }
   }
 
-  /** Renderiza gráfico de Status das Manutenções */
   function renderStatusChart(data, chartId) {
       renderGenericChart(chartId, 'doughnut', data, {
           cutout: '65%', plugins: { legend: { position: 'right' } }
       }, 'statusChart');
   }
 
-  /** Renderiza gráfico de Categorias de Problemas (TOP 10 + Outros) */
   function renderProblemCategoriesChart(data, chartId) {
-      renderGenericChart(chartId, 'bar', data, { // Barras verticais
+      renderGenericChart(chartId, 'bar', data, {
           plugins: { legend: { display: false } },
           scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { autoSkip: data.length > 10 } } }
       }, 'categoryChart');
   }
 
-   /** Renderiza gráfico Opcional: Manutenções por TIPO */
    function renderMaintenanceTypeChart(data, chartId) {
-      renderGenericChart(chartId, 'bar', data, { // Barras verticais
-           indexAxis: 'y', // Barras Horizontais para Tipos
+      renderGenericChart(chartId, 'bar', data, {
+           indexAxis: 'y',
            plugins: { legend: { display: false } },
-           scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } // Eixo X é a contagem
+           scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
        }, 'maintenanceTypeChart');
    }
 
-  /** Renderiza gráfico de Tendência Mensal */
   function renderMonthlyTrendChart(data, chartId) {
       const options = {
           plugins: { legend: { display: false } },
           scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } },
-          elements: { line: { tension: 0.1, fill: true }, point: { radius: data.some(d=>(d.count||0)>0) ? 3 : 0 } } // Mostra pontos só se houver dados
+          elements: { line: { tension: 0.1, fill: true }, point: { radius: data.some(d=>(d.count||0)>0) ? 3 : 0 } }
       };
-      // Passa dados diretamente para genérico, que cuidará dos datasets
-      const dataForChart = data.map(item => ({ label: item.label, count: item.count })); // Garante formato
+      const dataForChart = data.map(item => ({ label: item.label, count: item.count }));
 
-       // Sobrescreve a criação do dataset para linha
-       const canvas = document.getElementById(chartId);
+       let canvas = document.getElementById(chartId);
        if (!canvas || typeof Chart === 'undefined') return;
 
-       // Limpa mensagem 'sem dados' se existir e recria canvas
        const parent = canvas.parentElement;
        const noDataMessage = parent?.querySelector('.no-data-message');
-       if (noDataMessage) {
-           parent.innerHTML = ''; // Limpa
+       if (noDataMessage && parent) {
+           parent.innerHTML = '';
            const newCanvas = document.createElement('canvas');
            newCanvas.id = chartId; newCanvas.style.height = canvas.style.height || '200px';
            parent.appendChild(newCanvas);
            canvas = newCanvas;
        }
 
-
-       const isValidData = data && Array.isArray(data) && data.length > 0 && data.some(item => (item.count || 0) > 0);
+       const isValidData = dataForChart && dataForChart.length > 0 && dataForChart.some(item => (item.count || 0) > 0);
        const isPlaceholder = !isValidData;
        if (isPlaceholder) console.warn(`Dados de Tendência inválidos/vazios para ${chartId}.`);
 
        try {
            const instanceKey = 'trendChart';
-           if (chartInstances[instanceKey]) chartInstances[instanceKey].destroy();
+           if (chartInstances[instanceKey]) {
+             try { chartInstances[instanceKey].destroy(); } catch(e) { console.warn("Erro ao destruir trend chart:", e); }
+           }
            const labels = dataForChart.map(item => item.label || '');
            const counts = dataForChart.map(item => item.count || 0);
            chartInstances[instanceKey] = new Chart(canvas.getContext('2d'), {
                type: 'line',
                data: { labels, datasets: [{ label: 'Manutenções', data: counts, borderColor: isPlaceholder ? '#cccccc' : '#3f51b5', backgroundColor: isPlaceholder ? 'transparent' : 'rgba(63, 81, 181, 0.1)', borderWidth: 2, pointRadius: isPlaceholder ? 0 : 3, fill: !isPlaceholder, tension: 0.1 }] },
-               options: options // Usa as opções definidas acima
+               options: options
            });
            console.log(`${chartId} (line) renderizado.`);
        } catch (error) { console.error(`Erro ao renderizar ${chartId}:`, error); }
   }
 
-  /** Renderiza gráfico de Distribuição por Local/Oficina */
   function renderAreaDistributionChart(data, chartId) {
       renderGenericChart(chartId, 'pie', data, {
-          plugins: { legend: { position: 'right', display: data.length > 0 && data.length < 15 && !data.every(i=>(i.count||0)===0) } } // Legenda otimizada
+          plugins: { legend: { position: 'right', display: data.length > 0 && data.length < 15 && !data.every(i=>(i.count||0)===0) } }
       }, 'areaChart');
   }
 
-  /** Renderiza gráfico de Manutenções Críticas vs Regulares */
   function renderCriticalVsRegularChart(data, chartId) {
       renderGenericChart(chartId, 'doughnut', data, {
           cutout: '60%', plugins: { legend: { position: 'bottom' } }
       }, 'criticalChart');
   }
 
-  /** Renderiza gráfico de Resultados das Verificações */
   function renderVerificationResultsChart(data, chartId) {
       renderGenericChart(chartId, 'bar', data, {
            plugins: { legend: { display: false } },
@@ -660,18 +699,13 @@ const Dashboard = (function() {
        }, 'verificationChart');
   }
 
-  // ===========================================================
-  // FUNÇÃO PARA RENDERIZAR TABELAS (Ranking e Recentes)
-  // ===========================================================
-
-   /** Renderiza tabela de ranking OU recentes. */
    function renderRecentMaintenances(items, tbodyId) {
        const tableBody = document.getElementById(tbodyId);
        if (!tableBody) { console.warn(`Tbody #${tbodyId} não encontrado!`); return; }
-       tableBody.innerHTML = ''; // Limpa
+       tableBody.innerHTML = '';
 
        const thead = tableBody.previousElementSibling;
-       const colspan = thead?.rows?.[0]?.cells?.length || 5; // Ajuste o colspan padrão se necessário
+       const colspan = thead?.rows?.[0]?.cells?.length || 5;
 
        if (!items || items.length === 0) {
          tableBody.innerHTML = `<tr><td colspan="${colspan}" class="text-center" style="padding: 20px; color: #6c757d;">Nenhum dado encontrado para este período.</td></tr>`;
@@ -682,7 +716,6 @@ const Dashboard = (function() {
            const row = document.createElement('tr');
            let html = '';
            if (tbodyId === 'equipment-ranking-tbody') {
-               // Colunas: Equipamento(ID), Tipo, Total Manutenções, Última Manutenção, Status
                html = `
                  <td>${item.identifier || item.id || '-'}</td>
                  <td>${item.name || item.type || '-'}</td>
@@ -690,7 +723,6 @@ const Dashboard = (function() {
                  <td>${formatDate(item.lastMaintenanceDate)}</td>
                  <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td>`;
            } else if (tbodyId === 'recent-maintenance-tbody') {
-                // Colunas: ID, Equipamento(placa+tipo), TipoManut, Data Registro, Responsável, Status, Ações
                 html = `
                   <td>${item.id || '-'}</td>
                   <td>${item.placaOuId || '-'} (${item.tipoEquipamento || '-'})</td>
@@ -703,23 +735,15 @@ const Dashboard = (function() {
            row.innerHTML = html;
            tableBody.appendChild(row);
        });
-       // console.log(`Tabela #${tbodyId} renderizada.`); // Log opcional
 
-        // --- INÍCIO DA ALTERAÇÃO ---
-        // Adiciona listener DELEGADO ao tbody (se ainda não tiver)
-        // Converte tbodyId para camelCase para usar como chave do dataset
         const listenerKey = tbodyId.replace(/-([a-z])/g, g => g[1].toUpperCase()) + 'ListenerSet';
-        // Ex: 'equipment-ranking-tbody' vira 'equipmentRankingTbodyListenerSet'
-        // Verifica e define o atributo usando a chave camelCase
         if (!tableBody.dataset[listenerKey]) {
            tableBody.addEventListener('click', handleTableActionClick);
-           tableBody.dataset[listenerKey] = 'true'; // Define a flag no dataset com nome válido
+           tableBody.dataset[listenerKey] = 'true';
            console.log(`Listener de clique configurado para #${tbodyId} com chave dataset: ${listenerKey}`);
         }
-        // --- FIM DA ALTERAÇÃO ---
    }
 
-   /** Handler DELEGADO para cliques nos botões de ação das tabelas */
    function handleTableActionClick(event) {
        const button = event.target.closest('.btn-icon');
        if (!button) return;
@@ -728,24 +752,15 @@ const Dashboard = (function() {
 
        if (button.classList.contains('view-maintenance')) {
           console.log(`Visualizar manutenção ID: ${maintenanceId}`);
-          // Tenta chamar a função global viewMaintenanceDetails (assumindo que existe)
-          // Idealmente, essa dependência deveria ser injetada ou gerenciada de outra forma
           if (typeof window.viewMaintenanceDetails === 'function') {
-             window.viewMaintenanceDetails(maintenanceId); // Chama função global
+             window.viewMaintenanceDetails(maintenanceId);
           } else {
              console.error("Função global 'viewMaintenanceDetails' não encontrada ou não definida.");
-             // Poderia ter um fallback aqui, como mostrar um alert simples.
              alert(`Detalhes da manutenção ${maintenanceId} (Função 'viewMaintenanceDetails' não disponível)`);
           }
        }
-       // Adicionar mais 'else if' para outros botões de ação (editar, excluir, etc.) se necessário
    }
 
-  // ===========================================================
-  // FUNÇÕES UTILITÁRIAS INTERNAS E GLOBAIS (Se não vierem de utilities.js)
-  // ===========================================================
-
-  /** Gera uma paleta de cores */
   function generateColorPalette(count) {
     const baseColors = ['#0052CC', '#36B37E', '#FFAB00', '#6554C0', '#FF5630', '#00B8D9', '#FFC400', '#4C9AFF', '#79F2C0', '#FF8B00'];
     if (count <= baseColors.length) return baseColors.slice(0, count);
@@ -755,7 +770,6 @@ const Dashboard = (function() {
     return colors;
   }
 
-  /** Retorna classe CSS para status */
   function getStatusClass(status) {
     if (!status) return 'default'; const s = String(status).toLowerCase();
     if (s.includes('pendente') || s.includes('aguardando')) return 'pending';
@@ -768,66 +782,47 @@ const Dashboard = (function() {
     return 'default';
   }
 
-  /** Retorna cor HSL para status (exemplo) */
   function getStatusColor(status) {
-    if (!status) return '#adb5bd'; // Cinza default
+    if (!status) return '#adb5bd';
     const s = String(status).toLowerCase();
-    if (s.includes('pendente') || s.includes('aguardando')) return '#FFAB00'; // warning
-    if (s.includes('verificado') || s.includes('aprovado')) return '#0052CC'; // primary
-    if (s.includes('concluído') || s.includes('concluido')) return '#36B37E'; // success
-    if (s.includes('ajustes')) return '#FFC400'; // Amarelo mais claro
-    if (s.includes('reprovado') || s.includes('rejeitado')) return '#FF5630'; // danger
-    if (s.includes('crítico') || s.includes('critico')) return '#BF2600'; // danger mais escuro
-    return '#6c757d'; // secondary
+    if (s.includes('pendente') || s.includes('aguardando')) return '#FFAB00';
+    if (s.includes('verificado') || s.includes('aprovado')) return '#0052CC';
+    if (s.includes('concluído') || s.includes('concluido')) return '#36B37E';
+    if (s.includes('ajustes')) return '#FFC400';
+    if (s.includes('reprovado') || s.includes('rejeitado')) return '#FF5630';
+    if (s.includes('crítico') || s.includes('critico')) return '#BF2600';
+    return '#6c757d';
   }
 
-
-  /** Formata uma data (DD/MM/YYYY) */
   function formatDate(dateInput) {
     if (!dateInput) return '-';
-    // Tenta usar Utilities.formatDate primeiro
     if (typeof Utilities !== 'undefined' && Utilities.formatDate) {
-        try {
-            // Verifica se Utilities.formatDate aceita o formato de entrada
-            // Pode ser necessário ajustar a entrada se Utilities.formatDate for exigente
-            return Utilities.formatDate(dateInput);
-        } catch (e) {
-            console.warn("Erro ao usar Utilities.formatDate, usando fallback:", e);
-        }
+        try { return Utilities.formatDate(dateInput); }
+        catch (e) { console.warn("Erro ao usar Utilities.formatDate, usando fallback:", e); }
     }
-    // Fallback: Formatação manual simples
     try {
       let date;
-      // Tenta criar data, lidando com strings que podem ter 'T' ou ser só data
       if (typeof dateInput === 'string' && dateInput.includes('T')) {
-          date = new Date(dateInput.split('T')[0] + 'T00:00:00'); // Considera apenas a data, no fuso local
+          date = new Date(dateInput.split('T')[0] + 'T00:00:00');
       } else {
           date = new Date(dateInput);
       }
-
       if (isNaN(date.getTime())) {
-          // Se ainda inválida, tenta retornar a parte da data da string original
           if (typeof dateInput === 'string') return dateInput.split('T')[0];
-          return String(dateInput); // Retorna como string se não reconhecer
+          return String(dateInput);
       }
-      // getTimezoneOffset retorna a diferença em minutos entre UTC e local.
-      // Adiciona esse offset para compensar e exibir a data local correta.
       date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
-
       const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0'); // Mês é 0-indexed
+      const month = String(date.getMonth() + 1).padStart(2, '0');
       const year = date.getFullYear();
-      // Validação básica do ano
       if (year < 1900 || year > 3000) return '-';
       return `${day}/${month}/${year}`;
     } catch(e) {
       console.error("Erro ao formatar data (fallback):", e, "Input:", dateInput);
-      return String(dateInput); // Retorna a entrada original em caso de erro
+      return String(dateInput);
     }
   }
 
-
-  /** Mostra/esconde loader global */
   function showLoading(show, message = 'Carregando...') {
     if (typeof Utilities !== 'undefined' && Utilities.showLoading) { try { Utilities.showLoading(show, message); return; } catch (e) {} }
     const loader = document.getElementById('global-loader');
@@ -835,16 +830,11 @@ const Dashboard = (function() {
     else if (show) { console.warn("Loader global não encontrado"); }
   }
 
-  /** Mostra notificação de erro */
   function showLoadingError(message) {
     if (typeof Utilities !== 'undefined' && Utilities.showNotification) { try { Utilities.showNotification(message, 'error', 8000); return; } catch(e) {} }
     console.error("Dashboard Error:", message);
-     // Fallback simples se Utilities não estiver disponível
-     // alert("Erro no Dashboard: " + message);
   }
 
-   // --- INÍCIO DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO ---
-   // Substitua a função checkAndCreateChartContainers em dashboard.js
     function checkAndCreateChartContainers() {
       const requiredCanvasIds = [
         'maintenance-status-chart', 'problem-categories-chart', 'monthly-trend-chart',
@@ -852,7 +842,6 @@ const Dashboard = (function() {
         'maintenance-frequency-chart'
       ];
       
-      // Primeiro, verificar se o container existe, senão criar
       let dashboardGrid = document.querySelector('#tab-dashboard .dashboard-grid');
       if (!dashboardGrid) {
         console.log("Container .dashboard-grid não encontrado. Criando...");
@@ -860,10 +849,8 @@ const Dashboard = (function() {
         dashboardGrid.className = 'dashboard-grid';
         dashboardGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin: 1.5rem 0;';
         
-        // Adicionar ao tab-dashboard
         const dashboardTab = document.getElementById('tab-dashboard');
         if (dashboardTab) {
-          // Inserir após a seção "summary-cards" se existir, ou no início
           const summaryCards = dashboardTab.querySelector('.summary-cards');
           if (summaryCards) {
             summaryCards.after(dashboardGrid);
@@ -876,7 +863,6 @@ const Dashboard = (function() {
         }
       }
 
-      // Agora verificar e criar os canvases
       requiredCanvasIds.forEach(id => {
         if (!document.getElementById(id)) {
           console.log(`Canvas #${id} não encontrado. Criando...`);
@@ -893,10 +879,7 @@ const Dashboard = (function() {
         }
       });
     }
-   // --- FIM DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO ---
 
-
-   /** Função utilitária para merge profundo de objetos (para opções de gráfico) */
    function deepMerge(target, source) {
       const output = Object.assign({}, target);
       if (isObject(target) && isObject(source)) {
@@ -913,19 +896,57 @@ const Dashboard = (function() {
    }
    function isObject(item) { return (item && typeof item === 'object' && !Array.isArray(item)); }
 
-
-  // API pública do módulo
-  return { initialize }; // Expor apenas initialize, o resto é interno
+  return { initialize };
 })();
 
+// ----------------------------------------------------------
+// Exporta globalmente a função de visualizar detalhes de manutenção (ATUALIZAÇÃO 1)
+// ----------------------------------------------------------
+if (typeof window !== 'undefined') {
+  window.viewMaintenanceDetails = function(maintenanceId) {
+    // Tenta usar o módulo Maintenance (caso exista)
+    if (typeof Maintenance !== 'undefined' && typeof Maintenance.openMaintenanceForm === 'function') {
+      console.log("Delegando para Maintenance.openMaintenanceForm:", maintenanceId);
+      Maintenance.openMaintenanceForm(maintenanceId);
+      return;
+    }
+    // Fallback: chamar API direto e abrir modal via utilitário
+    if (window.API && typeof API.getMaintenanceDetails === 'function') {
+      console.log("Fallback: Chamando API.getMaintenanceDetails para:", maintenanceId);
+      API.getMaintenanceDetails({ id: maintenanceId }) // Supondo que a API espera um objeto com id
+        .then(resp => {
+          if (resp.success && resp.maintenance) {
+            // Reaproveita seu modal de detalhes (de verification.js, maintenance.js ou utilities)
+            // Supondo que exista uma função global ou em Utilities para exibir modais.
+            if (typeof displayDetailsModal === 'function') { // Função hipotética
+              displayDetailsModal(resp.maintenance);
+            } else if (typeof Utilities !== 'undefined' && typeof Utilities.showDetailsModal === 'function') { // Outra função hipotética
+              Utilities.showDetailsModal(resp.maintenance);
+            }
+            else {
+              alert("Detalhes da Manutenção:\n" + JSON.stringify(resp.maintenance, null, 2));
+            }
+          } else {
+            console.error("Erro ao obter detalhes da manutenção via API:", resp);
+            alert(`Não foi possível carregar detalhes: ${resp.message || 'erro desconhecido na API'}`);
+          }
+        })
+        .catch(err => {
+          console.error("Erro de comunicação ao obter detalhes da manutenção:", err);
+          alert(`Erro de comunicação ao buscar detalhes: ${err.message}`);
+        });
+      return;
+    }
+    console.error("Nenhum handler disponível para viewMaintenanceDetails. ID:", maintenanceId);
+    alert(`Detalhes da manutenção ${maintenanceId} não podem ser exibidos (nenhum handler configurado).`);
+  };
+}
+
+
 // --- Inicialização ---
-// É crucial que API.js e utilities.js sejam carregados ANTES deste script.
-// O ScriptLoader no index.html deve garantir isso.
 document.addEventListener('DOMContentLoaded', function() {
-  // Verifica se Chart.js está carregado ANTES de inicializar
   if (typeof Chart === 'undefined') {
      console.error("FATAL: Chart.js não foi carregado. Os gráficos do Dashboard não funcionarão.");
-     // Opcional: Exibir mensagem para o usuário aqui
      const dashboardTab = document.getElementById('tab-dashboard');
      if(dashboardTab) {
          dashboardTab.innerHTML = '<div class="alert alert-danger">Erro Crítico: Biblioteca de gráficos (Chart.js) não carregada. O Dashboard não pode ser exibido.</div>';
@@ -939,8 +960,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   else if (typeof Dashboard !== 'undefined' && Dashboard.initialize) {
      console.log("DOM carregado, inicializando Dashboard...");
-     // Pequeno delay para garantir que tudo esteja pronto, especialmente se houver outras inicializações
-     setTimeout(Dashboard.initialize, 150); // Aumentei ligeiramente o delay
+     setTimeout(Dashboard.initialize, 150);
   } else {
      console.error("Módulo Dashboard ou Dashboard.initialize não encontrado!");
       const dashboardTab = document.getElementById('tab-dashboard');
