@@ -798,27 +798,31 @@ const Dashboard = (function() {
         // --- FIM DA ALTERAÇÃO ---
    }
 
-   /** Handler DELEGADO para cliques nos botões de ação das tabelas */
-   function handleTableActionClick(event) {
-       const button = event.target.closest('.btn-icon');
-       if (!button) return;
-       const maintenanceId = button.getAttribute('data-id');
-       if (!maintenanceId) return;
-
-       if (button.classList.contains('view-maintenance')) {
+  /** Handler DELEGADO para cliques nos botões de ação das tabelas */
+  function handleTableActionClick(event) {
+      const button = event.target.closest('.btn-icon');
+      if (!button) return;
+      const maintenanceId = button.getAttribute('data-id');
+      if (!maintenanceId) return;
+      if (button.classList.contains('view-maintenance')) {
           console.log(`Visualizar manutenção ID: ${maintenanceId}`);
-          // Tenta chamar a função global viewMaintenanceDetails (assumindo que existe)
-          // Idealmente, essa dependência deveria ser injetada ou gerenciada de outra forma
-          if (typeof window.viewMaintenanceDetails === 'function') {
-             window.viewMaintenanceDetails(maintenanceId); // Chama função global
-          } else {
-             console.error("Função global 'viewMaintenanceDetails' não encontrada ou não definida.");
-             // Poderia ter um fallback aqui, como mostrar um alert simples.
-             alert(`Detalhes da manutenção ${maintenanceId} (Função 'viewMaintenanceDetails' não disponível)`);
+          
+          // Tentar usar o módulo Maintenance primeiro (solução 2)
+          if (window.Maintenance && typeof Maintenance.viewMaintenanceDetails === 'function') {
+              Maintenance.viewMaintenanceDetails(maintenanceId);
+          } 
+          // Fallback para função global (para compatibilidade)
+          else if (typeof window.viewMaintenanceDetails === 'function') {
+              window.viewMaintenanceDetails(maintenanceId);
+          } 
+          // Nenhuma das opções está disponível
+          else {
+              console.error("Nem Maintenance.viewMaintenanceDetails nem a função global foram encontradas.");
+              alert(`Detalhes da manutenção ${maintenanceId} (Funções de visualização não disponíveis)`);
           }
-       }
-       // Adicionar mais 'else if' para outros botões de ação (editar, excluir, etc.) se necessário
-   }
+      }
+      // Adicionar mais 'else if' para outros botões de ação (editar, excluir, etc.) se necessário
+  }
 
   // ===========================================================
   // FUNÇÕES UTILITÁRIAS INTERNAS E GLOBAIS (Se não vierem de utilities.js)
