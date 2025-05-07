@@ -210,11 +210,12 @@ const Dashboard = (function() {
      }
    }
 
+  /** Carrega dados do dashboard via API (será exposta) */
   function loadDashboardData(period = 'current-month', force = false) {
     const currentTime = Date.now();
     if (!force && dashboardData && (currentTime - lastLoadTime < REFRESH_INTERVAL)) {
       console.log("Dados recentes, pulando carregamento.");
-      return;
+      return Promise.resolve(dashboardData); // Retorna promessa resolvida com dados existentes
     }
     console.log(`Carregando dados do dashboard para período: ${period}`);
     showLoading(true, "Carregando dashboard...");
@@ -225,27 +226,31 @@ const Dashboard = (function() {
        showLoadingError("Erro crítico: Função da API não encontrada.");
        if (refreshButton) refreshButton.classList.remove('rotating');
        showLoading(false);
-       renderDashboard(createEmptyDashboardResponse("Erro de API"));
-       return;
+       const emptyData = createEmptyDashboardResponse("Erro de API");
+       renderDashboard(emptyData);
+       return Promise.reject(new Error("API.getDashboardData não está disponível!"));
     }
 
-    API.getDashboardData(period)
+    return API.getDashboardData(period) // Retorna a promessa da API
       .then(response => {
         console.log("Resposta API:", JSON.stringify(response, null, 2));
         if (response && response.success) {
           dashboardData = response;
           lastLoadTime = currentTime;
           renderDashboard(dashboardData);
+          return dashboardData; // Retorna os dados para quem chamou
         } else {
           console.error("Erro retornado pela API:", response);
           showLoadingError("Erro ao carregar dados: " + (response?.message || "Resposta inválida"));
           renderDashboard(dashboardData || createEmptyDashboardResponse(response?.message || "Erro API"));
+          return Promise.reject(response?.message || "Erro API ao carregar dados");
         }
       })
       .catch(error => {
         console.error("Falha na requisição API:", error);
         showLoadingError(`Falha na comunicação: ${error.message}.`);
         renderDashboard(dashboardData || createEmptyDashboardResponse(error.message));
+        return Promise.reject(error); // Propaga o erro
       })
       .finally(() => {
         if (refreshButton) refreshButton.classList.remove('rotating');
@@ -257,7 +262,6 @@ const Dashboard = (function() {
       return { success: true, message: message, summary: { total: 0, pending: 0, completed: 0, critical: 0 }, maintenanceTypes: [], maintenanceStatuses: [], equipmentRanking: [], areaDistribution: [], problemCategories: [], monthlyTrend: [], criticalVsRegular: [], verificationResults: [], maintenanceFrequency: [], recentMaintenances: [] };
   }
 
-  // Função principal de renderização do Dashboard
   function renderDashboard(data) {
     cleanupCharts();
     console.log("Renderizando dashboard com dados:", data);
@@ -280,9 +284,7 @@ const Dashboard = (function() {
       renderRecentMaintenances(data.equipmentRanking || [], 'equipment-ranking-tbody');
       renderRecentMaintenances(data.recentMaintenances || [], 'recent-maintenance-tbody');
       
-      // Chamar applyGlobalFilter() logo após renderizar cada tabela (NOVA INSTRUÇÃO)
-      // ou, mais apropriadamente, após todas as tabelas relevantes serem renderizadas.
-      applyGlobalFilter();
+      applyGlobalFilter(); // Chamada do filtro global
 
       console.log("Dashboard renderizado com sucesso.");
     } catch (error) {
@@ -292,6 +294,94 @@ const Dashboard = (function() {
        showLoading(false);
     }
   }
+
+  // Função de Filtro Global (3.1)
+  function applyGlobalFilter() {
+    const searchInputEl = document.getElementById('filter-search');
+    const statusSelectEl = document.getElementById('filter-status');
+    const startDateEl = document.getElementById('filter-start-date');
+    const endDateEl = document.getElementById('filter-end-date');
+
+    // Verifica se todos os elementos de filtro existem para evitar erros
+    if (!searchInputEl || !statusSelectEl || !startDateEl || !endDateEl) {
+        console.warn("Um ou mais elementos de filtro não foram encontrados. O filtro global pode não funcionar como esperado.");
+        // Não retorna aqui, para que possa tentar filtrar com os campos que existem
+    }
+    
+    const text   = searchInputEl ? searchInputEl.value.trim().toLowerCase() : "";
+    const status = statusSelectEl ? statusSelectEl.value : ""; // O valor do select já deve ser o texto do status
+    const from   = startDateEl ? startDateEl.value : "";    // Formato YYYY-MM-DD
+    const to     = endDateEl ? endDateEl.value : "";        // Formato YYYY-MM-DD
+
+    ['recent-maintenance-tbody','maintenance-tbody','verification-tbody']
+      .forEach(tbodyId => {
+        const tableBody = document.getElementById(tbodyId);
+        if (!tableBody) {
+          // console.warn(`Tabela com tbody ID #${tbodyId} não encontrada para filtragem global.`);
+          return; 
+        }
+        tableBody.querySelectorAll('tr').forEach(row => {
+          const cols = [...row.children].map(td => td.textContent.trim().toLowerCase());
+          let vis = true;
+
+          if (text && !cols.join(' ').includes(text)) vis = false;
+          
+          // Para o filtro de status, é importante que o valor no select ('status')
+          // corresponda exatamente ao texto do status na célula da tabela (após toLowerCase).
+          // Se o status na tabela estiver dentro de um span, como <span class="status-badge">Pendente</span>,
+          // cols.includes(status.toLowerCase()) pode não funcionar diretamente se status.toLowerCase() for 'pendente'
+          // e cols[INDEX_STATUS_COL] for "pendente" (texto do span)
+          // A lógica atual compara com todas as colunas. Se o status só existe em uma coluna específica:
+          // const statusColIndex = 5; // Exemplo para recent-maintenance-tbody
+          // if (status && (cols[statusColIndex] ? !cols[statusColIndex].includes(status.toLowerCase()) : true) ) vis = false;
+          // A instrução fornecida `!cols.includes(status.toLowerCase())` é genérica.
+          // Vamos assumir que o texto do status (ex: "Pendente", "Concluído") está presente em alguma célula como texto simples.
+          if (status && !cols.some(colText => colText.includes(status.toLowerCase()))) vis = false;
+
+
+          // A data está na coluna 3 (índice 3) para recent-maintenance-tbody.
+          // Se outras tabelas tiverem a data em colunas diferentes, esta lógica precisa ser adaptada.
+          const dateDMY = (cols[3] || '').trim(); // DD/MM/YYYY
+          let dateYMD = '';
+          if (dateDMY) {
+              const parts = dateDMY.split('/');
+              if (parts.length === 3) {
+                  dateYMD = `${parts[2]}-${parts[1]}-${parts[0]}`; // Converte para YYYY-MM-DD
+              }
+          }
+          
+          if (from && dateYMD && dateYMD < from) vis = false; // Comparação de strings YYYY-MM-DD funciona
+          if (to   && dateYMD && dateYMD > to)   vis = false;
+          
+          row.style.display = vis ? '' : 'none';
+        });
+      });
+    console.log("Filtro global aplicado.");
+  }
+
+  // Ativar filtros (3.1) - Estes listeners são configurados uma vez quando o script carrega.
+  const applyFilterBtn = document.getElementById('filter-apply');
+  const clearFilterBtn = document.getElementById('filter-clear');
+
+  if (applyFilterBtn) {
+    applyFilterBtn.addEventListener('click', applyGlobalFilter);
+  } else {
+    console.warn("Botão 'filter-apply' não encontrado para o filtro global.");
+  }
+  
+  if (clearFilterBtn) {
+    clearFilterBtn.addEventListener('click', () => {
+      ['filter-search','filter-status','filter-start-date','filter-end-date']
+        .forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+      applyGlobalFilter();
+    });
+  } else {
+    console.warn("Botão 'filter-clear' não encontrado para o filtro global.");
+  }
+  // FIM DA FUNÇÃO DE FILTRO GLOBAL E LISTENERS
 
   function renderSummaryCards(summary) {
     const cardValueMap = {
@@ -541,7 +631,10 @@ const Dashboard = (function() {
 
    function renderRecentMaintenances(items, tbodyId) {
        const tableBody = document.getElementById(tbodyId);
-       if (!tableBody) { console.warn(`Tbody #${tbodyId} não encontrado!`); return; }
+       if (!tableBody) {
+         // console.warn(`Tbody #${tbodyId} não encontrado para renderRecentMaintenances.`);
+         return;
+       }
        tableBody.innerHTML = '';
        const thead = tableBody.previousElementSibling;
        const colspan = thead?.rows?.[0]?.cells?.length || 5;
@@ -552,34 +645,31 @@ const Dashboard = (function() {
        items.forEach(item => {
            const row = document.createElement('tr');
            let html = '';
-           // Ajuste nas colunas para corresponder à lógica de applyGlobalFilter
-           // A data (cols[3]) e status (cols[5]) são cruciais.
-           if (tbodyId === 'equipment-ranking-tbody') { // Esta tabela pode não ser filtrada pelo applyGlobalFilter se não tiver data/status na mesma posição
+           if (tbodyId === 'equipment-ranking-tbody') {
                html = `
                  <td>${item.identifier || item.id || '-'}</td>
                  <td>${item.name || item.type || '-'}</td>
                  <td>${item.maintenanceCount || 0}</td>
                  <td>${formatDate(item.lastMaintenanceDate)}</td> 
                  <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td>`;
-           } else if (tbodyId === 'recent-maintenance-tbody') { // Esta é a principal tabela filtrada pelo dashboard.js
+           } else if (tbodyId === 'recent-maintenance-tbody') {
                 html = `
                   <td>${item.id || '-'}</td>
                   <td>${item.placaOuId || '-'} (${item.tipoEquipamento || '-'})</td>
                   <td>${item.tipoManutencao || '-'}</td>
-                  <td>${formatDate(item.dataRegistro)}</td> <!-- Data na coluna 3 (índice) -->
+                  <td>${formatDate(item.dataRegistro)}</td>
                   <td>${item.responsavel || '-'}</td>
-                  <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td> <!-- Status na coluna 5 (índice) -->
+                  <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td>
                   <td><button class="btn-icon view-maintenance" data-id="${item.id}" title="Ver Detalhes">👁️</button></td>`;
            } else if (tbodyId === 'maintenance-tbody' || tbodyId === 'verification-tbody') {
-                // Adapte as colunas para estas tabelas se elas precisarem ser filtradas
-                // Exemplo genérico, ajuste conforme a estrutura real dessas tabelas
+                // Adapte conforme a estrutura real dessas tabelas
                 html = `
                   <td>${item.id || '-'}</td>
                   <td>${item.description || '-'}</td>
                   <td>${item.type || '-'}</td>
-                  <td>${formatDate(item.date)}</td> <!-- Data na coluna 3 (índice) -->
+                  <td>${formatDate(item.date)}</td>
                   <td>${item.user || '-'}</td>
-                  <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td> <!-- Status na coluna 5 (índice) -->
+                  <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td>
                   <td><button class="btn-icon view-details" data-id="${item.id}" title="Ver Detalhes">👁️</button></td>`;
            }
            row.innerHTML = html;
@@ -589,119 +679,26 @@ const Dashboard = (function() {
         if (!tableBody.dataset[listenerKey]) {
            tableBody.addEventListener('click', handleTableActionClick);
            tableBody.dataset[listenerKey] = 'true';
-           console.log(`Listener de clique configurado para #${tbodyId} com chave dataset: ${listenerKey}`);
+           // console.log(`Listener de clique configurado para #${tbodyId} com chave dataset: ${listenerKey}`);
         }
    }
 
    function handleTableActionClick(event) {
-       const button = event.target.closest('.btn-icon'); // Mais genérico que '.view-maintenance'
+       const button = event.target.closest('.btn-icon');
        if (!button) return;
-       const maintenanceId = button.getAttribute('data-id');
-       if (!maintenanceId) return;
+       const itemId = button.getAttribute('data-id'); // Renomeado para itemId para ser mais genérico
+       if (!itemId) return;
        
-       // Verifica se é um botão para ver detalhes (pode ser de qualquer tabela que use esta classe)
        if (button.classList.contains('view-maintenance') || button.classList.contains('view-details')) {
-          console.log(`Visualizar detalhes para ID: ${maintenanceId}`);
+          console.log(`Visualizar detalhes para ID: ${itemId}`);
           if (typeof window.viewMaintenanceDetails === 'function') {
-             window.viewMaintenanceDetails(maintenanceId);
+             window.viewMaintenanceDetails(itemId); // Passa o ID diretamente
           } else {
              console.error("Função global 'viewMaintenanceDetails' não encontrada ou não definida.");
-             alert(`Detalhes para ID ${maintenanceId} (Função 'viewMaintenanceDetails' não disponível)`);
+             alert(`Detalhes para ID ${itemId} (Função 'viewMaintenanceDetails' não disponível)`);
           }
        }
    }
-
-  // NOVA FUNÇÃO DE FILTRO GLOBAL E SEUS LISTENERS (dentro do IIFE)
-  function applyGlobalFilter() {
-    const searchInputEl = document.getElementById('filter-search');
-    const statusSelectEl = document.getElementById('filter-status');
-    const startDateEl = document.getElementById('filter-start-date');
-    const endDateEl = document.getElementById('filter-end-date');
-
-    // Garantir que os elementos de filtro existam
-    if (!searchInputEl || !statusSelectEl || !startDateEl || !endDateEl) {
-        console.warn("Elementos do formulário de filtro não encontrados. O filtro global não pode ser aplicado.");
-        return;
-    }
-
-    const text = searchInputEl.value.trim().toLowerCase();
-    const status = statusSelectEl.value; // O valor do select já é o texto do status desejado
-    const from = startDateEl.value; // Formato YYYY-MM-DD
-    const to = endDateEl.value;     // Formato YYYY-MM-DD
-
-    // IDs das tabelas a serem filtradas
-    const tablesToFilter = ['recent-maintenance-tbody', 'maintenance-tbody', 'verification-tbody'];
-
-    tablesToFilter.forEach(tbodyId => {
-      const tableBody = document.getElementById(tbodyId);
-      if (!tableBody) {
-        // console.warn(`Tabela com tbody ID #${tbodyId} não encontrada para filtragem.`);
-        return; // Pula para a próxima tabela se esta não existir
-      }
-
-      tableBody.querySelectorAll('tr').forEach(row => {
-        const cols = [...row.children].map(td => td.textContent.trim().toLowerCase());
-        let visible = true;
-
-        // Filtro por texto
-        if (text && !cols.join(' ').includes(text)) {
-          visible = false;
-        }
-
-        // Filtro por status (coluna 5, índice 5 para recent-maintenance-tbody)
-        // A lógica de status precisa ser adaptada se a coluna for diferente ou se o status não for texto simples
-        const statusTextInRow = (cols[5] || '').trim(); // Status na sexta coluna
-        if (status && statusTextInRow !== status.toLowerCase()) {
-          visible = false;
-        }
-        
-        // Filtro por data (coluna 3, índice 3 para recent-maintenance-tbody)
-        // A data na tabela (DD/MM/YYYY) precisa ser convertida para YYYY-MM-DD para comparação
-        const dateInRowDDMMYYYY = (cols[3] || '').trim(); // Data na quarta coluna
-        let dateInRowYYYYMMDD = '';
-        if (dateInRowDDMMYYYY) {
-            const parts = dateInRowDDMMYYYY.split('/');
-            if (parts.length === 3) {
-                dateInRowYYYYMMDD = `${parts[2]}-${parts[1]}-${parts[0]}`;
-            }
-        }
-
-        if (from && dateInRowYYYYMMDD && dateInRowYYYYMMDD < from) {
-          visible = false;
-        }
-        if (to && dateInRowYYYYMMDD && dateInRowYYYYMMDD > to) {
-          visible = false;
-        }
-
-        row.style.display = visible ? '' : 'none';
-      });
-    });
-    console.log("Filtro global aplicado.");
-  }
-
-  // Configurar listeners para os botões de filtro (garantir que os botões existam)
-  const applyFilterButton = document.getElementById('filter-apply');
-  const clearFilterButton = document.getElementById('filter-clear');
-
-  if (applyFilterButton) {
-    applyFilterButton.addEventListener('click', applyGlobalFilter);
-  } else {
-    console.warn("Botão 'filter-apply' não encontrado.");
-  }
-
-  if (clearFilterButton) {
-    clearFilterButton.addEventListener('click', () => {
-      ['filter-search','filter-status','filter-start-date','filter-end-date'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value='';
-      });
-      applyGlobalFilter(); // Reaplica o filtro (que agora mostrará tudo)
-    });
-  } else {
-    console.warn("Botão 'filter-clear' não encontrado.");
-  }
-  // FIM DA NOVA FUNÇÃO DE FILTRO GLOBAL
-
 
   function generateColorPalette(count) {
     const baseColors = ['#0052CC', '#36B37E', '#FFAB00', '#6554C0', '#FF5630', '#00B8D9', '#FFC400', '#4C9AFF', '#79F2C0', '#FF8B00'];
@@ -838,38 +835,56 @@ const Dashboard = (function() {
    }
    function isObject(item) { return (item && typeof item === 'object' && !Array.isArray(item)); }
 
-  return { initialize };
+  // API pública do módulo Dashboard
+  return { 
+    initialize,
+    loadDashboardData // Expondo loadDashboardData
+  };
 })(); // FIM DO IIFE Dashboard
 
-// NOVA IMPLEMENTAÇÃO PARA window.viewMaintenanceDetails (fora do IIFE)
-// Colocado aqui conforme instrução "no final do IIFE, cole:" (interpretado como APÓS o IIFE)
-// Se a intenção era "antes do return { initialize };", então deveria estar dentro.
-// Mas a instrução anterior para applyGlobalFilter foi "Dentro do IIFE ... abaixo das funções de renderização"
-// o que sugere uma distinção clara.
-if (typeof window !== 'undefined') { // Adicionando verificação para evitar erro em ambientes não-browser
-    window.viewMaintenanceDetails = function(id) {
-        // Verifica se API e Maintenance estão disponíveis
-        if (typeof API === 'undefined' || typeof API.getMaintenanceDetails !== 'function') {
-            console.error("API.getMaintenanceDetails não está disponível.");
-            alert('Erro: Função de API para obter detalhes não encontrada.');
-            return;
-        }
-        if (typeof Maintenance === 'undefined' || typeof Maintenance.openMaintenanceForm !== 'function') {
-            console.error("Maintenance.openMaintenanceForm não está disponível.");
-            alert('Erro: Função para abrir formulário de manutenção não encontrada.');
-            return;
-        }
+// Permite que main.js chame loadDashboardData (3.2)
+if (typeof Dashboard !== 'undefined' && typeof Dashboard.loadDashboardData === 'function') {
+    window.loadDashboardData = Dashboard.loadDashboardData.bind(Dashboard); // Bind para manter o contexto do Dashboard
+} else {
+    console.error("Dashboard.loadDashboardData não pôde ser exposto globalmente.");
+}
 
-        API.getMaintenanceDetails({ id }).then(resp => {
-            if (resp.success && resp.maintenance) {
-                Maintenance.openMaintenanceForm(resp.maintenance.id, resp.maintenance);
-            } else {
-                alert('Detalhes não encontrados ou erro na resposta da API: ' + (resp.message || 'Erro desconhecido'));
-                console.error("Falha ao obter detalhes da manutenção:", resp);
-            }
-        }).catch(err => {
-            alert('Erro ao tentar obter detalhes da manutenção: ' + err.message);
-            console.error("Erro na chamada API.getMaintenanceDetails:", err);
+// Corrigir viewMaintenanceDetails (3.3)
+// Esta função deve estar no escopo global.
+if (typeof window !== 'undefined') {
+    window.viewMaintenanceDetails = function(payload) {
+      const id = (payload && typeof payload === 'object' && payload.id) ? payload.id : payload;
+
+      if (!id) {
+        console.error("viewMaintenanceDetails chamado sem um ID válido.", payload);
+        alert("Não foi possível identificar a manutenção para ver os detalhes.");
+        return;
+      }
+
+      if (typeof API === 'undefined' || typeof API.getMaintenanceDetails !== 'function') {
+          console.error("API.getMaintenanceDetails não está disponível.");
+          alert('Erro: Função de API para obter detalhes não encontrada.');
+          return;
+      }
+      if (typeof Maintenance === 'undefined' || typeof Maintenance.openMaintenanceForm !== 'function') {
+          console.error("Maintenance.openMaintenanceForm não está disponível.");
+          alert('Erro: Função para abrir formulário de manutenção não encontrada.');
+          return;
+      }
+
+      API.getMaintenanceDetails({ id }) // API espera um objeto {id: valor}
+        .then(resp => {
+          if (resp.success && resp.maintenance) {
+            // abre o modal em modo edição, passando o ID e o objeto completo
+            Maintenance.openMaintenanceForm(resp.maintenance.id, resp.maintenance);
+          } else {
+            alert(`Manutenção ${id} não encontrada ou erro ao buscar dados: ` + (resp.message || ""));
+            console.error("Detalhes não encontrados para manutenção ID:", id, "Resposta API:", resp);
+          }
+        })
+        .catch(err => {
+          console.error("Erro ao buscar detalhes da manutenção ID:", id, err);
+          alert('Erro ao buscar detalhes da manutenção: ' + err.message);
         });
     };
 }
