@@ -28,22 +28,25 @@ const Maintenance = (() => {
   let editingMaintenanceId = null;
   let fullMaintenanceList = [];
 
-  // --- Função de Inicialização ---
+  // --- Função de Inicialização --- (VERSÃO ATUALIZADA)
   function initialize() {
     console.log("Maintenance.initialize() chamado.");
-
+    
     // Carregar dados iniciais para os dropdowns
     loadInitialData();
-
+    
     // Configurar listeners básicos
     setupBasicListeners();
-
-    // Configurar listeners de filtro
-    setupFilterListeners(); // Esta função agora também chama setupFilterToggle
-  
-    // Configurar toggle de filtro
-    setupFilterToggle(); // Chamada explícita mantida/adicionada conforme instrução
-
+    
+    // Configurar listeners de filtro - remover a chamada do setupFilterToggle daqui
+    setupFilterListeners();
+    
+    // Chamar setupFilterToggle separadamente
+    setupFilterToggle();
+    
+    // Adicionar um listener para inicialização tardia (caso os elementos ainda não existam)
+    setTimeout(setupFilterToggle, 500);
+    
     // Carregar lista de manutenções
     loadMaintenanceList();
   }
@@ -1158,28 +1161,62 @@ const Maintenance = (() => {
     maintenanceType: '',
     problemCategory: ''
   };
-
-  // Configurar os toggles de filtro (NOVA VERSÃO SUBSTITUÍDA)
+  
+  // Correção da função setupFilterToggle no arquivo maintenance.js (VERSÃO ATUALIZADA)
   function setupFilterToggle() {
-    const filterToggleBtn = document.getElementById('toggle-filters-btn'); // ID ATUALIZADO
-    const expandedFilters = document.getElementById('expanded-filters'); // ID ATUALIZADO
+    // Capturar o botão de filtro com seletor mais flexível (também pelo seletor de classe)
+    const filterToggleBtn = document.querySelector('#toggle-filters-btn, .filter-toggle');
+    const expandedFilters = document.getElementById('expanded-filters');
+    
+    console.log("Setup Filter Toggle: ", filterToggleBtn, expandedFilters); // Log para debug
     
     if (filterToggleBtn && expandedFilters) {
-      filterToggleBtn.addEventListener('click', function() {
+      // Função de toggle para melhor gerenciamento
+      // Definir a função `toggleFilters` antes de usá-la no removeEventListener
+      const toggleFiltersHandler = function() { // Renomeado para evitar conflito com a variável global se existisse
+        console.log("Toggle filter clicked"); // Log para debug
         expandedFilters.classList.toggle('show');
-        this.classList.toggle('active'); // 'this' refere-se ao filterToggleBtn
+        filterToggleBtn.classList.toggle('active');
         
         // Atualizar texto do botão
-        if (this.classList.contains('active')) {
-          this.innerHTML = '<i class="fas fa-times"></i> Fechar Filtros';
+        if (filterToggleBtn.classList.contains('active')) {
+          filterToggleBtn.innerHTML = '<i class="fas fa-times"></i> Fechar Filtros';
         } else {
-          this.innerHTML = '<i class="fas fa-filter"></i> Filtros';
+          filterToggleBtn.innerHTML = '<i class="fas fa-filter"></i> Filtros';
         }
+      };
+
+      // Remover listener existente para evitar duplicação
+      // Para remover, a função handler precisa ser a mesma referência.
+      // Isso pode ser complexo se a função é anônima ou redefinida a cada chamada.
+      // Uma abordagem é guardar a referência do handler ou usar uma propriedade no elemento.
+      // Por simplicidade aqui, se a função é sempre a mesma, basta chamá-la.
+      // Se `addSafeListener` já lida com isso, a remoção explícita aqui pode não ser necessária
+      // ou pode ser feita de forma mais robusta.
+      // A abordagem de clonar o nó em `addSafeListener` já remove todos os listeners antigos.
+      // No entanto, `filterToggleBtn` não está usando `addSafeListener`.
+      // Vamos assumir que podemos remover e adicionar diretamente aqui.
+      // Para que removeEventListener funcione corretamente, a função precisa ser nomeada e a mesma referência.
+      
+      // Tentativa de remover um handler anterior, se existir e tiver sido adicionado com este nome.
+      // Isso é um pouco problemático se o handler exato não for conhecido.
+      // A melhor abordagem seria usar o addSafeListener, mas seguindo a instrução:
+      if (filterToggleBtn._toggleFiltersHandler) { // Se já tivermos um handler anexado
+          filterToggleBtn.removeEventListener('click', filterToggleBtn._toggleFiltersHandler);
+      }
+      
+      // Adicionar novo listener
+      filterToggleBtn.addEventListener('click', toggleFiltersHandler);
+      filterToggleBtn._toggleFiltersHandler = toggleFiltersHandler; // Guardar referência para remoção futura
+      
+    } else {
+      console.warn("Elementos de filtro não encontrados:", {
+        botão: filterToggleBtn,
+        container: expandedFilters
       });
     }
   }
 
-  // Atualizar setupFilterListeners (VERSÃO ATUALIZADA)
   function setupFilterListeners() {
     // Campo de busca
     const searchInput = document.getElementById('maintenance-search');
@@ -1234,13 +1271,9 @@ const Maintenance = (() => {
     
     // Preencher categorias de problema dinamicamente
     populateProblemCategoryFilter();
-    
-    // Configurar toggle de filtros
-    setupFilterToggle(); // Chamada interna adicionada
+    // A chamada para setupFilterToggle foi removida daqui, conforme instrução.
   }
 
-
-  // Função reset melhorada (VERSÃO ATUALIZADA)
   function resetFilters() {
     filters = {
       search: '',
@@ -1250,7 +1283,6 @@ const Maintenance = (() => {
       problemCategory: ''
     };
     
-    // Resetar valores dos elementos de filtro
     const elements = [
       'maintenance-search',
       'equipment-type-filter',
@@ -1270,9 +1302,8 @@ const Maintenance = (() => {
       }
     });
     
-    // Fechar os filtros expandidos
-    const expandedFilters = document.getElementById('expanded-filters'); // ID ATUALIZADO
-    const filterToggleBtn = document.getElementById('toggle-filters-btn'); // ID ATUALIZADO
+    const expandedFilters = document.getElementById('expanded-filters');
+    const filterToggleBtn = document.querySelector('#toggle-filters-btn, .filter-toggle'); // Usando seletor flexível
     
     if (expandedFilters && expandedFilters.classList.contains('show')) {
       expandedFilters.classList.remove('show');
@@ -1281,8 +1312,6 @@ const Maintenance = (() => {
         filterToggleBtn.innerHTML = '<i class="fas fa-filter"></i> Filtros';
       }
     }
-    
-    // Aplicar filtros resetados
     applyFilters();
   }
 
@@ -1352,24 +1381,23 @@ const Maintenance = (() => {
       const countDisplay = document.createElement('div');
       countDisplay.id = 'filter-results-count';
       countDisplay.className = 'filter-results-info';
-      const filtersContainer = document.querySelector('.filters-container'); // Este seletor pode precisar ser ajustado para o novo HTML
+      const filtersContainer = document.querySelector('.filters-container');
       if (filtersContainer) {
         filtersContainer.appendChild(countDisplay);
       } else {
-        // Se '.filters-container' não existe, tentar adicionar ao pai do 'toggle-filters-btn' ou similar
-        const toggleBtn = document.getElementById('toggle-filters-btn');
-        if (toggleBtn && toggleBtn.parentElement) {
-            toggleBtn.parentElement.insertAdjacentElement('afterend', countDisplay);
-            console.warn("Contêiner de filtros '.filters-container' não encontrado. 'filter-results-count' adicionado após o botão de toggle.");
+        const toggleBtnContainer = document.querySelector('#toggle-filters-btn, .filter-toggle')?.parentElement;
+        if (toggleBtnContainer) {
+            toggleBtnContainer.insertAdjacentElement('afterend', countDisplay);
+             console.warn("Contêiner de filtros '.filters-container' não encontrado. 'filter-results-count' adicionado após o botão de toggle.");
         } else {
-            console.warn("Contêiner de filtros '.filters-container' e botão 'toggle-filters-btn' não encontrados para adicionar 'filter-results-count'. Adicionando ao body.");
+            console.warn("Contêiner de filtros '.filters-container' e botão de toggle não encontrados para adicionar 'filter-results-count'. Adicionando ao body.");
             document.body.appendChild(countDisplay);
         }
       }
     }
     const elementToUpdate = document.getElementById('filter-results-count');
     if (elementToUpdate) {
-      if (filteredCount < totalCount && totalCount > 0) { // Condição ajustada para mostrar apenas se houver filtragem real e itens totais
+      if (filteredCount < totalCount && totalCount > 0) {
         elementToUpdate.textContent = `Mostrando ${filteredCount} de ${totalCount} manutenções`;
         elementToUpdate.style.display = 'block';
       } else {
@@ -1379,13 +1407,21 @@ const Maintenance = (() => {
     }
   }
 
+  // Também podemos adicionar isto na função de troca de abas (se existir) (ADICIONADA)
+  function onTabChange(tabId) {
+    if (tabId === 'maintenance') {
+      setTimeout(setupFilterToggle, 100);
+    }
+  }
+
   // API pública do módulo
   return {
     initialize,
     openMaintenanceForm,
     loadMaintenanceList,
     viewMaintenanceDetails,
-    fullMaintenanceList
+    fullMaintenanceList,
+    onTabChange // Expor se necessário ser chamada de fora do módulo
   };
 })();
 
