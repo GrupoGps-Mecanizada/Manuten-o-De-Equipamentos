@@ -17,7 +17,8 @@
   --status-completed: #2b9348;      /* Verde mais profissional */
   --status-danger: #cc0000;         /* Vermelho mais intenso para alertas */
   --status-rejected: #e63946;       /* Vermelho-coral para rejeições */
-  --status-adjustments: #f9c74f;    /* Amarelo-ouro para ajustes */
+  --status-adjustments: #f9c74f;    /* Amarelo-ouro para ajustes (pode ser usado para status-adjustments) */
+  --status-ajustes-custom: #6c757d; /* Cinza para status-ajustes, conforme solicitado */
 
   /* Cores de fundo */
   --bg-color: #f5f7fa;              /* Cinza mais azulado para fundo */
@@ -304,7 +305,6 @@ body, html {
   box-shadow: var(--card-shadow);
 }
 
-/* Atualizado pela instrução 2.2 */
 .section-title,
 .section h3,
 .section h4 {
@@ -330,8 +330,6 @@ body, html {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
-/* Atualizado pela instrução 2.2 */
-/* Substituir ou adicionar estes estilos para gráficos */
 .grid-container {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
@@ -339,7 +337,6 @@ body, html {
   margin-bottom: 2rem;
 }
 
-/* Atualizado pela instrução 2.2 */
 .chart-container {
   position: relative;
   min-height: 280px;
@@ -350,7 +347,6 @@ body, html {
   transition: all 0.2s ease;
 }
 
-/* Adicionado pela instrução 2.2 */
 .chart-container:hover {
   box-shadow: 0 3px 8px rgba(0,0,0,0.1);
   transform: translateY(-2px);
@@ -456,9 +452,11 @@ td.action-buttons {
 .status-verified, .status-verification { background-color: var(--status-verification); }
 .status-completed { background-color: var(--status-completed); }
 .status-rejected { background-color: var(--status-rejected); }
-.status-adjustments { background-color: var(--status-adjustments); }
+.status-adjustments { background-color: var(--status-adjustments); } /* Usará --status-adjustments (amarelo-ouro por padrão) */
+.status-ajustes { background-color: var(--status-ajustes-custom); color: #fff; } /* NOVO - para a classe 'status-ajustes', usa cinza */
 .status-critical, .status-danger { background-color: var(--status-danger); }
 .status-default { background-color: var(--text-lighter); }
+
 
 /* Botões */
 .btn, button.btn {
@@ -738,9 +736,6 @@ select.form-control {
   background-color: rgba(204, 0, 0, 0.1);
 }
 
-/* Steps de formulário aprimorados */
-/* Atualizado pela instrução 4.1 */
-/* Substituir os estilos existentes da form-steps */
 .form-steps {
   display: flex;
   justify-content: center;
@@ -1281,8 +1276,7 @@ select.form-control {
   opacity: 1;
 }
 
-/* Adicionado pela instrução 2.1 */
-/* Estilos para o dropdown de filtros */
+/* Estilos para o dropdown de filtros (Mantido da instrução anterior) */
 .filter-dropdown {
   position: relative;
   display: inline-block;
@@ -1331,7 +1325,7 @@ select.form-control {
   margin-top: 10px;
 }
 
-/* Adicione ao final do arquivo enhanced-style.css */
+/* Smart Filter Container (Mantido da instrução anterior) */
 .smart-filter-container {
     background-color: #f8f9fa;
     border-radius: 8px;
@@ -1358,13 +1352,15 @@ select.form-control {
     font-size: 0.9rem;
 }
 
-.filter-dropdown { /* Note: Este seletor já existe acima, mas a instrução pedia para adicionar este bloco inteiro. Mantendo como solicitado. */
+/* .filter-dropdown já definido acima, se precisar de especificidade para smart-filter, use .smart-filter-container .filter-dropdown */
+.smart-filter-container .filter-dropdown {
     min-width: 150px;
     padding: 6px 12px;
     border: 1px solid #dee2e6;
     border-radius: 4px;
     font-size: 0.9rem;
 }
+
 
 .date-filter-group {
     display: flex;
@@ -1397,10 +1393,12 @@ select.form-control {
     font-size: 0.9rem;
 }
 
-.filter-actions { /* Note: Este seletor já existe acima, mas a instrução pedia para adicionar este bloco inteiro. Mantendo como solicitado. */
+/* .filter-actions já definido acima, se precisar de especificidade para smart-filter, use .smart-filter-container .filter-actions */
+.smart-filter-container .filter-actions {
     display: flex;
     gap: 8px;
 }
+
 
 .smart-filter-toggle {
     background-color: var(--primary-color);
@@ -1425,13 +1423,15 @@ select.form-control {
         align-items: stretch;
     }
 
-    .filter-group, .date-filter-group {
+    .smart-filter-container .filter-group,
+    .smart-filter-container .date-filter-group {
         flex-direction: column;
         align-items: stretch;
     }
 }
 
-/* Layout unificado: controles + filtros */
+/* Layout unificado: controles + filtros (Dashboard Filters) */
+/* Garantindo que este bloco apareça uma única vez e corretamente */
 #tab-dashboard .dashboard-header {
   display: flex;
   flex-direction: column;
@@ -1456,7 +1456,7 @@ select.form-control {
 
 .dashboard-filters button {
   padding: 4px 12px;
-  background-color: var(--primary-color, #0052cc);
+  background-color: var(--primary-color, #0052cc); /* Fallback caso --primary-color não esteja definido */
   color: #fff;
   border: none;
   border-radius: 4px;
