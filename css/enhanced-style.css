@@ -1679,3 +1679,19 @@ select.form-control {
     gap: 12px;
   }
 }
+
+/* Garantir que os filtros expandidos apareçam corretamente */
+.expanded-filters.show {
+  padding: 16px;
+  max-height: 300px;
+  opacity: 1;
+  display: block; /* Adicionado para garantir visibilidade */
+  visibility: visible; /* Adicionado para garantir visibilidade */
+}
+
+/* Estilo para botão ativo */
+.filter-toggle.active {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+  border-color: var(--primary-color) !important;
+}
