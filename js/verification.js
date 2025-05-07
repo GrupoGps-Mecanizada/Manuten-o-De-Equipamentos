@@ -13,6 +13,9 @@ const Verification = (() => {
     // Configurar listeners
     setupListeners();
     
+    // Configurar listeners de filtro
+    setupFilterListeners(); // Adicionar esta linha
+    
     // Carregar lista se a aba estiver ativa
     if (document.querySelector('.tab[data-tab="verification"].active')) {
       loadVerificationData();
@@ -69,6 +72,7 @@ const Verification = (() => {
           if (response.success) {
             verificationList = response.maintenances || [];
             renderVerificationTable(verificationList);
+            applyFilters(); // Aplicar filtros após carregar os dados
           } else {
             console.error("Erro ao carregar verificações:", response);
             if (tbody) {
@@ -181,11 +185,56 @@ const Verification = (() => {
   }
   
   // Abre o formulário de verificação
-  function openVerificationForm(maintenanceId) {
+  function openVerificationForm(maintenanceId, maintenanceData) {
     console.log(`Abrindo formulário de verificação para manutenção ID: ${maintenanceId}`);
     
-    // Buscar manutenção na lista
-    const maintenance = verificationList.find(m => m.id === maintenanceId);
+    // Inicializar variável para os dados da manutenção
+    let maintenance = maintenanceData;
+    
+    // Se não recebeu dados, tenta buscar na lista local
+    if (!maintenance) {
+      maintenance = verificationList.find(m => String(m.id) === String(maintenanceId));
+    }
+    
+    // Se ainda não encontrou, tenta buscar pelo mecanismo global compartilhado
+    if (!maintenance && window.maintenanceDataShared && typeof window.maintenanceDataShared.getMaintenanceById === 'function') {
+      maintenance = window.maintenanceDataShared.getMaintenanceById(maintenanceId);
+    }
+    
+    // Se ainda não encontrou, tenta buscar pela API diretamente
+    if (!maintenance && window.API && typeof API.getMaintenanceDetails === 'function') {
+      // Mostra loading
+      if (typeof Utilities !== 'undefined' && Utilities.showLoading) {
+        Utilities.showLoading(true, "Carregando dados da manutenção...");
+      }
+      
+      // Busca os dados diretamente da API
+      API.getMaintenanceDetails({ id: maintenanceId })
+        .then(response => {
+          if (response.success && response.maintenance) {
+            // Continuar com o formulário usando os dados obtidos
+            continueWithVerificationForm(maintenanceId, response.maintenance);
+          } else {
+            if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+              Utilities.showNotification("Erro: Manutenção não encontrada", "error");
+            }
+          }
+        })
+        .catch(error => {
+          if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
+            Utilities.showNotification("Erro ao buscar manutenção: " + (error.message || "Erro desconhecido"), "error");
+          }
+        })
+        .finally(() => {
+          if (typeof Utilities !== 'undefined' && Utilities.showLoading) {
+            Utilities.showLoading(false);
+          }
+        });
+      
+      return; // Retorna aqui para evitar prosseguir, já que estamos aguardando a API
+    }
+    
+    // Se ainda não encontrou após tentar todas as opções, mostra erro
     if (!maintenance) {
       if (typeof Utilities !== 'undefined' && Utilities.showNotification) {
         Utilities.showNotification("Erro: Manutenção não encontrada", "error");
@@ -193,6 +242,12 @@ const Verification = (() => {
       return;
     }
     
+    // Continuar com o formulário
+    continueWithVerificationForm(maintenanceId, maintenance);
+  }
+
+  // Nova função auxiliar para separar a lógica do formulário
+  function continueWithVerificationForm(maintenanceId, maintenance) {
     // Resetar e preencher o formulário
     const form = document.getElementById('verification-form');
     if (form) form.reset();
@@ -419,6 +474,150 @@ const Verification = (() => {
     // Mostrar o modal
     detailOverlay.style.display = 'flex';
   }
+
+  // --- Sistema de Filtros ---
+  let verificationFilters = {
+    search: '',
+    equipmentType: '',
+    maintenanceType: ''
+  };
+
+  function setupFilterListeners() {
+    // Campo de busca
+    const searchInput = document.getElementById('verification-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        verificationFilters.search = this.value.toLowerCase().trim();
+        applyFilters();
+      });
+    }
+    
+    // Filtros de dropdown
+    const equipmentTypeFilter = document.getElementById('verification-equipment-type-filter');
+    const maintenanceTypeFilter = document.getElementById('verification-maintenance-type-filter');
+    
+    if (equipmentTypeFilter) {
+      equipmentTypeFilter.addEventListener('change', function() {
+        verificationFilters.equipmentType = this.value;
+        applyFilters();
+      });
+    }
+    
+    if (maintenanceTypeFilter) {
+      maintenanceTypeFilter.addEventListener('change', function() {
+        verificationFilters.maintenanceType = this.value;
+        applyFilters();
+      });
+    }
+    
+    // Botão para limpar filtros
+    const clearFiltersBtn = document.getElementById('verification-clear-filters');
+    if (clearFiltersBtn) {
+      clearFiltersBtn.addEventListener('click', function() {
+        resetFilters();
+      });
+    }
+  }
+
+  function resetFilters() {
+    verificationFilters = {
+      search: '',
+      equipmentType: '',
+      maintenanceType: ''
+    };
+    
+    // Resetar valores dos elementos de filtro
+    const elements = [
+      'verification-search',
+      'verification-equipment-type-filter',
+      'verification-maintenance-type-filter'
+    ];
+    
+    elements.forEach(id => {
+      const element = document.getElementById(id);
+      if (element) {
+        if (element.tagName === 'INPUT') {
+          element.value = '';
+        } else if (element.tagName === 'SELECT') {
+          element.selectedIndex = 0;
+        }
+      }
+    });
+    
+    // Aplicar filtros resetados
+    applyFilters();
+  }
+
+  function applyFilters() {
+    if (!verificationList || !Array.isArray(verificationList)) {
+      console.error("Lista de verificações não disponível para filtrar");
+      return;
+    }
+    
+    const filteredList = verificationList.filter(item => {
+      // Aplicar filtro de busca por texto
+      if (verificationFilters.search) {
+        const searchTerms = [
+          item.id,
+          item.placaOuId,
+          item.responsavel,
+          item.tipoEquipamento,
+          item.localOficina
+        ];
+        
+        const matchesSearch = searchTerms.some(term => 
+          term && String(term).toLowerCase().includes(verificationFilters.search)
+        );
+        
+        if (!matchesSearch) return false;
+      }
+      
+      // Aplicar filtro de tipo de equipamento
+      if (verificationFilters.equipmentType && item.tipoEquipamento !== verificationFilters.equipmentType) {
+        return false;
+      }
+      
+      // Aplicar filtro de tipo de manutenção
+      if (verificationFilters.maintenanceType && item.tipoManutencao !== verificationFilters.maintenanceType) {
+        return false;
+      }
+      
+      return true;
+    });
+    
+    // Renderizar a tabela com a lista filtrada
+    renderVerificationTable(filteredList);
+    
+    // Exibir contador de resultados
+    updateFilterResultsCount(filteredList.length, verificationList.length);
+  }
+
+  function updateFilterResultsCount(filteredCount, totalCount) {
+    const filterCountElement = document.getElementById('verification-filter-results-count');
+    
+    if (!filterCountElement) {
+      // Criar elemento se não existir
+      const countDisplay = document.createElement('div');
+      countDisplay.id = 'verification-filter-results-count';
+      countDisplay.className = 'filter-results-info';
+      
+      // Encontrar onde inserir
+      const filtersContainer = document.querySelector('.tab-content[data-tab="verification"] .filters-container');
+      if (filtersContainer) {
+        filtersContainer.appendChild(countDisplay);
+      }
+    }
+    
+    const element = document.getElementById('verification-filter-results-count');
+    if (element) {
+      if (filteredCount < totalCount) {
+        element.textContent = `Mostrando ${filteredCount} de ${totalCount} verificações pendentes`;
+        element.style.display = 'block';
+      } else {
+        element.style.display = 'none';
+      }
+    }
+  }
   
   // Mostra notificação (fallback para Utilities.showNotification)
   function showNotification(message, type) {
@@ -433,7 +632,8 @@ const Verification = (() => {
   return {
     initialize,
     loadVerificationData,
-    openVerificationForm
+    openVerificationForm,
+    continueWithVerificationForm // Adicionada essa linha
   };
 })();
 
