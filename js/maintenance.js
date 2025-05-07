@@ -846,8 +846,7 @@ const Maintenance = (() => {
     // Indicador de carregamento na tabela
     const tableBody = document.getElementById('maintenance-tbody');
     if (tableBody) {
-      // ATUALIZAÇÃO: colspan ajustado para 7 colunas
-      tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Carregando...</td></tr>';
+      tableBody.innerHTML = '<tr><td colspan="10" class="text-center">Carregando...</td></tr>';
     }
 
     // Chamar API para obter dados
@@ -861,8 +860,7 @@ const Maintenance = (() => {
           } else {
             console.error("Erro ao carregar manutenções:", response);
             if (tableBody) {
-              // ATUALIZAÇÃO: colspan ajustado para 7 colunas
-              tableBody.innerHTML = '<tr><td colspan="7" class="text-center error-message">Erro ao carregar dados.</td></tr>';
+              tableBody.innerHTML = '<tr><td colspan="10" class="text-center error-message">Erro ao carregar dados.</td></tr>';
             }
             fullMaintenanceList = []; // Limpar a lista em caso de erro
           }
@@ -870,8 +868,7 @@ const Maintenance = (() => {
         .catch(error => {
           console.error("Falha ao buscar manutenções:", error);
           if (tableBody) {
-            // ATUALIZAÇÃO: colspan ajustado para 7 colunas
-            tableBody.innerHTML = '<tr><td colspan="7" class="text-center error-message">Falha ao buscar dados.</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="10" class="text-center error-message">Falha ao buscar dados.</td></tr>';
           }
           fullMaintenanceList = []; // Limpar a lista em caso de erro
         })
@@ -882,8 +879,7 @@ const Maintenance = (() => {
     } else {
       console.error("API.getMaintenanceList não disponível");
       if (tableBody) {
-        // ATUALIZAÇÃO: colspan ajustado para 7 colunas
-        tableBody.innerHTML = '<tr><td colspan="7" class="text-center error-message">API não disponível.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="10" class="text-center error-message">API não disponível.</td></tr>';
       }
       showLoading(false);
       fullMaintenanceList = []; // Limpar a lista
@@ -904,8 +900,7 @@ const Maintenance = (() => {
 
     // Se não há dados, mostrar mensagem
     if (!maintenances || maintenances.length === 0) {
-      // ATUALIZAÇÃO: colspan ajustado para 7 colunas
-      tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Nenhuma manutenção encontrada.</td></tr>';
+      tableBody.innerHTML = '<tr><td colspan="10" class="text-center">Nenhuma manutenção encontrada.</td></tr>';
       return;
     }
 
@@ -914,52 +909,51 @@ const Maintenance = (() => {
       const row = document.createElement('tr');
       row.dataset.id = item.id; // Adicionar ID à linha para referência futura
 
+      // Determinar status e ações visíveis
       const status = item.status || 'Pendente'; // Default para 'Pendente' se não houver status
       const statusClass = getStatusClass(status);
+      const statusLower = status.toLowerCase();
 
-      // ATUALIZAÇÃO: row.innerHTML conforme instrução, mantendo formatações e badges relevantes.
-      // Colunas: ID, Tipo Equip., Tipo Manut., Responsável, Data Reg., Status, Ações
+      // Determinar quais botões mostrar
+      const showVerify = ['pendente', 'aguardando verificação', 'aguardando verificacao'].includes(statusLower);
+      const showEdit = ['pendente', 'aguardando verificação', 'aguardando verificacao', 'ajustes'].includes(statusLower);
+
+      // Determinar texto da categoria do problema
+      const problemCategoryText = item.categoriaProblema === 'Outros' // Comparando com "Outros"
+        ? (item.categoriaProblemaOutro || 'Outro (não especificado)')
+        : (item.categoriaProblema || '-');
+
+      // Gerar HTML da linha
       row.innerHTML = `
         <td>${item.id || '-'}</td>
-        <td>${item.tipoEquipamento || '-'}</td>
+        <td>${item.tipoEquipamento || '-'} (${item.placaOuId || '-'})</td>
         <td>${item.tipoManutencao || '-'} ${item.eCritico ? '<span class="critical-badge" title="Manutenção Crítica">⚠️</span>' : ''}</td>
-        <td>${item.responsavel || '-'}</td>
         <td>${formatDate(item.dataRegistro) || '-'}</td>
+        <td>${item.responsavel || '-'}</td>
+        <td>${item.area || '-'}</td>
+        <td>${item.localOficina || '-'}</td>
+        <td>${problemCategoryText}</td>
         <td><span class="status-badge status-${statusClass}">${status}</span></td>
         <td>
-          <button class="btn-icon view-maintenance" data-id="${item.id}" title="👁️"></button>
+          <button class="btn-icon view-maintenance" data-id="${item.id}" title="Ver Detalhes">👁️</button>
+          ${showEdit ? `<button class="btn-icon edit-maintenance" data-id="${item.id}" title="Editar">✏️</button>` : ''}
+          ${showVerify ? `<button class="btn-icon verify-maintenance" data-id="${item.id}" title="Verificar">✔️</button>` : ''}
         </td>
       `;
-      // FIM DA ATUALIZAÇÃO do row.innerHTML
 
       tableBody.appendChild(row);
     });
 
     // Configurar listeners para ações na tabela
     setupTableActionListeners();
-
-    // ATUALIZAÇÃO: Acionar filtro ao final da função
-    if (typeof applyGlobalFilter === 'function') {
-        applyGlobalFilter();
-    } else {
-        console.warn("Função applyGlobalFilter não definida globalmente ou não importada.");
-    }
-    // FIM DA ATUALIZAÇÃO
   }
 
   function setupTableActionListeners() {
     const tableBody = document.getElementById('maintenance-tbody');
     if (!tableBody) return;
 
-    // Remover listeners antigos para evitar duplicação se esta função for chamada múltiplas vezes
-    // (embora com a delegação, o addSafeListener no initialize pode ser suficiente)
-    // Para simplificar e garantir, clonamos o tableBody para remover listeners.
-    const newTableBody = tableBody.cloneNode(true);
-    tableBody.parentNode.replaceChild(newTableBody, tableBody);
-
-
-    // Usar delegação de eventos no novo tableBody
-    newTableBody.addEventListener('click', function(event) {
+    // Usar delegação de eventos
+    tableBody.addEventListener('click', function(event) {
       const button = event.target.closest('.btn-icon');
       if (!button) return; // Clique não foi em um botão
 
@@ -968,7 +962,6 @@ const Maintenance = (() => {
 
       if (button.classList.contains('view-maintenance')) {
         console.log(`Visualizar manutenção: ${maintenanceId}`);
-        // ATUALIZAÇÃO: Chamada a viewMaintenanceDetails(id) já está correta, conforme solicitado.
         viewMaintenanceDetails(maintenanceId);
       } else if (button.classList.contains('edit-maintenance')) {
         console.log(`Editar manutenção: ${maintenanceId}`);
@@ -979,7 +972,6 @@ const Maintenance = (() => {
       }
     });
   }
-
 
   function viewMaintenanceDetails(id) {
     // Buscar dados da manutenção
