@@ -1,6 +1,6 @@
 /**
  * Sistema de Dupla Checagem de Manutenção
- * Módulo: Dashboard (Versão FINAL Frontend - 03/05/2025 v2 - Corrigido)
+ * Módulo: Dashboard (Versão FINAL Frontend - 03/05/2025 v2 - Corrigido e Atualizado com Novos Filtros)
  */
 
 const Dashboard = (function() {
@@ -10,6 +10,20 @@ const Dashboard = (function() {
   let lastLoadTime = 0;
   const REFRESH_INTERVAL = 300000; // 5 minutos
   let dashboardInitialized = false;
+
+  // Constantes para os tipos de filtro (adaptadas para os data-period existentes)
+  const FILTER_TYPES = {
+    CURRENT_MONTH: 'current-month',
+    LAST_MONTH: 'last-month',
+    LAST_3_MONTHS: 'last-3-months',
+    LAST_6_MONTHS: 'last-6-months',
+    CURRENT_YEAR: 'current-year',
+    ALL: 'all'
+  };
+
+  // Estado inicial do filtro
+  let currentFilter = FILTER_TYPES.CURRENT_MONTH; // Padrão corresponde ao botão 'Mês Atual'
+
 
   /** Limpa instâncias de gráficos anteriores */
   function cleanupCharts() {
@@ -21,37 +35,31 @@ const Dashboard = (function() {
       });
     }
     chartInstances = {};
-    // console.log("Instâncias de gráficos limpas."); // Opcional: remover log verboso
   }
 
-  // Adicionar esta função no arquivo dashboard.js, antes de initialize()
-  function createFilterDropdown() {
-     console.log("Dropdown de filtros criado e configurado.");
-  }
+  // Função createFilterDropdown original era apenas um log, removida da inicialização pois
+  // a nova lógica de filtros não a utiliza e sua implementação não foi fornecida na atualização.
+  // function createFilterDropdown() {
+  //    console.log("Dropdown de filtros criado e configurado.");
+  // }
 
   /** Inicializa o dashboard */
   function initialize() {
     if (dashboardInitialized) {
-      // console.log("Dashboard já inicializado."); // Opcional: remover log verboso
       return;
     }
     console.log("Dashboard.initialize() chamado");
 
-    // Garante que os elementos HTML base existam antes de continuar
     if (!document.getElementById('tab-dashboard')) {
         console.error("Elemento #tab-dashboard não encontrado. A inicialização do Dashboard não pode continuar.");
         return;
     }
 
-    createPeriodButtonsIfNeeded(); // Cria botões se não existirem
-    // Chamar esta função dentro do método initialize() do Dashboard
-    // Adicione esta linha em Dashboard.initialize() depois de createDashboardControls() [ajustado para createPeriodButtonsIfNeeded]
-    createFilterDropdown();
-    setupPeriodButtons(); // Configura listeners (via delegação)
-    setupRefreshButton(); // Configura listener refresh (via delegação)
-    setupTabNavigation(); // Monitora hashchange
+    createPeriodButtonsIfNeeded(); // Cria botões de período/filtro se não existirem
+    initializeFilters();         // Configura os novos listeners de filtro
+    setupRefreshButton();        // Configura listener do botão refresh
+    setupTabNavigation();        // Monitora hashchange
 
-    // Carrega dados iniciais imediatamente se estiver na aba dashboard
     const isActive = document.getElementById('tab-dashboard').classList.contains('active');
     const hash = window.location.hash || '#dashboard';
     if (isActive || hash === '#dashboard') {
@@ -62,159 +70,157 @@ const Dashboard = (function() {
     console.log("Dashboard inicializado com sucesso.");
   }
 
-  /** Cria botões de período se eles não existirem no DOM */
+  /** Cria botões de período (que agora funcionam como botões de filtro) se eles não existirem no DOM */
   function createPeriodButtonsIfNeeded() {
     const dashboardHeader = document.querySelector('#tab-dashboard .dashboard-header');
-    // Verifica se o container de controles já existe para evitar duplicar tudo
-    if (!dashboardHeader || dashboardHeader.querySelector('.dashboard-controls')) return;
+    if (!dashboardHeader || dashboardHeader.querySelector('.dashboard-controls .period-buttons')) return; // Verifica se os botões já existem
 
-    console.log("Criando controles do Dashboard (botões de período/refresh)...");
+    console.log("Criando controles do Dashboard (botões de filtro/refresh)...");
 
-    // Cria container principal para os controles
-    const controlsContainer = document.createElement('div');
-    controlsContainer.className = 'dashboard-controls';
-
-    // Cria container para os botões de período
+    let controlsContainer = dashboardHeader.querySelector('.dashboard-controls');
+    if (!controlsContainer) {
+        controlsContainer = document.createElement('div');
+        controlsContainer.className = 'dashboard-controls';
+        dashboardHeader.appendChild(controlsContainer);
+    }
+    
     const buttonContainer = document.createElement('div');
-    buttonContainer.className = 'period-buttons';
-    const periods = [ // Ordem dos botões
-      { id: 'current-month', label: 'Mês Atual' }, { id: 'last-month', label: 'Mês Anterior' },
-      { id: 'last-3-months', label: 'Últimos 3m' }, { id: 'last-6-months', label: 'Últimos 6m' },
-      { id: 'current-year', label: 'Este Ano' }, { id: 'all', label: 'Todos' }
+    buttonContainer.className = 'period-buttons'; // Usado como seletor para filtros
+    const periods = [
+      { id: FILTER_TYPES.CURRENT_MONTH, label: 'Mês Atual' }, { id: FILTER_TYPES.LAST_MONTH, label: 'Mês Anterior' },
+      { id: FILTER_TYPES.LAST_3_MONTHS, label: 'Últimos 3m' }, { id: FILTER_TYPES.LAST_6_MONTHS, label: 'Últimos 6m' },
+      { id: FILTER_TYPES.CURRENT_YEAR, label: 'Este Ano' }, { id: FILTER_TYPES.ALL, label: 'Todos' }
     ];
-    let defaultFound = false;
+    
     periods.forEach(period => {
       const button = document.createElement('button');
-      button.className = 'period-btn';
-      button.setAttribute('data-period', period.id);
+      // Adiciona classe 'filter-button' para consistência se necessário, mas a lógica de filtro usa '.period-btn'
+      button.className = 'period-btn'; // Esta classe é usada pelos seletores de filtro
+      button.setAttribute('data-filter', period.id); // Usa 'data-filter' como na atualização
+      button.setAttribute('data-period', period.id); // Mantém 'data-period' por compatibilidade se houver
       button.textContent = period.label;
-      if (period.id === 'current-month') { // Marca 'Mês Atual' como padrão
+      if (period.id === currentFilter) { // Marca o filtro padrão como ativo
           button.classList.add('active');
-          defaultFound = true;
       }
       buttonContainer.appendChild(button);
     });
-    // Fallback se 'current-month' não existir na lista
-    if (!defaultFound && buttonContainer.firstChild) {
-        buttonContainer.firstChild.classList.add('active');
-    }
-    controlsContainer.appendChild(buttonContainer); // Adiciona botões de período
+    controlsContainer.prepend(buttonContainer); // Adiciona botões de filtro no início dos controles
 
-     // Garante que o botão refresh exista e o adiciona ao container
     createRefreshButton(controlsContainer);
 
-    // Adiciona o container de controles ao header
-    dashboardHeader.appendChild(controlsContainer);
-
-    // Adiciona estilos CSS para os botões de período (apenas uma vez)
     if (!document.getElementById('dashboard-controls-style')) {
          const styleElement = document.createElement('style');
          styleElement.id = 'dashboard-controls-style';
          styleElement.textContent = `
-           /* .dashboard-header já estilizado pelo filtro */
-           .dashboard-controls { display: flex; justify-content: space-between; align-items: center; width: auto; /* Ajuste para caber com filtro */ flex-wrap: wrap; gap: 10px;}
+           .dashboard-controls { display: flex; justify-content: space-between; align-items: center; width: auto; flex-wrap: wrap; gap: 10px;}
            .period-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
            .period-btn { padding: 5px 10px; background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 0.8rem; transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
            .period-btn:hover { background-color: #e0e0e0; }
            .period-btn.active { background-color: var(--primary-color, #0052cc); color: white; border-color: var(--primary-color, #0052cc); font-weight: 500; }
-           .btn-refresh { margin-left: 10px; /* Espaço entre botões e refresh */ }
-           .btn-refresh.rotating { animation: rotate 1s linear infinite; } /* Infinite rotation */
+           .btn-refresh { margin-left: 10px; }
+           .btn-refresh.rotating { animation: rotate 1s linear infinite; }
            @keyframes rotate { to { transform: rotate(360deg); } }
-           /* Ajuste responsivo para controles */
            @media (max-width: 767px) {
              .dashboard-controls { width: 100%; justify-content: flex-start; }
-             .btn-refresh { margin-left: auto; /* Tenta alinhar refresh à direita em telas pequenas */ }
+             .btn-refresh { margin-left: auto; }
            }
          `;
          document.head.appendChild(styleElement);
      }
-    console.log("Controles do Dashboard (período/refresh) criados/verificados.");
+    console.log("Controles do Dashboard (filtros/refresh) criados/verificados.");
   }
 
-  /** Configura os event listeners dos botões de período via delegação */
-  function setupPeriodButtons() {
-    const controlsContainer = document.querySelector('#tab-dashboard .dashboard-controls');
-    if (!controlsContainer) {
-        console.warn("Container de controles não encontrado para adicionar listener de período.");
+  /** Função para inicializar os filtros (configurar listeners) */
+  function initializeFilters() {
+    const filterButtonsContainer = document.querySelector('#tab-dashboard .period-buttons');
+    if (!filterButtonsContainer) {
+        console.warn("Container de botões de filtro (.period-buttons) não encontrado para adicionar listener.");
         return;
     }
-    // Remove listener antigo para garantir que não haja duplicação
-    controlsContainer.removeEventListener('click', handlePeriodButtonClick);
-    // Adiciona listener ao container pai
-    controlsContainer.addEventListener('click', handlePeriodButtonClick);
-    console.log("Listener de botões de período configurado via delegação.");
+    
+    // Adicionar evento de clique DELEGADO ao container dos botões de filtro
+    filterButtonsContainer.removeEventListener('click', handleFilterClick); // Garante que não haja duplicatas
+    filterButtonsContainer.addEventListener('click', handleFilterClick);
+    console.log("Listeners dos botões de filtro configurados via delegação em .period-buttons.");
+
+    // Ativar o filtro padrão visualmente (já feito em createPeriodButtonsIfNeeded e currentFilter já definido)
+    // activateFilter(currentFilter); // Assegura o estado visual correto
+
+    // O carregamento inicial de dados é tratado por checkIfDashboard -> loadDashboardData
+    // loadDashboardData(currentFilter, true); // Não carregar aqui, checkIfDashboard fará.
   }
 
-  /** Handler para cliques nos botões de período (delegação) */
-  function handlePeriodButtonClick(event) {
-     // Verifica se o clique foi em um botão de período
-     const targetButton = event.target.closest('.period-btn');
-     if (!targetButton) return;
+  /** Função para lidar com cliques nos botões de filtro (delegação) */
+  function handleFilterClick(e) {
+    const targetButton = e.target.closest('.period-btn'); // Botões de período agora são botões de filtro
+    if (!targetButton) return;
 
-     const period = targetButton.getAttribute('data-period');
-     if (!period) return;
+    const filterType = targetButton.dataset.filter; // Usar data-filter
+    if (!filterType) return;
+    
+    if (filterType === currentFilter && targetButton.classList.contains('active')) {
+      // Se o filtro já estiver ativo e o botão clicado é o ativo, não faz nada
+      // (útil se o clique não for necessariamente para mudar)
+      // Para forçar recarga no mesmo filtro, usar o botão refresh.
+      return;
+    }
+    
+    activateFilter(filterType); // Ativa o novo filtro (estado e visual)
+    loadDashboardData(filterType, true); // Carrega dados com o novo filtro, forçando a atualização
+  }
 
-     console.log(`Botão de período clicado: ${period}`);
-     // Atualiza classe ativa visualmente
-     document.querySelectorAll('#tab-dashboard .period-btn').forEach(btn => btn.classList.remove('active'));
-     targetButton.classList.add('active');
+  /** Função para ativar visualmente um filtro e atualizar o estado */
+  function activateFilter(filterType) {
+    console.log("Ativando filtro:", filterType);
+    currentFilter = filterType; // Atualiza o filtro atual no estado do módulo
+    
+    const filterButtons = document.querySelectorAll('#tab-dashboard .period-btn');
+    filterButtons.forEach(button => {
+        button.classList.remove('active');
+    });
+    
+    const activeButton = document.querySelector(`.period-btn[data-filter="${filterType}"]`);
+    if (activeButton) {
+        activeButton.classList.add('active');
+    } else {
+        console.warn(`Botão de filtro para '${filterType}' não encontrado para ativar visualmente.`);
+    }
 
-      // Limpa os campos do filtro de data customizado ao selecionar um período pré-definido
-      const startDateInput = document.getElementById('filterStartDate');
-      const endDateInput = document.getElementById('filterEndDate');
-      if (startDateInput) startDateInput.value = '';
-      if (endDateInput) endDateInput.value = '';
-
-     // Carrega os dados para o novo período
-     loadDashboardData(period, true); // Força recarregamento
+    // Limpar campos de filtro de data customizado (se existirem no HTML)
+    // A atualização não implementa filtro customizado, mas esta é uma boa prática.
+    const startDateInput = document.getElementById('filterStartDate');
+    const endDateInput = document.getElementById('filterEndDate');
+    if (startDateInput) startDateInput.value = '';
+    if (endDateInput) endDateInput.value = '';
   }
 
   /** Configura o listener do botão de refresh via delegação */
   function setupRefreshButton() {
     const controlsContainer = document.querySelector('#tab-dashboard .dashboard-controls');
      if (!controlsContainer) {
-       // Botão refresh será criado junto com os controles se necessário
        console.warn("Container de controles não encontrado para listener do refresh.");
        return;
      }
-    // Remove listener antigo e adiciona novo (delegado)
-    controlsContainer.removeEventListener('click', handleRefreshButtonClick);
+    controlsContainer.removeEventListener('click', handleRefreshButtonClick); // Evita duplicatas
     controlsContainer.addEventListener('click', handleRefreshButtonClick);
     console.log("Listener do botão Refresh configurado via delegação.");
   }
 
   /** Handler para clique no botão refresh (delegação) */
   function handleRefreshButtonClick(event) {
-     // Verifica se o clique foi no botão refresh
      const targetButton = event.target.closest('#refresh-dashboard');
      if (!targetButton) return;
 
      console.log("Atualização manual do dashboard solicitada");
+     
+     // A lógica de filtro de data customizado foi removida daqui pois a atualização foca em filtros pré-definidos.
+     // O refresh agora usa o currentFilter ativo.
+     console.log("Atualizando com filtro pré-definido:", currentFilter);
+     loadDashboardData(currentFilter, true); // Força recarregamento com o filtro ATUAL
 
-     // Verifica se um filtro de data customizado está ativo
-     const startDate = document.getElementById('filterStartDate')?.value;
-     const endDate = document.getElementById('filterEndDate')?.value;
-     let periodToLoad;
-
-     if (startDate && endDate) {
-         periodToLoad = `custom:${startDate}:${endDate}`;
-         console.log("Atualizando com período customizado:", periodToLoad);
-     } else {
-         // Pega o período do botão ativo
-         const activeButton = document.querySelector('#tab-dashboard .period-btn.active');
-         periodToLoad = activeButton ? activeButton.getAttribute('data-period') : 'current-month'; // Default se nenhum ativo
-         console.log("Atualizando com período pré-definido:", periodToLoad);
-     }
-
-     loadDashboardData(periodToLoad, true); // Força recarregamento com o período correto
-
-     // Feedback visual (reinicia animação se já estiver rodando)
      targetButton.classList.remove('rotating');
-     // Força reflow para reiniciar a animação
      void targetButton.offsetWidth;
      targetButton.classList.add('rotating');
-     // Remove a classe após um tempo (opcional, ou deixa rodando até carregar)
-     // setTimeout(() => { targetButton.classList.remove('rotating'); }, 1500);
   }
 
   /** Cria um botão de atualização se não existir */
@@ -227,7 +233,6 @@ const Dashboard = (function() {
      refreshButton.innerHTML = '↻';
      refreshButton.title = 'Atualizar Dashboard';
      refreshButton.style.fontSize = '1.2rem';
-     // refreshButton.style.marginLeft = 'auto'; // Delegação cuida do posicionamento
      parentContainer.appendChild(refreshButton);
      console.log("Botão Refresh criado.");
   }
@@ -246,109 +251,163 @@ const Dashboard = (function() {
         const isActive = dashboardTabElement.classList.contains('active');
         if (isActive) {
            console.log("Verificando aba Dashboard (ativa)...");
-           const currentTime = Date.now();
-           const needsLoad = isInitialLoad || !dashboardData || (currentTime - lastLoadTime > REFRESH_INTERVAL);
-           if (needsLoad) {
-             console.log(`Carregando dados (${isInitialLoad ? 'inicial' : (!dashboardData ? 'sem dados' : 'atualização')})`);
-
-             // Verifica se um filtro de data customizado está ativo para o carregamento inicial
-             const startDate = document.getElementById('filterStartDate')?.value;
-             const endDate = document.getElementById('filterEndDate')?.value;
-             let period;
-             if(startDate && endDate && !isInitialLoad) { // Não usar custom no load inicial forçado, usar o default
-                period = `custom:${startDate}:${endDate}`;
-             } else {
-                const activeButton = document.querySelector('#tab-dashboard .period-btn.active');
-                period = activeButton ? activeButton.getAttribute('data-period') : 'current-month';
-             }
-
-             const delay = isInitialLoad ? 200 : 0;
-             setTimeout(() => { loadDashboardData(period, true); }, delay);
-           } else { /* console.log("Dashboard ativo, usando dados existentes."); */ }
+           // A lógica de decidir se carrega ou não (baseada em REFRESH_INTERVAL)
+           // está agora dentro de loadDashboardData.
+           // isInitialLoad é passado como 'force' para loadDashboardData.
+           const filterToLoad = currentFilter; // Carrega com o filtro atualmente selecionado/padrão
+           const delay = isInitialLoad ? 200 : 0;
+           setTimeout(() => { loadDashboardData(filterToLoad, isInitialLoad); }, delay);
         }
      }
    }
 
-  /** Carrega dados do dashboard via API */
-  function loadDashboardData(period = 'current-month', force = false) {
+
+  /** Função para calcular intervalo de datas com base no filtro */
+  function calculateDateRange(filterType) {
+    const now = new Date();
+    let startDate;
+    // Define endDate como o final do dia atual por padrão para a maioria dos filtros.
+    let endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    
+    switch (filterType) {
+        case FILTER_TYPES.CURRENT_MONTH:
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            break;
+        case FILTER_TYPES.LAST_MONTH:
+            startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999); // Último dia do mês anterior
+            break;
+        case FILTER_TYPES.LAST_3_MONTHS:
+            startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+            break;
+        case FILTER_TYPES.LAST_6_MONTHS:
+            startDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+            break;
+        case FILTER_TYPES.CURRENT_YEAR:
+            startDate = new Date(now.getFullYear(), 0, 1);
+            break;
+        case FILTER_TYPES.ALL:
+        default:
+            startDate = new Date(2000, 0, 1); // Data bem antiga para "Todos"
+            break;
+    }
+    // Garante que startDate seja o início do dia.
+    if (startDate) {
+        startDate.setHours(0, 0, 0, 0);
+    }
+    return { startDate, endDate };
+  }
+
+  /** Função auxiliar para formatar data como yyyy-mm-dd para a API */
+  function formatDateForAPI(date) {
+    if (!date || !(date instanceof Date) || isNaN(date)) return ''; // Retorna string vazia se data inválida
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  /** Função para buscar dados do dashboard da API com base no intervalo de datas */
+  function fetchDashboardData(startDate, endDate) {
+    const formattedStartDate = formatDateForAPI(startDate);
+    const formattedEndDate = formatDateForAPI(endDate);
+    
+    // API_URL deve estar definida globalmente ou ser acessível (ex: const API_URL = "/api/main.php";)
+    if (typeof API_URL === 'undefined') {
+        console.error("API_URL não está definida. Não é possível buscar dados do dashboard.");
+        return Promise.resolve({ success: false, message: "API_URL não configurada." });
+    }
+
+    let url = `${API_URL}?action=getDashboardData`;
+    if (formattedStartDate) url += `&startDate=${formattedStartDate}`;
+    if (formattedEndDate) url += `&endDate=${formattedEndDate}`;
+
+    console.log("Buscando dados do dashboard da API:", url);
+    return fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                // Tenta pegar uma mensagem de erro do corpo da resposta, se houver
+                return response.text().then(text => {
+                    try {
+                        const errData = JSON.parse(text);
+                        throw new Error(errData.message || `Erro HTTP: ${response.status}`);
+                    } catch (e) {
+                        throw new Error(text || `Erro HTTP: ${response.status}`);
+                    }
+                });
+            }
+            return response.json();
+        })
+        .catch(error => {
+            console.error('Erro em fetchDashboardData:', error);
+            return { success: false, message: error.message || "Erro ao buscar dados do dashboard via API." };
+        });
+  }
+
+  /** Carrega dados do dashboard via API (AGORA USANDO FILTROS DE DATA) */
+  function loadDashboardData(filterType = currentFilter, force = false) {
     const currentTime = Date.now();
-    if (!force && dashboardData && (currentTime - lastLoadTime < REFRESH_INTERVAL)) {
-      console.log("Dados recentes, pulando carregamento.");
+    // Se não for forçado, e os dados existem, e o intervalo de refresh não passou, E o filtro é o mesmo: não carrega.
+    if (!force && dashboardData && (currentTime - lastLoadTime < REFRESH_INTERVAL) && filterType === currentFilter) {
+      console.log("Dados recentes para o filtro atual, pulando carregamento.");
+      // Se o dashboard já estiver renderizado com esses dados, não precisa fazer nada.
+      // Se precisar garantir que está renderizado, descomente:
+      // renderDashboard(dashboardData); 
       return;
     }
-    console.log(`Carregando dados do dashboard para período: ${period}`);
+
+    console.log(`Carregando dados do dashboard para filtro: ${filterType}`);
     showLoading(true, "Carregando dashboard...");
-    // Para o feedback visual do botão refresh
     const refreshButton = document.getElementById('refresh-dashboard');
 
-    if (!window.API || typeof API.getDashboardData !== 'function') {
-       console.error("API.getDashboardData não está disponível!");
-       showLoadingError("Erro crítico: Função da API não encontrada.");
-       if (refreshButton) refreshButton.classList.remove('rotating');
-       showLoading(false);
-       renderDashboard(createEmptyDashboardResponse("Erro de API"));
-       return;
-    }
-
-    API.getDashboardData(period)
-      .then(response => {
-        console.log("Resposta API:", JSON.stringify(response, null, 2)); // Log detalhado
-        if (response && response.success) {
-          dashboardData = response; // Backend agora retorna tudo formatado
+    const dateRange = calculateDateRange(filterType);
+    
+    fetchDashboardData(dateRange.startDate, dateRange.endDate)
+      .then(response => { // 'response' é o objeto JSON da API
+        console.log("Resposta API (filtrada):", JSON.stringify(response, null, 2));
+        if (response && response.success === true) {
+          dashboardData = response; // Armazena toda a resposta da API
           lastLoadTime = currentTime;
-          renderDashboard(dashboardData); // Renderiza com os dados recebidos
+          // currentFilter já foi atualizado por activateFilter ANTES de chamar loadDashboardData
+          renderDashboard(dashboardData);
         } else {
-          console.error("Erro retornado pela API:", response);
-          showLoadingError("Erro ao carregar dados: " + (response?.message || "Resposta inválida"));
-          renderDashboard(dashboardData || createEmptyDashboardResponse(response?.message || "Erro API")); // Tenta usar dados antigos ou mostra vazio
+          console.error("Erro retornado pela API (filtrada) ou resposta não sucedida:", response);
+          showLoadingError("Erro ao carregar dados: " + (response?.message || "Resposta inválida da API"));
+          renderDashboard(createEmptyDashboardResponse(response?.message || "Erro ao obter dados da API"));
         }
       })
-      .catch(error => {
-        console.error("Falha na requisição API:", error);
-        showLoadingError(`Falha na comunicação: ${error.message}.`);
-        renderDashboard(dashboardData || createEmptyDashboardResponse(error.message)); // Tenta usar dados antigos ou mostra vazio
+      .catch(error => { // Este catch pode ser redundante se fetchDashboardData já tratar e retornar um objeto de erro.
+        console.error("Falha crítica na requisição API (filtrada):", error);
+        showLoadingError(`Falha na comunicação com a API: ${error.message}.`);
+        renderDashboard(createEmptyDashboardResponse(error.message));
       })
       .finally(() => {
-        if (refreshButton) refreshButton.classList.remove('rotating'); // Para animação
+        if (refreshButton) refreshButton.classList.remove('rotating');
         showLoading(false);
       });
   }
 
   /** Função auxiliar para criar uma resposta vazia localmente */
   function createEmptyDashboardResponse(message = "Sem dados") {
-      // Retorna a mesma estrutura que a API retornaria em caso de sucesso, mas com arrays vazios/zeros
       return { success: true, message: message, summary: { total: 0, pending: 0, completed: 0, critical: 0 }, maintenanceTypes: [], maintenanceStatuses: [], equipmentRanking: [], areaDistribution: [], problemCategories: [], monthlyTrend: [], criticalVsRegular: [], verificationResults: [], maintenanceFrequency: [], recentMaintenances: [] };
   }
 
   /** Renderiza o dashboard completo com os dados recebidos */
   function renderDashboard(data) {
-    cleanupCharts(); // Limpa gráficos antigos
+    cleanupCharts();
     console.log("Renderizando dashboard com dados:", data);
-    data = data || createEmptyDashboardResponse("Dados nulos recebidos"); // Garante que data seja um objeto
+    data = data || createEmptyDashboardResponse("Dados nulos recebidos para renderização");
 
     try {
-      checkAndCreateChartContainers(); // Verifica se <canvas> existem
+      checkAndCreateChartContainers();
+      renderSummaryCards(data.summary || {});
+      
+      // A função renderCharts espera o objeto de dados completo.
+      // O backend deve retornar os dados para os gráficos nas chaves que renderCharts espera
+      // (ex: data.maintenanceStatuses, data.problemCategories, etc.)
+      renderCharts(data); 
 
-      // 1. Renderizar Cards de Sumário
-      renderSummaryCards(data.summary || {}); // Usa chaves: total, pending, completed, critical
-
-      // 2. Preparar dados e Renderizar Gráficos
-      const chartData = {
-        status: data.maintenanceStatuses || [],
-        problemCategories: data.problemCategories || [], // <<< Dados reais de Categoria
-        monthlyTrend: data.monthlyTrend || [],
-        areaDistribution: data.areaDistribution || [], // <<< Dados reais de Local/Oficina
-        criticalVsRegular: data.criticalVsRegular || [],
-        verificationResults: data.verificationResults || [],
-        maintenanceFrequency: data.maintenanceFrequency || [],
-        maintenanceTypes: data.maintenanceTypes || [] // <<< Dados de Tipo de Manutenção (para gráfico específico se houver)
-      };
-      renderCharts(chartData); // Chama render para todos os gráficos
-
-      // 3. Renderizar Tabela de Ranking
       renderRecentMaintenances(data.equipmentRanking || [], 'equipment-ranking-tbody');
-
-      // 4. Renderizar Tabela de Manutenções Recentes
       renderRecentMaintenances(data.recentMaintenances || [], 'recent-maintenance-tbody');
 
       console.log("Dashboard renderizado com sucesso.");
@@ -356,67 +415,45 @@ const Dashboard = (function() {
       console.error("Erro CRÍTICO ao renderizar dashboard:", error);
       showLoadingError("Erro ao exibir dados do dashboard: " + error.message);
     } finally {
-       showLoading(false); // Garante que o loader seja escondido
+       showLoading(false);
     }
   }
 
-  /** Renderiza cartões de sumário - VERSÃO CORRIGIDA */
+  /** Renderiza cartões de sumário */
   function renderSummaryCards(summary) {
-    // Mapeamento: Chave do objeto 'summary' da API -> ID do elemento HTML que contém o valor
     const cardValueMap = {
-      'total': 'total-maintenance',
-      'pending': 'pending-verification',
-      'completed': 'completed-verifications', // Este ID existe no HTML
-      'critical': 'critical-maintenance'
+      'total': 'total-maintenance', 'pending': 'pending-verification',
+      'completed': 'completed-verifications', 'critical': 'critical-maintenance'
     };
-    // A função createSummaryCardsIfNeeded() não é mais necessária aqui,
-    // pois o HTML já contém os cards. Se precisar criá-los dinamicamente,
-    // a lógica original em createSummaryCardsIfNeeded() deve garantir que
-    // os IDs correspondam aos usados aqui.
-
     Object.entries(cardValueMap).forEach(([summaryKey, elementId]) => {
-      const valueElement = document.getElementById(elementId); // Busca pelo ID diretamente
+      const valueElement = document.getElementById(elementId);
       if (valueElement) {
-        const value = summary[summaryKey] ?? 0; // Usa ?? para tratar null/undefined como 0
-        valueElement.textContent = value; // Define o texto do elemento encontrado pelo ID
+        valueElement.textContent = summary[summaryKey] ?? 0;
       } else {
-        // Ajuste no log de erro para refletir a busca por ID
         console.warn(`Elemento de valor #${elementId} não encontrado para o card ${summaryKey}.`);
       }
     });
-     // console.log("Cards de sumário renderizados com:", summary); // Log opcional
   }
 
-   /** Cria cards de sumário se necessário (inclui ícones Font Awesome) */
+   /** Cria cards de sumário se necessário (chamado no initialize original, mas pode não ser mais preciso se o HTML for fixo) */
    function createSummaryCardsIfNeeded() {
-       // Esta função é chamada no initialize() caso os cards não existam no HTML.
-       // Se os cards já estão no HTML (como no index.html fornecido),
-       // esta função não fará nada ou pode ser removida do initialize().
-       // Certifique-se que, se usada, ela crie elementos com os IDs corretos
-       // usados em renderSummaryCards (ex: #total-maintenance).
        const dashboardContent = document.getElementById('tab-dashboard');
        if (!dashboardContent || dashboardContent.querySelector('.summary-cards')) return;
-
        console.log("Criando .summary-cards...");
        const cardsContainer = document.createElement('div');
        cardsContainer.className = 'summary-cards';
        const cards = [
-         // Ajustar IDs e estrutura aqui se necessário para bater com o HTML
-         { valueId: 'total-maintenance', icon: 'fa-clipboard-list', color: 'blue', label: 'Total Manutenções' },
-         { valueId: 'pending-verification', icon: 'fa-clock', color: 'yellow', label: 'Aguardando Verificação' },
-         { valueId: 'completed-verifications', icon: 'fa-check-circle', color: 'green', label: 'Concluídas/Verificadas' },
-         { valueId: 'critical-maintenance', icon: 'fa-exclamation-triangle', color: 'red', label: 'Manutenções Críticas' }
+         { valueId: 'total-maintenance', icon: 'fa-clipboard-list', label: 'Total Manutenções' },
+         { valueId: 'pending-verification', icon: 'fa-clock', label: 'Aguardando Verificação' },
+         { valueId: 'completed-verifications', icon: 'fa-check-circle', label: 'Concluídas/Verificadas' },
+         { valueId: 'critical-maintenance', icon: 'fa-exclamation-triangle', label: 'Manutenções Críticas' }
        ];
        cards.forEach(card => {
            const cardElement = document.createElement('div');
-           cardElement.className = 'card'; // Usa a classe 'card' do HTML
-           // A estrutura interna precisa bater com o HTML ou ser ajustada
+           cardElement.className = 'card';
            cardElement.innerHTML = `
-             <div class="card-title">
-               <i class="icon fas ${card.icon}"></i> ${card.label}
-             </div>
-             <div class="card-value" id="${card.valueId}">0</div> <div class="card-footer">
-               <span>...</span> </div>`;
+             <div class="card-title"><i class="icon fas ${card.icon}"></i> ${card.label}</div>
+             <div class="card-value" id="${card.valueId}">0</div> <div class="card-footer"><span>...</span></div>`;
            cardsContainer.appendChild(cardElement);
        });
         const header = dashboardContent.querySelector('.dashboard-header');
@@ -425,115 +462,90 @@ const Dashboard = (function() {
    }
 
   /** Chama as funções de renderização para todos os gráficos */
-  function renderCharts(chartData) {
+  function renderCharts(chartData) { // chartData aqui é o objeto 'data' completo da API
       console.log("Renderizando gráficos...");
-      // IDs dos Canvas conforme HTML
-      renderStatusChart(chartData.status || [], 'maintenance-status-chart');
-      renderProblemCategoriesChart(chartData.problemCategories || [], 'problem-categories-chart'); // <<< Usa dados de Categoria
+      renderStatusChart(chartData.maintenanceStatuses || [], 'maintenance-status-chart');
+      renderProblemCategoriesChart(chartData.problemCategories || [], 'problem-categories-chart');
       renderMonthlyTrendChart(chartData.monthlyTrend || [], 'monthly-trend-chart');
-      renderAreaDistributionChart(chartData.areaDistribution || [], 'area-distribution-chart'); // <<< Usa dados de Local/Oficina
+      renderAreaDistributionChart(chartData.areaDistribution || [], 'area-distribution-chart');
       renderCriticalVsRegularChart(chartData.criticalVsRegular || [], 'critical-vs-regular-chart');
       renderVerificationResultsChart(chartData.verificationResults || [], 'verification-results-chart');
-      // --- FUNÇÃO SUBSTITUÍDA A SER CHAMADA ---
-      renderMaintenanceFrequencyChart('maintenance-frequency-chart', chartData.maintenanceFrequency || []); // *** Parâmetros trocados na chamada ***
+      renderMaintenanceFrequencyChart('maintenance-frequency-chart', chartData.maintenanceFrequency || []);
 
-      // Gráfico Opcional: Manutenções por TIPO (se o canvas 'maintenance-type-chart' existir)
       if(document.getElementById('maintenance-type-chart')) {
           renderMaintenanceTypeChart(chartData.maintenanceTypes || [], 'maintenance-type-chart');
       }
       console.log("Chamadas de renderização de gráficos concluídas.");
   }
 
+
   // ===========================================================
   // FUNÇÕES DE RENDERIZAÇÃO DE GRÁFICOS (Refatoradas para reutilização)
   // ===========================================================
-
-  /** Função genérica para renderizar um gráfico */
   function renderGenericChart(chartId, chartType, chartData, options = {}, chartKey = null) {
       const canvas = document.getElementById(chartId);
       if (!canvas) { console.error(`Canvas #${chartId} não encontrado!`); return; }
       if (typeof Chart === 'undefined') { console.error(`Chart.js não carregado para ${chartId}!`); return; }
 
-      // Limpa qualquer mensagem de 'sem dados' que possa existir no PAI do canvas
       const parent = canvas.parentElement;
       const noDataMessage = parent?.querySelector('.no-data-message');
       if (noDataMessage) {
-        // Se a mensagem existe, remove ela e re-cria o canvas antes de desenhar
-        parent.innerHTML = ''; // Limpa o container
+        parent.innerHTML = ''; 
         const newCanvas = document.createElement('canvas');
         newCanvas.id = chartId;
-        // Preservar altura/largura se definidos ou usar defaults
-        newCanvas.style.height = canvas.style.height || '200px'; // Altura default
+        newCanvas.style.height = canvas.style.height || '200px';
         newCanvas.style.width = canvas.style.width || '100%';
         parent.appendChild(newCanvas);
-        canvas = newCanvas; // Usa o novo canvas a partir de agora
+        canvas = newCanvas;
         console.log(`Canvas #${chartId} recriado após remover mensagem 'sem dados'.`);
       }
 
       const isValidData = chartData && Array.isArray(chartData) && chartData.length > 0 && chartData.some(item => (item.count || 0) > 0);
-      // Para o placeholder, só criamos se a função específica não tratar disso (como a de frequência faz agora)
-      // A função de frequência agora tem seu próprio tratamento de 'sem dados', então não precisamos do placeholder aqui
-      // const dataToRender = isValidData ? chartData : [{ label: 'Sem Dados', count: 1 }];
-      // const isPlaceholder = !isValidData;
-      // if (isPlaceholder) console.warn(`Dados inválidos/vazios para ${chartId}. Usando placeholder.`);
-
-      // Se a função específica não for a de frequência e não houver dados, podemos AINDA mostrar um placeholder
-      if (!isValidData && chartId !== 'maintenance-frequency-chart') {
-        console.warn(`Dados inválidos/vazios para ${chartId}. Usando placeholder.`);
-        // Desenha um placeholder simples
+      
+      if (!isValidData && chartId !== 'maintenance-frequency-chart') { // Frequency chart tem seu próprio handler de no-data
+        console.warn(`Dados inválidos/vazios para ${chartId}. Exibindo placeholder.`);
         const ctx = canvas.getContext('2d');
-        canvas.height = 150; // Altura padrão para placeholder
+        canvas.height = 150; 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = '#6c757d';
         ctx.textAlign = 'center';
         ctx.font = '14px Arial';
         ctx.fillText('Sem dados para exibir', canvas.width / 2, canvas.height / 2);
-         // Destruir instância antiga se existir, mesmo para placeholder
          const instanceKey = chartKey || chartId;
          if (chartInstances[instanceKey]) {
              try { chartInstances[instanceKey].destroy(); } catch(e){}
              delete chartInstances[instanceKey];
          }
-        return; // Não renderiza Chart.js
+        return;
       }
-       // Se dados são válidos, prossegue
-      const dataToRender = chartData; // Usa os dados reais
-
+      const dataToRender = chartData;
 
       try {
-          // Usa uma chave única para a instância do gráfico
           const instanceKey = chartKey || chartId;
           if (chartInstances[instanceKey]) chartInstances[instanceKey].destroy();
 
           const labels = dataToRender.map(item => item.label || 'N/A');
           const counts = dataToRender.map(item => item.count || 0);
-          let colors = generateColorPalette(labels.length); // Não mais placeholder
+          let colors = generateColorPalette(labels.length);
 
-          // Personaliza cores para tipos específicos
-          if (chartId === 'maintenance-status-chart') {
-              colors = labels.map(l => getStatusColor(l));
-          } else if (chartId === 'critical-vs-regular-chart') {
-              colors = labels.map(l => l === 'Críticas' ? '#FF5630' : '#36B37E'); // Danger e Success
-          } else if (chartId === 'verification-results-chart') {
-              colors = labels.map(l => getStatusColor(l)); // Reutiliza cores de status
-          }
+          if (chartId === 'maintenance-status-chart') colors = labels.map(l => getStatusColor(l));
+          else if (chartId === 'critical-vs-regular-chart') colors = labels.map(l => l === 'Críticas' ? '#FF5630' : '#36B37E');
+          else if (chartId === 'verification-results-chart') colors = labels.map(l => getStatusColor(l));
 
-          // Configurações padrão e específicas do tipo
           const defaultOptions = {
               responsive: true, maintainAspectRatio: false,
-              plugins: { legend: { display: true }, tooltip: { enabled: true } } // Habilita por padrão
+              plugins: { legend: { display: true }, tooltip: { enabled: true } }
           };
-          // Ajustes de opções específicos baseados no tipo/ID
           if (chartType === 'doughnut' || chartType === 'pie') {
              defaultOptions.plugins.legend.position = 'right';
-             if(labels.length > 10) defaultOptions.plugins.legend.display = false; // Esconde legenda se muitos itens
+             if(labels.length > 10) defaultOptions.plugins.legend.display = false;
           }
           if (chartType === 'bar') {
-             defaultOptions.plugins.legend.display = false; // Geralmente não precisa de legenda para barras simples
+             defaultOptions.plugins.legend.display = false;
              defaultOptions.scales = { y: { beginAtZero: true, ticks: { precision: 0 } } };
-             if (options?.indexAxis === 'y') { // Se for barra horizontal
-                 defaultOptions.scales = { x: { beginAtZero: true, ticks: { precision: 0 } } }; // Eixo X é a contagem
-                 delete defaultOptions.scales.y; // Remove config do eixo Y
+             if (options?.indexAxis === 'y') {
+                 defaultOptions.scales = { x: { beginAtZero: true, ticks: { precision: 0 } } };
+                 delete defaultOptions.scales.y;
              }
           }
           if (chartType === 'line') {
@@ -541,69 +553,40 @@ const Dashboard = (function() {
               defaultOptions.scales = { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } };
               defaultOptions.elements = { line: { tension: 0.1, fill: true }, point: { radius: 3 } };
           }
+          const mergedOptions = deepMerge(defaultOptions, options);
 
-          const mergedOptions = deepMerge(defaultOptions, options); // Combina opções padrão com específicas
-
-          // Cria o gráfico
           chartInstances[instanceKey] = new Chart(canvas.getContext('2d'), {
               type: chartType,
               data: { labels, datasets: [{ data: counts, backgroundColor: colors, borderWidth: (chartType === 'pie' || chartType === 'doughnut') ? 0 : 1 }] },
               options: mergedOptions
           });
           console.log(`${chartId} (${chartType}) renderizado.`);
-
       } catch (error) { console.error(`Erro ao renderizar ${chartId}:`, error); }
   }
 
-  /** Renderiza gráfico de Status das Manutenções */
-  function renderStatusChart(data, chartId) {
-      renderGenericChart(chartId, 'doughnut', data, {
-          cutout: '65%', plugins: { legend: { position: 'right' } }
-      }, 'statusChart');
-  }
-
-  /** Renderiza gráfico de Categorias de Problemas (TOP 10 + Outros) */
-  function renderProblemCategoriesChart(data, chartId) {
-      renderGenericChart(chartId, 'bar', data, { // Barras verticais
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { autoSkip: data.length > 10 } } }
-      }, 'categoryChart');
-  }
-
-   /** Renderiza gráfico Opcional: Manutenções por TIPO */
-   function renderMaintenanceTypeChart(data, chartId) {
-      renderGenericChart(chartId, 'bar', data, { // Barras verticais
-           indexAxis: 'y', // Barras Horizontais para Tipos
-           plugins: { legend: { display: false } },
-           scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } // Eixo X é a contagem
-       }, 'maintenanceTypeChart');
-   }
-
-  /** Renderiza gráfico de Tendência Mensal */
+  function renderStatusChart(data, chartId) { renderGenericChart(chartId, 'doughnut', data, { cutout: '65%', plugins: { legend: { position: 'right' } } }, 'statusChart'); }
+  function renderProblemCategoriesChart(data, chartId) { renderGenericChart(chartId, 'bar', data, { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { autoSkip: data.length > 10 } } } }, 'categoryChart'); }
+  function renderMaintenanceTypeChart(data, chartId) { renderGenericChart(chartId, 'bar', data, { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } }, 'maintenanceTypeChart'); }
+  
   function renderMonthlyTrendChart(data, chartId) {
       const options = {
           plugins: { legend: { display: false } },
           scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } },
-          elements: { line: { tension: 0.1, fill: true }, point: { radius: data.some(d=>(d.count||0)>0) ? 3 : 0 } } // Mostra pontos só se houver dados
+          elements: { line: { tension: 0.1, fill: true }, point: { radius: data.some(d=>(d.count||0)>0) ? 3 : 0 } }
       };
-      // Passa dados diretamente para genérico, que cuidará dos datasets
-      const dataForChart = data.map(item => ({ label: item.label, count: item.count })); // Garante formato
+      const dataForChart = data.map(item => ({ label: item.label, count: item.count }));
 
-       // Sobrescreve a criação do dataset para linha
        const canvas = document.getElementById(chartId);
        if (!canvas || typeof Chart === 'undefined') return;
-
-       // Limpa mensagem 'sem dados' se existir e recria canvas
        const parent = canvas.parentElement;
        const noDataMessage = parent?.querySelector('.no-data-message');
        if (noDataMessage) {
-           parent.innerHTML = ''; // Limpa
+           parent.innerHTML = '';
            const newCanvas = document.createElement('canvas');
            newCanvas.id = chartId; newCanvas.style.height = canvas.style.height || '200px';
            parent.appendChild(newCanvas);
            canvas = newCanvas;
        }
-
 
        const isValidData = data && Array.isArray(data) && data.length > 0 && data.some(item => (item.count || 0) > 0);
        const isPlaceholder = !isValidData;
@@ -617,140 +600,67 @@ const Dashboard = (function() {
            chartInstances[instanceKey] = new Chart(canvas.getContext('2d'), {
                type: 'line',
                data: { labels, datasets: [{ label: 'Manutenções', data: counts, borderColor: isPlaceholder ? '#cccccc' : '#3f51b5', backgroundColor: isPlaceholder ? 'transparent' : 'rgba(63, 81, 181, 0.1)', borderWidth: 2, pointRadius: isPlaceholder ? 0 : 3, fill: !isPlaceholder, tension: 0.1 }] },
-               options: options // Usa as opções definidas acima
+               options: options
            });
            console.log(`${chartId} (line) renderizado.`);
        } catch (error) { console.error(`Erro ao renderizar ${chartId}:`, error); }
   }
 
-  /** Renderiza gráfico de Distribuição por Local/Oficina */
-  function renderAreaDistributionChart(data, chartId) {
-      renderGenericChart(chartId, 'pie', data, {
-          plugins: { legend: { position: 'right', display: data.length > 0 && data.length < 15 && !data.every(i=>(i.count||0)===0) } } // Legenda otimizada
-      }, 'areaChart');
-  }
-
-  /** Renderiza gráfico de Manutenções Críticas vs Regulares */
-  function renderCriticalVsRegularChart(data, chartId) {
-      renderGenericChart(chartId, 'doughnut', data, {
-          cutout: '60%', plugins: { legend: { position: 'bottom' } }
-      }, 'criticalChart');
-  }
-
-  /** Renderiza gráfico de Resultados das Verificações */
-  function renderVerificationResultsChart(data, chartId) {
-      renderGenericChart(chartId, 'bar', data, {
-           plugins: { legend: { display: false } },
-           scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
-       }, 'verificationChart');
-  }
-
-  // --- FUNÇÃO SUBSTITUÍDA ---
-  /** 
-   * Renderiza gráfico de Frequência Média de Manutenções com tratamento de 'sem dados' 
-   * e formatação correta dos dados
-   */
-    function renderMaintenanceFrequencyChart(containerId, data) {
-    const canvas = document.getElementById(containerId);
-    if (!canvas) {
-      console.error(`Canvas #${containerId} não encontrado!`);
-      return;
-    }
-    const parent = canvas.parentElement;
-    if (!parent) {
-      console.error(`Elemento pai do canvas #${containerId} não encontrado!`);
-      return;
-    }
+  function renderAreaDistributionChart(data, chartId) { renderGenericChart(chartId, 'pie', data, { plugins: { legend: { position: 'right', display: data.length > 0 && data.length < 15 && !data.every(i=>(i.count||0)===0) } } }, 'areaChart'); }
+  function renderCriticalVsRegularChart(data, chartId) { renderGenericChart(chartId, 'doughnut', data, { cutout: '60%', plugins: { legend: { position: 'bottom' } } }, 'criticalChart'); }
+  function renderVerificationResultsChart(data, chartId) { renderGenericChart(chartId, 'bar', data, { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }, 'verificationChart'); }
   
-    // Destruir instância anterior, se existir
+  function renderMaintenanceFrequencyChart(containerId, data) {
+    const canvas = document.getElementById(containerId);
+    if (!canvas) { console.error(`Canvas #${containerId} não encontrado!`); return; }
+    const parent = canvas.parentElement;
+    if (!parent) { console.error(`Elemento pai do canvas #${containerId} não encontrado!`); return; }
+  
     const instanceKey = 'frequencyChart';
     if (chartInstances[instanceKey]) {
-      try { 
-        chartInstances[instanceKey].destroy(); 
-      } catch (e) { 
-        console.warn("Erro ao destruir gráfico anterior:", e); 
-      }
+      try { chartInstances[instanceKey].destroy(); } catch (e) { console.warn("Erro ao destruir gráfico anterior:", e); }
       delete chartInstances[instanceKey];
     }
-  
-    // Limpar o conteúdo atual
     parent.innerHTML = '';
   
-    // Processar os dados corretamente
     let chartData = [];
-    
     if (Array.isArray(data)) {
-      // Se já é um array, filtra itens com count > 0
       chartData = data.filter(item => (item.count || 0) > 0);
     } else if (data && typeof data === 'object') {
-      // Se é um objeto, converte para o formato esperado
-      chartData = Object.entries(data).map(([key, value]) => ({
-        label: key,
-        count: value
-      })).filter(item => item.count > 0);
+      chartData = Object.entries(data).map(([key, value]) => ({ label: key, count: value })).filter(item => item.count > 0);
     }
   
-    // Se não tiver dados válidos, mostra mensagem
     if (!chartData || chartData.length === 0) {
       console.warn(`Não há dados para o gráfico ${containerId}`);
-      
-      // Cria mensagem personalizada
       const noDataElement = document.createElement('div');
       noDataElement.className = 'no-data-message';
-      noDataElement.style.cssText = `
-        display:flex; flex-direction:column; align-items:center; justify-content:center;
-        height:150px; background-color:#f8f9fa; border-radius:6px; padding:20px; text-align:center;
-      `;
-      noDataElement.innerHTML = `
-        <i class="fas fa-info-circle" style="font-size:24px; color:var(--primary-color, #0052cc); margin-bottom:15px;"></i>
-        <p style="margin:0; color:var(--text-light, #6c757d); font-size:14px;">Não há dados suficientes para calcular o intervalo entre manutenções.</p>
-        <p style="margin:5px 0 0; color:var(--text-light, #6c757d); font-size:13px;">Registre mais manutenções para o mesmo equipamento para ver esta análise.</p>
-      `;
+      noDataElement.style.cssText = `display:flex; flex-direction:column; align-items:center; justify-content:center; height:150px; background-color:#f8f9fa; border-radius:6px; padding:20px; text-align:center;`;
+      noDataElement.innerHTML = `<i class="fas fa-info-circle" style="font-size:24px; color:var(--primary-color, #0052cc); margin-bottom:15px;"></i> <p style="margin:0; color:var(--text-light, #6c757d); font-size:14px;">Não há dados suficientes para calcular o intervalo entre manutenções.</p> <p style="margin:5px 0 0; color:var(--text-light, #6c757d); font-size:13px;">Registre mais manutenções para o mesmo equipamento para ver esta análise.</p>`;
       parent.appendChild(noDataElement);
       return;
     }
   
-    // Se tem dados, cria o canvas e renderiza o gráfico
     const newCanvas = document.createElement('canvas');
-    newCanvas.id = containerId;
-    newCanvas.style.height = '200px';
+    newCanvas.id = containerId; newCanvas.style.height = '200px';
     parent.appendChild(newCanvas);
-  
-    // Ordena os dados (menor intervalo primeiro)
     chartData.sort((a, b) => a.count - b.count);
   
-    // Renderiza o gráfico
     renderGenericChart(containerId, 'bar', chartData, {
-      indexAxis: 'y', // Barras horizontais
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => `Intervalo Médio: ${ctx.parsed.x} dias` } }
-      },
-      scales: {
-        x: { 
-          beginAtZero: true, 
-          title: { display: true, text: 'Intervalo Médio (dias)'}, 
-          ticks: { precision: 0 } 
-        },
-        y: { ticks: { autoSkip: false } }
-      }
+      indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `Intervalo Médio: ${ctx.parsed.x} dias` } } },
+      scales: { x: { beginAtZero: true, title: { display: true, text: 'Intervalo Médio (dias)'}, ticks: { precision: 0 } }, y: { ticks: { autoSkip: false } } }
     }, instanceKey);
   }
-  // --- FIM DA FUNÇÃO SUBSTITUÍDA ---
-
 
   // ===========================================================
   // FUNÇÃO PARA RENDERIZAR TABELAS (Ranking e Recentes)
   // ===========================================================
-
-   /** Renderiza tabela de ranking OU recentes. */
    function renderRecentMaintenances(items, tbodyId) {
        const tableBody = document.getElementById(tbodyId);
        if (!tableBody) { console.warn(`Tbody #${tbodyId} não encontrado!`); return; }
-       tableBody.innerHTML = ''; // Limpa
+       tableBody.innerHTML = ''; 
 
        const thead = tableBody.previousElementSibling;
-       const colspan = thead?.rows?.[0]?.cells?.length || 5; // Ajuste o colspan padrão se necessário
+       const colspan = thead?.rows?.[0]?.cells?.length || 5;
 
        if (!items || items.length === 0) {
          tableBody.innerHTML = `<tr><td colspan="${colspan}" class="text-center" style="padding: 20px; color: #6c757d;">Nenhum dado encontrado para este período.</td></tr>`;
@@ -759,272 +669,257 @@ const Dashboard = (function() {
 
        items.forEach(item => {
            const row = document.createElement('tr');
+           row.dataset.id = item.id; // Adiciona ID ao TR para consistência com `e.currentTarget.closest('tr').dataset.id;`
            let html = '';
            if (tbodyId === 'equipment-ranking-tbody') {
-               // Colunas: Equipamento(ID), Tipo, Total Manutenções, Última Manutenção, Status
-               html = `
-                 <td>${item.identifier || item.id || '-'}</td>
-                 <td>${item.name || item.type || '-'}</td>
-                 <td>${item.maintenanceCount || 0}</td>
-                 <td>${formatDate(item.lastMaintenanceDate)}</td>
-                 <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td>`;
+               html = `<td>${item.identifier || item.id || '-'}</td> <td>${item.name || item.type || '-'}</td> <td>${item.maintenanceCount || 0}</td> <td>${formatDate(item.lastMaintenanceDate)}</td> <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td>`;
            } else if (tbodyId === 'recent-maintenance-tbody') {
-                // Colunas: ID, Equipamento(placa+tipo), TipoManut, Data Registro, Responsável, Status, Ações
-                html = `
-                  <td>${item.id || '-'}</td>
-                  <td>${item.placaOuId || '-'} (${item.tipoEquipamento || '-'})</td>
-                  <td>${item.tipoManutencao || '-'}</td>
-                  <td>${formatDate(item.dataRegistro)}</td>
-                  <td>${item.responsavel || '-'}</td>
-                  <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td>
-                  <td><button class="btn-icon view-maintenance" data-id="${item.id}" title="Ver Detalhes">👁️</button></td>`;
+                html = `<td>${item.id || '-'}</td> <td>${item.placaOuId || '-'} (${item.tipoEquipamento || '-'})</td> <td>${item.tipoManutencao || '-'}</td> <td>${formatDate(item.dataRegistro)}</td> <td>${item.responsavel || '-'}</td> <td><span class="status-badge status-${getStatusClass(item.status)}">${item.status || 'N/A'}</span></td> <td><button class="btn-icon view-maintenance" data-id="${item.id}" title="Ver Detalhes">👁️</button></td>`;
            }
            row.innerHTML = html;
            tableBody.appendChild(row);
        });
-       // console.log(`Tabela #${tbodyId} renderizada.`); // Log opcional
 
-        // --- INÍCIO DA ALTERAÇÃO ---
-        // Adiciona listener DELEGADO ao tbody (se ainda não tiver)
-        // Converte tbodyId para camelCase para usar como chave do dataset
         const listenerKey = tbodyId.replace(/-([a-z])/g, g => g[1].toUpperCase()) + 'ListenerSet';
-        // Ex: 'equipment-ranking-tbody' vira 'equipmentRankingTbodyListenerSet'
-        // Verifica e define o atributo usando a chave camelCase
         if (!tableBody.dataset[listenerKey]) {
-           tableBody.addEventListener('click', handleTableActionClick);
-           tableBody.dataset[listenerKey] = 'true'; // Define a flag no dataset com nome válido
+           tableBody.addEventListener('click', handleTableActionClick); // Agora chama a handleTableActionClick atualizada
+           tableBody.dataset[listenerKey] = 'true';
            console.log(`Listener de clique configurado para #${tbodyId} com chave dataset: ${listenerKey}`);
         }
-        // --- FIM DA ALTERAÇÃO ---
    }
 
-   /** Handler DELEGADO para cliques nos botões de ação das tabelas */
-   function handleTableActionClick(event) {
-       const button = event.target.closest('.btn-icon');
-       if (!button) return;
-       const maintenanceId = button.getAttribute('data-id');
-       if (!maintenanceId) return;
+   /** Handler DELEGADO para cliques nos botões de ação das tabelas (ATUALIZADO) */
+    function handleTableActionClick(e) {
+        // O clique pode ser no ícone dentro do botão, então .closest() é importante.
+        const button = e.target.closest('.view-maintenance'); // Foca no botão de visualização
+        if (!button) return; // Se não for o botão de visualização, ignora por enquanto
 
-       if (button.classList.contains('view-maintenance')) {
-          console.log(`Visualizar manutenção ID: ${maintenanceId}`);
-          // Tenta chamar a função global viewMaintenanceDetails (assumindo que existe)
-          // Idealmente, essa dependência deveria ser injetada ou gerenciada de outra forma
-          if (typeof window.viewMaintenanceDetails === 'function') {
-             window.viewMaintenanceDetails(maintenanceId); // Chama função global
-          } else {
-             console.error("Função global 'viewMaintenanceDetails' não encontrada ou não definida.");
-             // Poderia ter um fallback aqui, como mostrar um alert simples.
-             alert(`Detalhes da manutenção ${maintenanceId} (Função 'viewMaintenanceDetails' não disponível)`);
-          }
-       }
-       // Adicionar mais 'else if' para outros botões de ação (editar, excluir, etc.) se necessário
-   }
+        // A atualização original sugeria e.currentTarget.closest('tr').dataset.id;
+        // Mas o data-id já está no botão, que é mais direto.
+        const id = button.dataset.id; 
+        if (!id) {
+            // Fallback para pegar do TR se o botão não tiver o ID (mas deveria ter)
+            const trId = e.target.closest('tr')?.dataset.id;
+            if (!trId) {
+                console.warn("Não foi possível obter o ID da manutenção para visualização.");
+                return;
+            }
+            id = trId;
+        }
+        
+        console.log(`Visualizar manutenção ID: ${id}`);
+        
+        // Lógica da atualização para chamar viewMaintenanceDetails ou o modal
+        if (typeof window.viewMaintenanceDetails === 'function') {
+            window.viewMaintenanceDetails(id);
+        } else if (typeof viewMaintenanceDetails === 'function') { // Pouco provável de ser diferente de window.
+            viewMaintenanceDetails(id);
+        } else {
+            console.log("Função viewMaintenanceDetails não encontrada globalmente, usando modal fallback.");
+            showMaintenanceDetailsModal(id); // Fallback para o novo modal
+        }
+        // Se houver outros botões de ação (editar, excluir), adicionar lógica aqui com `else if (e.target.closest('.edit-maintenance'))` etc.
+    }
+
+  // ==================================================================
+  // NOVAS FUNÇÕES PARA MODAL DE DETALHES DA MANUTENÇÃO (DA ATUALIZAÇÃO)
+  // ==================================================================
+
+  /** Exibe um modal com os detalhes da manutenção (fallback) */
+  function showMaintenanceDetailsModal(id) {
+    fetchMaintenanceDetails(id) // Nova função para buscar detalhes específicos
+        .then(data => {
+            if (data && data.success && data.details) { // Assumindo que a API retorna { success: true, details: {...} }
+                const modalContent = createMaintenanceDetailsContent(data.details);
+                // showModal é uma função global/utilitária esperada (ex: Utilities.showModal)
+                if (typeof Utilities !== 'undefined' && Utilities.showModal) {
+                    Utilities.showModal(`Detalhes da Manutenção ${id}`, modalContent, null, { large: true });
+                } else if (typeof showModal === 'function') {
+                    showModal(`Detalhes da Manutenção ${id}`, modalContent);
+                } else {
+                    console.error("Função showModal não encontrada para exibir detalhes.");
+                    alert("Detalhes:\n" + JSON.stringify(data.details, null, 2)); // Fallback muito simples
+                }
+            } else {
+                console.error("Erro ao buscar detalhes ou dados inválidos:", data);
+                showNotification(data?.message || "Não foi possível obter os detalhes da manutenção.", "error");
+            }
+        })
+        .catch(error => {
+            console.error("Erro na promessa ao buscar detalhes:", error);
+            showNotification("Erro crítico ao buscar detalhes da manutenção.", "error");
+        });
+  }
+
+  /** Cria o conteúdo HTML para o modal de detalhes da manutenção */
+  function createMaintenanceDetailsContent(maintenance) {
+    const content = document.createElement('div');
+    content.className = 'maintenance-details-modal-content'; // Classe para estilização
+    // Estilos básicos inline para o modal (idealmente, isso estaria no CSS)
+    content.style.cssText = `
+        font-size: 0.9rem;
+        line-height: 1.6;
+    `;
+    
+    content.innerHTML = `
+        <style>
+            .maintenance-details-modal-content .detail-row { margin-bottom: 8px; display: flex; }
+            .maintenance-details-modal-content .detail-label { font-weight: bold; min-width: 120px; color: #333; }
+            .maintenance-details-modal-content .detail-value { color: #555; }
+            .maintenance-details-modal-content .status-badge-modal { padding: 3px 8px; border-radius: 4px; color: white; font-size: 0.85em; }
+            /* Cores de status para o modal (exemplo, alinhar com getStatusClass) */
+            .status-badge-modal.status-pending { background-color: #FFAB00; }
+            .status-badge-modal.status-verified { background-color: #0052CC; }
+            .status-badge-modal.status-completed { background-color: #36B37E; }
+            .status-badge-modal.status-adjusting { background-color: #FFC400; }
+            .status-badge-modal.status-rejected { background-color: #FF5630; }
+            .status-badge-modal.status-critical { background-color: #BF2600; }
+            .status-badge-modal.status-default { background-color: #6c757d; }
+        </style>
+        <div class="detail-row">
+            <span class="detail-label">ID:</span>
+            <span class="detail-value">${maintenance.id || '-'}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Equipamento:</span>
+            <span class="detail-value">${maintenance.equipment_identifier || maintenance.equipment || '-'}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Tipo Manut.:</span>
+            <span class="detail-value">${maintenance.maintenance_type || maintenance.type || '-'}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Responsável:</span>
+            <span class="detail-value">${maintenance.responsible_name || maintenance.responsible || '-'}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Data Agendada:</span>
+            <span class="detail-value">${maintenance.scheduled_date ? formatDate(maintenance.scheduled_date) : '-'}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Data Conclusão:</span>
+            <span class="detail-value">${maintenance.completion_date ? formatDate(maintenance.completion_date) : '-'}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Status:</span>
+            <span class="detail-value">
+                <span class="status-badge-modal status-${getStatusClass(maintenance.status)}">
+                    ${maintenance.status || '-'}
+                </span>
+            </span>
+        </div>
+        <div class="detail-row" style="flex-direction: column;">
+            <span class="detail-label" style="margin-bottom: 4px;">Descrição:</span>
+            <span class="detail-value" style="white-space: pre-wrap; background: #f9f9f9; padding: 5px; border-radius:3px;">${maintenance.description || '-'}</span>
+        </div>
+        ${maintenance.notes ? `
+        <div class="detail-row" style="flex-direction: column; margin-top: 10px;">
+            <span class="detail-label" style="margin-bottom: 4px;">Observações da Verificação:</span>
+            <span class="detail-value" style="white-space: pre-wrap; background: #f9f9f9; padding: 5px; border-radius:3px;">${maintenance.notes}</span>
+        </div>` : ''}
+    `;
+    // Adaptei os nomes dos campos (ex: maintenance.equipment_identifier) para um formato mais comum de API.
+    // Ajuste conforme a sua API de detalhes retorna.
+    return content;
+  }
+
+  /** Função para buscar detalhes de uma manutenção específica via API */
+  function fetchMaintenanceDetails(id) {
+    // API_URL deve estar definida globalmente ou ser acessível
+    if (typeof API_URL === 'undefined') {
+        console.error("API_URL não está definida. Não é possível buscar detalhes da manutenção.");
+        return Promise.resolve({ success: false, message: "API_URL não configurada." });
+    }
+
+    const url = `${API_URL}?action=getMaintenanceDetails&id=${id}`;
+    console.log("Buscando detalhes da manutenção da API:", url);
+
+    return fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                // Tenta pegar uma mensagem de erro do corpo da resposta
+                return response.text().then(text => {
+                    try {
+                        const errData = JSON.parse(text);
+                        throw new Error(errData.message || `Erro HTTP: ${response.status}`);
+                    } catch (e) { // Se não for JSON
+                        throw new Error(text || `Erro HTTP: ${response.status}`);
+                    }
+                });
+            }
+            return response.json(); // Espera-se { success: true, details: { ... } }
+        })
+        .catch(error => {
+            console.error('Erro em fetchMaintenanceDetails:', error);
+            return { success: false, message: error.message || "Erro ao buscar detalhes da manutenção via API." };
+        });
+  }
+
 
   // ===========================================================
-  // FUNÇÕES UTILITÁRIAS INTERNAS E GLOBAIS (Se não vierem de utilities.js)
+  // FUNÇÕES UTILITÁRIAS INTERNAS E GLOBAIS
   // ===========================================================
-
-  /** Gera uma paleta de cores */
-  function generateColorPalette(count) {
-    const baseColors = ['#0052CC', '#36B37E', '#FFAB00', '#6554C0', '#FF5630', '#00B8D9', '#FFC400', '#4C9AFF', '#79F2C0', '#FF8B00'];
-    if (count <= baseColors.length) return baseColors.slice(0, count);
-    const colors = [...baseColors];
-    const step = 360 / (count - baseColors.length); const baseHue = 200;
-    for (let i = 0; i < count - baseColors.length; i++) { colors.push(`hsl(${(baseHue + i * step) % 360}, 75%, 55%)`); }
-    return colors;
-  }
-
-  /** Retorna classe CSS para status */
-  function getStatusClass(status) {
-    if (!status) return 'default'; const s = String(status).toLowerCase();
-    if (s.includes('pendente') || s.includes('aguardando')) return 'pending';
-    if (s.includes('verificado') || s.includes('aprovado')) return 'verified';
-    if (s.includes('concluído') || s.includes('concluido')) return 'completed';
-    if (s.includes('ajustes') || s.includes('andamento')) return 'adjusting';
-    if (s.includes('reprovado') || s.includes('rejeitado')) return 'rejected';
-    if (s.includes('crítico') || s.includes('critico')) return 'critical';
-    if (s.includes('info') || s.includes('ok')) return 'info';
-    return 'default';
-  }
-
-  /** Retorna cor HSL para status (exemplo) */
-  function getStatusColor(status) {
-    if (!status) return '#adb5bd'; // Cinza default
-    const s = String(status).toLowerCase();
-    if (s.includes('pendente') || s.includes('aguardando')) return '#FFAB00'; // warning
-    if (s.includes('verificado') || s.includes('aprovado')) return '#0052CC'; // primary
-    if (s.includes('concluído') || s.includes('concluido')) return '#36B37E'; // success
-    if (s.includes('ajustes')) return '#FFC400'; // Amarelo mais claro
-    if (s.includes('reprovado') || s.includes('rejeitado')) return '#FF5630'; // danger
-    if (s.includes('crítico') || s.includes('critico')) return '#BF2600'; // danger mais escuro
-    return '#6c757d'; // secondary
-  }
-
-
-  /** Formata uma data (DD/MM/YYYY) */
+  function generateColorPalette(count) { /* ... (código original mantido) ... */ const baseColors = ['#0052CC', '#36B37E', '#FFAB00', '#6554C0', '#FF5630', '#00B8D9', '#FFC400', '#4C9AFF', '#79F2C0', '#FF8B00']; if (count <= baseColors.length) return baseColors.slice(0, count); const colors = [...baseColors]; const step = 360 / (count - baseColors.length); const baseHue = 200; for (let i = 0; i < count - baseColors.length; i++) { colors.push(`hsl(${(baseHue + i * step) % 360}, 75%, 55%)`); } return colors; }
+  function getStatusClass(status) { /* ... (código original mantido) ... */ if (!status) return 'default'; const s = String(status).toLowerCase(); if (s.includes('pendente') || s.includes('aguardando')) return 'pending'; if (s.includes('verificado') || s.includes('aprovado')) return 'verified'; if (s.includes('concluído') || s.includes('concluido')) return 'completed'; if (s.includes('ajustes') || s.includes('andamento')) return 'adjusting'; if (s.includes('reprovado') || s.includes('rejeitado')) return 'rejected'; if (s.includes('crítico') || s.includes('critico')) return 'critical'; if (s.includes('info') || s.includes('ok')) return 'info'; return 'default'; }
+  function getStatusColor(status) { /* ... (código original mantido) ... */ if (!status) return '#adb5bd'; const s = String(status).toLowerCase(); if (s.includes('pendente') || s.includes('aguardando')) return '#FFAB00'; if (s.includes('verificado') || s.includes('aprovado')) return '#0052CC'; if (s.includes('concluído') || s.includes('concluido')) return '#36B37E'; if (s.includes('ajustes')) return '#FFC400'; if (s.includes('reprovado') || s.includes('rejeitado')) return '#FF5630'; if (s.includes('crítico') || s.includes('critico')) return '#BF2600'; return '#6c757d'; }
+  
+  /** Formata uma data (DD/MM/YYYY) - Função original mantida para exibição */
   function formatDate(dateInput) {
     if (!dateInput) return '-';
-    // Tenta usar Utilities.formatDate primeiro
     if (typeof Utilities !== 'undefined' && Utilities.formatDate) {
-        try {
-            // Verifica se Utilities.formatDate aceita o formato de entrada
-            // Pode ser necessário ajustar a entrada se Utilities.formatDate for exigente
-            return Utilities.formatDate(dateInput);
-        } catch (e) {
-            console.warn("Erro ao usar Utilities.formatDate, usando fallback:", e);
-        }
+        try { return Utilities.formatDate(dateInput); } catch (e) { console.warn("Erro ao usar Utilities.formatDate, usando fallback:", e); }
     }
-    // Fallback: Formatação manual simples
     try {
       let date;
-      // Tenta criar data, lidando com strings que podem ter 'T' ou ser só data
-      if (typeof dateInput === 'string' && dateInput.includes('T')) {
-          date = new Date(dateInput.split('T')[0] + 'T00:00:00'); // Considera apenas a data, no fuso local
-      } else {
-          date = new Date(dateInput);
-      }
-
-      if (isNaN(date.getTime())) {
-          // Se ainda inválida, tenta retornar a parte da data da string original
-          if (typeof dateInput === 'string') return dateInput.split('T')[0];
-          return String(dateInput); // Retorna como string se não reconhecer
-      }
-      // getTimezoneOffset retorna a diferença em minutos entre UTC e local.
-      // Adiciona esse offset para compensar e exibir a data local correta.
+      if (typeof dateInput === 'string' && dateInput.includes('T')) { date = new Date(dateInput.split('T')[0] + 'T00:00:00'); } 
+      else { date = new Date(dateInput); }
+      if (isNaN(date.getTime())) { if (typeof dateInput === 'string') return dateInput.split('T')[0]; return String(dateInput); }
       date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
-
       const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0'); // Mês é 0-indexed
+      const month = String(date.getMonth() + 1).padStart(2, '0');
       const year = date.getFullYear();
-      // Validação básica do ano
       if (year < 1900 || year > 3000) return '-';
       return `${day}/${month}/${year}`;
-    } catch(e) {
-      console.error("Erro ao formatar data (fallback):", e, "Input:", dateInput);
-      return String(dateInput); // Retorna a entrada original em caso de erro
-    }
+    } catch(e) { console.error("Erro ao formatar data (fallback):", e, "Input:", dateInput); return String(dateInput); }
   }
 
-
-  /** Mostra/esconde loader global */
-  function showLoading(show, message = 'Carregando...') {
-    if (typeof Utilities !== 'undefined' && Utilities.showLoading) { try { Utilities.showLoading(show, message); return; } catch (e) {} }
-    const loader = document.getElementById('global-loader');
-    if (loader) { loader.style.display = show ? 'flex' : 'none'; const msgEl = document.getElementById('global-loader-message'); if (msgEl) msgEl.textContent = message; }
-    else if (show) { console.warn("Loader global não encontrado"); }
-  }
-
-  /** Mostra notificação de erro */
-  function showLoadingError(message) {
-    if (typeof Utilities !== 'undefined' && Utilities.showNotification) { try { Utilities.showNotification(message, 'error', 8000); return; } catch(e) {} }
-    console.error("Dashboard Error:", message);
-     // Fallback simples se Utilities não estiver disponível
-     // alert("Erro no Dashboard: " + message);
-  }
-
-   // --- INÍCIO DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO ---
-   // Substitua a função checkAndCreateChartContainers em dashboard.js
-    function checkAndCreateChartContainers() {
-      const requiredCanvasIds = [
-        'maintenance-status-chart', 'problem-categories-chart', 'monthly-trend-chart',
-        'area-distribution-chart', 'critical-vs-regular-chart', 'verification-results-chart',
-        'maintenance-frequency-chart'
-      ];
-      
-      // Primeiro, verificar se o container existe, senão criar
-      let dashboardGrid = document.querySelector('#tab-dashboard .dashboard-grid');
-      if (!dashboardGrid) {
-        console.log("Container .dashboard-grid não encontrado. Criando...");
-        dashboardGrid = document.createElement('div');
-        dashboardGrid.className = 'dashboard-grid';
-        dashboardGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin: 1.5rem 0;';
-        
-        // Adicionar ao tab-dashboard
-        const dashboardTab = document.getElementById('tab-dashboard');
-        if (dashboardTab) {
-          // Inserir após a seção "summary-cards" se existir, ou no início
-          const summaryCards = dashboardTab.querySelector('.summary-cards');
-          if (summaryCards) {
-            summaryCards.after(dashboardGrid);
-          } else {
-            dashboardTab.appendChild(dashboardGrid);
-          }
-        } else {
-          console.error("Elemento #tab-dashboard também não encontrado. Não é possível criar container de gráficos.");
-          return;
-        }
-      }
-
-      // Agora verificar e criar os canvases
-      requiredCanvasIds.forEach(id => {
-        if (!document.getElementById(id)) {
-          console.log(`Canvas #${id} não encontrado. Criando...`);
-          const chartContainer = document.createElement('div');
-          chartContainer.className = 'chart-container'; 
-          chartContainer.style.cssText = 'position: relative; min-height: 250px; width: 100%; margin-bottom: 1rem;';
-          
-          const canvas = document.createElement('canvas');
-          canvas.id = id;
-          canvas.style.height = '200px';
-          
-          chartContainer.appendChild(canvas);
-          dashboardGrid.appendChild(chartContainer);
-        }
-      });
-    }
-   // --- FIM DA FUNÇÃO SUBSTITUÍDA PELA ATUALIZAÇÃO ---
-
-
-   /** Função utilitária para merge profundo de objetos (para opções de gráfico) */
-   function deepMerge(target, source) {
-      const output = Object.assign({}, target);
-      if (isObject(target) && isObject(source)) {
-        Object.keys(source).forEach(key => {
-          if (isObject(source[key])) {
-            if (!(key in target)) Object.assign(output, { [key]: source[key] });
-            else output[key] = deepMerge(target[key], source[key]);
-          } else {
-            Object.assign(output, { [key]: source[key] });
-          }
-        });
-      }
-      return output;
-   }
-   function isObject(item) { return (item && typeof item === 'object' && !Array.isArray(item)); }
-
+  function showLoading(show, message = 'Carregando...') { /* ... (código original mantido) ... */ if (typeof Utilities !== 'undefined' && Utilities.showLoading) { try { Utilities.showLoading(show, message); return; } catch (e) {} } const loader = document.getElementById('global-loader'); if (loader) { loader.style.display = show ? 'flex' : 'none'; const msgEl = document.getElementById('global-loader-message'); if (msgEl) msgEl.textContent = message; } else if (show) { console.warn("Loader global não encontrado"); } }
+  function showLoadingError(message) { /* ... (código original mantido) ... */ if (typeof Utilities !== 'undefined' && Utilities.showNotification) { try { Utilities.showNotification(message, 'error', 8000); return; } catch(e) {} } console.error("Dashboard Error:", message); }
+  
+  function checkAndCreateChartContainers() { /* ... (código original mantido) ... */ const requiredCanvasIds = [ 'maintenance-status-chart', 'problem-categories-chart', 'monthly-trend-chart', 'area-distribution-chart', 'critical-vs-regular-chart', 'verification-results-chart', 'maintenance-frequency-chart' ]; let dashboardGrid = document.querySelector('#tab-dashboard .dashboard-grid'); if (!dashboardGrid) { console.log("Container .dashboard-grid não encontrado. Criando..."); dashboardGrid = document.createElement('div'); dashboardGrid.className = 'dashboard-grid'; dashboardGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin: 1.5rem 0;'; const dashboardTab = document.getElementById('tab-dashboard'); if (dashboardTab) { const summaryCards = dashboardTab.querySelector('.summary-cards'); if (summaryCards) { summaryCards.after(dashboardGrid); } else { dashboardTab.appendChild(dashboardGrid); } } else { console.error("Elemento #tab-dashboard também não encontrado. Não é possível criar container de gráficos."); return; } } requiredCanvasIds.forEach(id => { if (!document.getElementById(id)) { console.log(`Canvas #${id} não encontrado. Criando...`); const chartContainer = document.createElement('div'); chartContainer.className = 'chart-container'; chartContainer.style.cssText = 'position: relative; min-height: 250px; width: 100%; margin-bottom: 1rem;'; const canvas = document.createElement('canvas'); canvas.id = id; canvas.style.height = '200px'; chartContainer.appendChild(canvas); dashboardGrid.appendChild(chartContainer); } }); }
+  function deepMerge(target, source) { /* ... (código original mantido) ... */ const output = Object.assign({}, target); if (isObject(target) && isObject(source)) { Object.keys(source).forEach(key => { if (isObject(source[key])) { if (!(key in target)) Object.assign(output, { [key]: source[key] }); else output[key] = deepMerge(target[key], source[key]); } else { Object.assign(output, { [key]: source[key] }); } }); } return output; }
+  function isObject(item) { /* ... (código original mantido) ... */ return (item && typeof item === 'object' && !Array.isArray(item)); }
 
   // API pública do módulo
-  return { initialize }; // Expor apenas initialize, o resto é interno
+  return { initialize };
 })();
 
 // --- Inicialização ---
-// É crucial que API.js e utilities.js sejam carregados ANTES deste script.
-// O ScriptLoader no index.html deve garantir isso.
 document.addEventListener('DOMContentLoaded', function() {
-  // Verifica se Chart.js está carregado ANTES de inicializar
+  // Assume-se que API_URL está definida globalmente antes deste script, ex:
+  // <script> const API_URL = "/api/seu_endpoint.php"; </script>
+  // Ou definida em api.js se este for carregado antes.
+  if (typeof API_URL === 'undefined') {
+      console.warn("AVISO: A constante global API_URL não está definida. As chamadas de API para filtros e detalhes de manutenção podem falhar.");
+      // Poderia até mesmo definir um valor padrão se apropriado, mas é melhor que seja explícito.
+      // window.API_URL = "/api/default_api_endpoint.php"; // Exemplo de fallback
+  }
+
   if (typeof Chart === 'undefined') {
      console.error("FATAL: Chart.js não foi carregado. Os gráficos do Dashboard não funcionarão.");
-     // Opcional: Exibir mensagem para o usuário aqui
      const dashboardTab = document.getElementById('tab-dashboard');
-     if(dashboardTab) {
-         dashboardTab.innerHTML = '<div class="alert alert-danger">Erro Crítico: Biblioteca de gráficos (Chart.js) não carregada. O Dashboard não pode ser exibido.</div>';
-     }
+     if(dashboardTab) dashboardTab.innerHTML = '<div class="alert alert-danger">Erro Crítico: Biblioteca de gráficos (Chart.js) não carregada. O Dashboard não pode ser exibido.</div>';
   } else if (typeof Utilities === 'undefined') {
       console.error("FATAL: utilities.js não foi carregado. Funções essenciais do Dashboard podem falhar.");
       const dashboardTab = document.getElementById('tab-dashboard');
-      if(dashboardTab) {
-          dashboardTab.innerHTML = '<div class="alert alert-danger">Erro Crítico: Biblioteca de utilidades (utilities.js) não carregada. O Dashboard pode não funcionar corretamente.</div>';
-      }
+      if(dashboardTab) dashboardTab.innerHTML = '<div class="alert alert-danger">Erro Crítico: Biblioteca de utilidades (utilities.js) não carregada. O Dashboard pode não funcionar corretamente.</div>';
   }
   else if (typeof Dashboard !== 'undefined' && Dashboard.initialize) {
      console.log("DOM carregado, inicializando Dashboard...");
-     // Pequeno delay para garantir que tudo esteja pronto, especialmente se houver outras inicializações
-     setTimeout(Dashboard.initialize, 150); // Aumentei ligeiramente o delay
+     setTimeout(Dashboard.initialize, 150);
   } else {
      console.error("Módulo Dashboard ou Dashboard.initialize não encontrado!");
       const dashboardTab = document.getElementById('tab-dashboard');
-      if(dashboardTab) {
-          dashboardTab.innerHTML = '<div class="alert alert-danger">Erro Crítico: Script do Dashboard (dashboard.js) não carregado ou inválido.</div>';
-      }
+      if(dashboardTab) dashboardTab.innerHTML = '<div class="alert alert-danger">Erro Crítico: Script do Dashboard (dashboard.js) não carregado ou inválido.</div>';
   }
 });
