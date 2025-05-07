@@ -13,15 +13,12 @@ const Dashboard = (function() {
 
   /** Limpa instâncias de gráficos anteriores */
   function cleanupCharts() {
-    if (chartInstances) {
-      Object.values(chartInstances).forEach(chart => {
-        if (chart && typeof chart.destroy === 'function') {
-          try { chart.destroy(); } catch (e) { console.error("Erro ao destruir chart:", e); }
-        }
-      });
-    }
+    Object.values(chartInstances).forEach(chart => {
+      if (chart && typeof chart.destroy === 'function') {
+        try { chart.destroy(); } catch (e) { console.error("Erro ao destruir chart:", e); }
+      }
+    });
     chartInstances = {};
-    // console.log("Instâncias de gráficos limpas."); // Opcional: remover log verboso
   }
 
   // Adicionar esta função no arquivo dashboard.js, antes de initialize()
@@ -434,14 +431,32 @@ const Dashboard = (function() {
       renderAreaDistributionChart(chartData.areaDistribution || [], 'area-distribution-chart'); // <<< Usa dados de Local/Oficina
       renderCriticalVsRegularChart(chartData.criticalVsRegular || [], 'critical-vs-regular-chart');
       renderVerificationResultsChart(chartData.verificationResults || [], 'verification-results-chart');
-      // --- FUNÇÃO SUBSTITUÍDA A SER CHAMADA ---
-      renderMaintenanceFrequencyChart('maintenance-frequency-chart', chartData.maintenanceFrequency || []); // *** Parâmetros trocados na chamada ***
+      renderMaintenanceFrequencyChart('maintenance-frequency-chart', chartData.maintenanceFrequency || []);
 
       // Gráfico Opcional: Manutenções por TIPO (se o canvas 'maintenance-type-chart' existir)
       if(document.getElementById('maintenance-type-chart')) {
           renderMaintenanceTypeChart(chartData.maintenanceTypes || [], 'maintenance-type-chart');
       }
       console.log("Chamadas de renderização de gráficos concluídas.");
+  }
+
+  /** Renderiza gráfico de frequência apenas com dados válidos */
+  function renderMaintenanceFrequencyChart(chartId, data) {
+    const container = document.getElementById(chartId)?.parentElement;
+    // Se não há dados, exibe mensagem e sai
+    if (!data || !data.length) {
+      if (container && !container.querySelector('.no-data-message')) {
+        const msg = document.createElement('div');
+        msg.className = 'no-data-message';
+        msg.textContent = 'Sem dados para intervalo de manutenção.';
+        container.appendChild(msg);
+      }
+      return;
+    }
+    // Se havia mensagem de "sem dados", remove-a
+    const oldMsg = container.querySelector('.no-data-message');
+    if (oldMsg) oldMsg.remove();
+    renderGenericChart(chartId, 'line', data, { /* suas opções */ }, 'frequencyChart');
   }
 
   // ===========================================================
@@ -644,100 +659,6 @@ const Dashboard = (function() {
            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
        }, 'verificationChart');
   }
-
-  // --- FUNÇÃO SUBSTITUÍDA ---
-  /** 
-   * Renderiza gráfico de Frequência Média de Manutenções com tratamento de 'sem dados' 
-   * e formatação correta dos dados
-   */
-    function renderMaintenanceFrequencyChart(containerId, data) {
-    const canvas = document.getElementById(containerId);
-    if (!canvas) {
-      console.error(`Canvas #${containerId} não encontrado!`);
-      return;
-    }
-    const parent = canvas.parentElement;
-    if (!parent) {
-      console.error(`Elemento pai do canvas #${containerId} não encontrado!`);
-      return;
-    }
-  
-    // Destruir instância anterior, se existir
-    const instanceKey = 'frequencyChart';
-    if (chartInstances[instanceKey]) {
-      try { 
-        chartInstances[instanceKey].destroy(); 
-      } catch (e) { 
-        console.warn("Erro ao destruir gráfico anterior:", e); 
-      }
-      delete chartInstances[instanceKey];
-    }
-  
-    // Limpar o conteúdo atual
-    parent.innerHTML = '';
-  
-    // Processar os dados corretamente
-    let chartData = [];
-    
-    if (Array.isArray(data)) {
-      // Se já é um array, filtra itens com count > 0
-      chartData = data.filter(item => (item.count || 0) > 0);
-    } else if (data && typeof data === 'object') {
-      // Se é um objeto, converte para o formato esperado
-      chartData = Object.entries(data).map(([key, value]) => ({
-        label: key,
-        count: value
-      })).filter(item => item.count > 0);
-    }
-  
-    // Se não tiver dados válidos, mostra mensagem
-    if (!chartData || chartData.length === 0) {
-      console.warn(`Não há dados para o gráfico ${containerId}`);
-      
-      // Cria mensagem personalizada
-      const noDataElement = document.createElement('div');
-      noDataElement.className = 'no-data-message';
-      noDataElement.style.cssText = `
-        display:flex; flex-direction:column; align-items:center; justify-content:center;
-        height:150px; background-color:#f8f9fa; border-radius:6px; padding:20px; text-align:center;
-      `;
-      noDataElement.innerHTML = `
-        <i class="fas fa-info-circle" style="font-size:24px; color:var(--primary-color, #0052cc); margin-bottom:15px;"></i>
-        <p style="margin:0; color:var(--text-light, #6c757d); font-size:14px;">Não há dados suficientes para calcular o intervalo entre manutenções.</p>
-        <p style="margin:5px 0 0; color:var(--text-light, #6c757d); font-size:13px;">Registre mais manutenções para o mesmo equipamento para ver esta análise.</p>
-      `;
-      parent.appendChild(noDataElement);
-      return;
-    }
-  
-    // Se tem dados, cria o canvas e renderiza o gráfico
-    const newCanvas = document.createElement('canvas');
-    newCanvas.id = containerId;
-    newCanvas.style.height = '200px';
-    parent.appendChild(newCanvas);
-  
-    // Ordena os dados (menor intervalo primeiro)
-    chartData.sort((a, b) => a.count - b.count);
-  
-    // Renderiza o gráfico
-    renderGenericChart(containerId, 'bar', chartData, {
-      indexAxis: 'y', // Barras horizontais
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => `Intervalo Médio: ${ctx.parsed.x} dias` } }
-      },
-      scales: {
-        x: { 
-          beginAtZero: true, 
-          title: { display: true, text: 'Intervalo Médio (dias)'}, 
-          ticks: { precision: 0 } 
-        },
-        y: { ticks: { autoSkip: false } }
-      }
-    }, instanceKey);
-  }
-  // --- FIM DA FUNÇÃO SUBSTITUÍDA ---
-
 
   // ===========================================================
   // FUNÇÃO PARA RENDERIZAR TABELAS (Ranking e Recentes)
