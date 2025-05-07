@@ -29,30 +29,25 @@ const Dashboard = (function() {
   /** Inicializa o dashboard */
   function initialize() {
     if (dashboardInitialized) {
-      // console.log("Dashboard já inicializado."); // Opcional: remover log verboso
       return;
     }
     console.log("Dashboard.initialize() chamado");
 
-    // Garante que os elementos HTML base existam antes de continuar
     if (!document.getElementById('tab-dashboard')) {
         console.error("Elemento #tab-dashboard não encontrado. A inicialização do Dashboard não pode continuar.");
         return;
     }
 
-    createPeriodButtonsIfNeeded(); // Cria botões se não existirem
-    // Chamar esta função dentro do método initialize() do Dashboard
-    // Adicione esta linha em Dashboard.initialize() depois de createDashboardControls() [ajustado para createPeriodButtonsIfNeeded]
+    createPeriodButtonsIfNeeded();
     createFilterDropdown();
-    setupPeriodButtons(); // Configura listeners (via delegação)
-    setupRefreshButton(); // Configura listener refresh (via delegação)
-    setupTabNavigation(); // Monitora hashchange
+    setupPeriodButtons();
+    setupRefreshButton();
+    setupTabNavigation();
 
-    // Carrega dados iniciais imediatamente se estiver na aba dashboard
     const isActive = document.getElementById('tab-dashboard').classList.contains('active');
     const hash = window.location.hash || '#dashboard';
     if (isActive || hash === '#dashboard') {
-       checkIfDashboard(true); // Passa true para forçar carregamento inicial
+       checkIfDashboard(true);
     }
 
     dashboardInitialized = true;
@@ -62,19 +57,16 @@ const Dashboard = (function() {
   /** Cria botões de período se eles não existirem no DOM */
   function createPeriodButtonsIfNeeded() {
     const dashboardHeader = document.querySelector('#tab-dashboard .dashboard-header');
-    // Verifica se o container de controles já existe para evitar duplicar tudo
     if (!dashboardHeader || dashboardHeader.querySelector('.dashboard-controls')) return;
 
     console.log("Criando controles do Dashboard (botões de período/refresh)...");
 
-    // Cria container principal para os controles
     const controlsContainer = document.createElement('div');
     controlsContainer.className = 'dashboard-controls';
 
-    // Cria container para os botões de período
     const buttonContainer = document.createElement('div');
     buttonContainer.className = 'period-buttons';
-    const periods = [ // Ordem dos botões
+    const periods = [
       { id: 'current-month', label: 'Mês Atual' }, { id: 'last-month', label: 'Mês Anterior' },
       { id: 'last-3-months', label: 'Últimos 3m' }, { id: 'last-6-months', label: 'Últimos 6m' },
       { id: 'current-year', label: 'Este Ano' }, { id: 'all', label: 'Todos' }
@@ -85,42 +77,35 @@ const Dashboard = (function() {
       button.className = 'period-btn';
       button.setAttribute('data-period', period.id);
       button.textContent = period.label;
-      if (period.id === 'current-month') { // Marca 'Mês Atual' como padrão
+      if (period.id === 'current-month') {
           button.classList.add('active');
           defaultFound = true;
       }
       buttonContainer.appendChild(button);
     });
-    // Fallback se 'current-month' não existir na lista
     if (!defaultFound && buttonContainer.firstChild) {
         buttonContainer.firstChild.classList.add('active');
     }
-    controlsContainer.appendChild(buttonContainer); // Adiciona botões de período
+    controlsContainer.appendChild(buttonContainer);
 
-     // Garante que o botão refresh exista e o adiciona ao container
     createRefreshButton(controlsContainer);
-
-    // Adiciona o container de controles ao header
     dashboardHeader.appendChild(controlsContainer);
 
-    // Adiciona estilos CSS para os botões de período (apenas uma vez)
     if (!document.getElementById('dashboard-controls-style')) {
          const styleElement = document.createElement('style');
          styleElement.id = 'dashboard-controls-style';
          styleElement.textContent = `
-           /* .dashboard-header já estilizado pelo filtro */
-           .dashboard-controls { display: flex; justify-content: space-between; align-items: center; width: auto; /* Ajuste para caber com filtro */ flex-wrap: wrap; gap: 10px;}
+           .dashboard-controls { display: flex; justify-content: space-between; align-items: center; width: auto; flex-wrap: wrap; gap: 10px;}
            .period-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
            .period-btn { padding: 5px 10px; background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 0.8rem; transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
            .period-btn:hover { background-color: #e0e0e0; }
            .period-btn.active { background-color: var(--primary-color, #0052cc); color: white; border-color: var(--primary-color, #0052cc); font-weight: 500; }
-           .btn-refresh { margin-left: 10px; /* Espaço entre botões e refresh */ }
-           .btn-refresh.rotating { animation: rotate 1s linear infinite; } /* Infinite rotation */
+           .btn-refresh { margin-left: 10px; }
+           .btn-refresh.rotating { animation: rotate 1s linear infinite; }
            @keyframes rotate { to { transform: rotate(360deg); } }
-           /* Ajuste responsivo para controles */
            @media (max-width: 767px) {
              .dashboard-controls { width: 100%; justify-content: flex-start; }
-             .btn-refresh { margin-left: auto; /* Tenta alinhar refresh à direita em telas pequenas */ }
+             .btn-refresh { margin-left: auto; }
            }
          `;
          document.head.appendChild(styleElement);
@@ -128,93 +113,69 @@ const Dashboard = (function() {
     console.log("Controles do Dashboard (período/refresh) criados/verificados.");
   }
 
-  /** Configura os event listeners dos botões de período via delegação */
   function setupPeriodButtons() {
     const controlsContainer = document.querySelector('#tab-dashboard .dashboard-controls');
     if (!controlsContainer) {
         console.warn("Container de controles não encontrado para adicionar listener de período.");
         return;
     }
-    // Remove listener antigo para garantir que não haja duplicação
     controlsContainer.removeEventListener('click', handlePeriodButtonClick);
-    // Adiciona listener ao container pai
     controlsContainer.addEventListener('click', handlePeriodButtonClick);
     console.log("Listener de botões de período configurado via delegação.");
   }
 
-  /** Handler para cliques nos botões de período (delegação) */
   function handlePeriodButtonClick(event) {
-     // Verifica se o clique foi em um botão de período
      const targetButton = event.target.closest('.period-btn');
      if (!targetButton) return;
-
      const period = targetButton.getAttribute('data-period');
      if (!period) return;
 
      console.log(`Botão de período clicado: ${period}`);
-     // Atualiza classe ativa visualmente
      document.querySelectorAll('#tab-dashboard .period-btn').forEach(btn => btn.classList.remove('active'));
      targetButton.classList.add('active');
 
-      // Limpa os campos do filtro de data customizado ao selecionar um período pré-definido
-      const startDateInput = document.getElementById('filterStartDate');
-      const endDateInput = document.getElementById('filterEndDate');
+      const startDateInput = document.getElementById('filter-start-date'); // Corrigido para corresponder ao HTML do filtro
+      const endDateInput = document.getElementById('filter-end-date');   // Corrigido para corresponder ao HTML do filtro
       if (startDateInput) startDateInput.value = '';
       if (endDateInput) endDateInput.value = '';
 
-     // Carrega os dados para o novo período
-     loadDashboardData(period, true); // Força recarregamento
+     loadDashboardData(period, true);
   }
 
-  /** Configura o listener do botão de refresh via delegação */
   function setupRefreshButton() {
     const controlsContainer = document.querySelector('#tab-dashboard .dashboard-controls');
      if (!controlsContainer) {
-       // Botão refresh será criado junto com os controles se necessário
        console.warn("Container de controles não encontrado para listener do refresh.");
        return;
      }
-    // Remove listener antigo e adiciona novo (delegado)
     controlsContainer.removeEventListener('click', handleRefreshButtonClick);
     controlsContainer.addEventListener('click', handleRefreshButtonClick);
     console.log("Listener do botão Refresh configurado via delegação.");
   }
 
-  /** Handler para clique no botão refresh (delegação) */
   function handleRefreshButtonClick(event) {
-     // Verifica se o clique foi no botão refresh
      const targetButton = event.target.closest('#refresh-dashboard');
      if (!targetButton) return;
-
      console.log("Atualização manual do dashboard solicitada");
 
-     // Verifica se um filtro de data customizado está ativo
-     const startDate = document.getElementById('filterStartDate')?.value;
-     const endDate = document.getElementById('filterEndDate')?.value;
+     const startDate = document.getElementById('filter-start-date')?.value; // Corrigido
+     const endDate = document.getElementById('filter-end-date')?.value;   // Corrigido
      let periodToLoad;
 
      if (startDate && endDate) {
          periodToLoad = `custom:${startDate}:${endDate}`;
          console.log("Atualizando com período customizado:", periodToLoad);
      } else {
-         // Pega o período do botão ativo
          const activeButton = document.querySelector('#tab-dashboard .period-btn.active');
-         periodToLoad = activeButton ? activeButton.getAttribute('data-period') : 'current-month'; // Default se nenhum ativo
+         periodToLoad = activeButton ? activeButton.getAttribute('data-period') : 'current-month';
          console.log("Atualizando com período pré-definido:", periodToLoad);
      }
-
-     loadDashboardData(periodToLoad, true); // Força recarregamento com o período correto
-
-     // Feedback visual (reinicia animação se já estiver rodando)
+     loadDashboardData(periodToLoad, true);
      targetButton.classList.remove('rotating');
-     // Força reflow para reiniciar a animação
      void targetButton.offsetWidth;
      targetButton.classList.add('rotating');
-     // Remove a classe após um tempo (opcional, ou deixa rodando até carregar)
-     // setTimeout(() => { targetButton.classList.remove('rotating'); }, 1500);
   }
 
-  /** Cria um botão de atualização se não existir */
   function createRefreshButton(parentContainer) {
      if (document.getElementById('refresh-dashboard') || !parentContainer) return;
      console.log("Criando botão Refresh...");
@@ -224,17 +185,14 @@ const Dashboard = (function() {
      refreshButton.innerHTML = '↻';
      refreshButton.title = 'Atualizar Dashboard';
      refreshButton.style.fontSize = '1.2rem';
-     // refreshButton.style.marginLeft = 'auto'; // Delegação cuida do posicionamento
      parentContainer.appendChild(refreshButton);
      console.log("Botão Refresh criado.");
   }
 
-   /** Configura monitoramento de hashchange */
    function setupTabNavigation() {
      window.addEventListener('hashchange', () => checkIfDashboard(false), false);
    }
 
-   /** Verifica se a aba Dashboard está ativa e carrega/atualiza dados */
    function checkIfDashboard(isInitialLoad = false) {
      const hash = window.location.hash || '#dashboard';
      const dashboardTabElement = document.getElementById('tab-dashboard');
@@ -248,25 +206,22 @@ const Dashboard = (function() {
            if (needsLoad) {
              console.log(`Carregando dados (${isInitialLoad ? 'inicial' : (!dashboardData ? 'sem dados' : 'atualização')})`);
 
-             // Verifica se um filtro de data customizado está ativo para o carregamento inicial
-             const startDateInput = document.getElementById('filterStartDate')?.value; // Note: Renomeado de filterStartDate para filter-start-date no HTML do filtro
-             const endDateInput = document.getElementById('filterEndDate')?.value;     // Note: Renomeado de filterEndDate para filter-end-date no HTML do filtro
+             const startDateInput = document.getElementById('filter-start-date')?.value;
+             const endDateInput = document.getElementById('filter-end-date')?.value;
              let period;
-             if(startDateInput && endDateInput && !isInitialLoad) { // Não usar custom no load inicial forçado, usar o default
+             if(startDateInput && endDateInput && !isInitialLoad) {
                 period = `custom:${startDateInput}:${endDateInput}`;
              } else {
                 const activeButton = document.querySelector('#tab-dashboard .period-btn.active');
                 period = activeButton ? activeButton.getAttribute('data-period') : 'current-month';
              }
-
              const delay = isInitialLoad ? 200 : 0;
              setTimeout(() => { loadDashboardData(period, true); }, delay);
-           } else { /* console.log("Dashboard ativo, usando dados existentes."); */ }
+           }
         }
      }
    }
 
-  /** Carrega dados do dashboard via API */
   function loadDashboardData(period = 'current-month', force = false) {
     const currentTime = Date.now();
     if (!force && dashboardData && (currentTime - lastLoadTime < REFRESH_INTERVAL)) {
@@ -275,7 +230,6 @@ const Dashboard = (function() {
     }
     console.log(`Carregando dados do dashboard para período: ${period}`);
     showLoading(true, "Carregando dashboard...");
-    // Para o feedback visual do botão refresh
     const refreshButton = document.getElementById('refresh-dashboard');
 
     if (!window.API || typeof API.getDashboardData !== 'function') {
@@ -283,91 +237,78 @@ const Dashboard = (function() {
        showLoadingError("Erro crítico: Função da API não encontrada.");
        if (refreshButton) refreshButton.classList.remove('rotating');
        showLoading(false);
-       renderDashboard(createEmptyDashboardResponse("Erro de API"));
+       renderDashboard(createEmptyDashboardResponse("Erro de API")); // Passar a função diretamente
        return;
     }
 
     API.getDashboardData(period)
       .then(response => {
-        console.log("Resposta API:", JSON.stringify(response, null, 2)); // Log detalhado
+        console.log("Resposta API:", JSON.stringify(response, null, 2));
         if (response && response.success) {
-          dashboardData = response; // Backend agora retorna tudo formatado
+          dashboardData = response;
           lastLoadTime = currentTime;
-          renderDashboard(dashboardData); // Renderiza com os dados recebidos
+          renderDashboard(dashboardData); // Passar a função diretamente
         } else {
           console.error("Erro retornado pela API:", response);
           showLoadingError("Erro ao carregar dados: " + (response?.message || "Resposta inválida"));
-          renderDashboard(dashboardData || createEmptyDashboardResponse(response?.message || "Erro API")); // Tenta usar dados antigos ou mostra vazio
+          renderDashboard(dashboardData || createEmptyDashboardResponse(response?.message || "Erro API")); // Passar a função diretamente
         }
       })
       .catch(error => {
         console.error("Falha na requisição API:", error);
         showLoadingError(`Falha na comunicação: ${error.message}.`);
-        renderDashboard(dashboardData || createEmptyDashboardResponse(error.message)); // Tenta usar dados antigos ou mostra vazio
+        renderDashboard(dashboardData || createEmptyDashboardResponse(error.message)); // Passar a função diretamente
       })
       .finally(() => {
-        if (refreshButton) refreshButton.classList.remove('rotating'); // Para animação
+        if (refreshButton) refreshButton.classList.remove('rotating');
         showLoading(false);
       });
   }
 
-  /** Função auxiliar para criar uma resposta vazia localmente */
   function createEmptyDashboardResponse(message = "Sem dados") {
-      // Retorna a mesma estrutura que a API retornaria em caso de sucesso, mas com arrays vazios/zeros
       return { success: true, message: message, summary: { total: 0, pending: 0, completed: 0, critical: 0 }, maintenanceTypes: [], maintenanceStatuses: [], equipmentRanking: [], areaDistribution: [], problemCategories: [], monthlyTrend: [], criticalVsRegular: [], verificationResults: [], maintenanceFrequency: [], recentMaintenances: [] };
   }
 
-  /** Renderiza o dashboard completo com os dados recebidos */
-  function renderDashboard(data) { // Esta função será decorada mais abaixo
-    cleanupCharts(); // Limpa gráficos antigos
+  // Guardar referência original de renderDashboard
+  let _renderDashboard = function(data) { // Renomeado para evitar conflito no escopo do IIFE
+    cleanupCharts();
     console.log("Renderizando dashboard com dados:", data);
-    data = data || createEmptyDashboardResponse("Dados nulos recebidos"); // Garante que data seja um objeto
+    data = data || createEmptyDashboardResponse("Dados nulos recebidos");
 
     try {
-      checkAndCreateChartContainers(); // Verifica se <canvas> existem
-
-      // 1. Renderizar Cards de Sumário
-      renderSummaryCards(data.summary || {}); // Usa chaves: total, pending, completed, critical
-
-      // 2. Preparar dados e Renderizar Gráficos
+      checkAndCreateChartContainers();
+      renderSummaryCards(data.summary || {});
       const chartData = {
         status: data.maintenanceStatuses || [],
-        problemCategories: data.problemCategories || [], // <<< Dados reais de Categoria
+        problemCategories: data.problemCategories || [],
         monthlyTrend: data.monthlyTrend || [],
-        areaDistribution: data.areaDistribution || [], // <<< Dados reais de Local/Oficina
+        areaDistribution: data.areaDistribution || [],
         criticalVsRegular: data.criticalVsRegular || [],
         verificationResults: data.verificationResults || [],
         maintenanceFrequency: data.maintenanceFrequency || [],
-        maintenanceTypes: data.maintenanceTypes || [] // <<< Dados de Tipo de Manutenção (para gráfico específico se houver)
+        maintenanceTypes: data.maintenanceTypes || []
       };
-      renderCharts(chartData); // Chama render para todos os gráficos
-
-      // 3. Renderizar Tabela de Ranking
+      renderCharts(chartData);
       renderRecentMaintenances(data.equipmentRanking || [], 'equipment-ranking-tbody');
-
-      // 4. Renderizar Tabela de Manutenções Recentes
       renderRecentMaintenances(data.recentMaintenances || [], 'recent-maintenance-tbody');
-
       console.log("Dashboard renderizado com sucesso.");
     } catch (error) {
       console.error("Erro CRÍTICO ao renderizar dashboard:", error);
       showLoadingError("Erro ao exibir dados do dashboard: " + error.message);
     } finally {
-       showLoading(false); // Garante que o loader seja escondido
+       showLoading(false);
     }
-  }
+  };
 
-  // Configuração dos filtros de tabela (ATUALIZAÇÃO 2)
   function setupTableFilters() {
     const applyBtn = document.getElementById('filter-apply');
     const clearBtn = document.getElementById('filter-clear');
     const searchInput = document.getElementById('filter-search');
     const statusSelect = document.getElementById('filter-status');
-    const startDate = document.getElementById('filter-start-date');
-    const endDate = document.getElementById('filter-end-date');
+    const startDateEl = document.getElementById('filter-start-date'); // Renomeado para evitar conflito de nome
+    const endDateEl = document.getElementById('filter-end-date');     // Renomeado para evitar conflito de nome
 
-    // Verifica se os elementos do filtro existem antes de adicionar listeners
-    if (!applyBtn || !clearBtn || !searchInput || !statusSelect || !startDate || !endDate) {
+    if (!applyBtn || !clearBtn || !searchInput || !statusSelect || !startDateEl || !endDateEl) {
         console.warn("Elementos do filtro da tabela não encontrados. A filtragem pode não funcionar.");
         return;
     }
@@ -375,26 +316,23 @@ const Dashboard = (function() {
     function applyFilter() {
       const text = searchInput.value.trim().toLowerCase();
       const status = statusSelect.value;
-      const from = startDate.value; // Formato YYYY-MM-DD esperado para comparação de string direta
-      const to = endDate.value;     // Formato YYYY-MM-DD esperado
+      const from = startDateEl.value;
+      const to = endDateEl.value;
 
       document.querySelectorAll('#recent-maintenance-tbody tr').forEach(row => {
         const cols = row.querySelectorAll('td');
-        if (cols.length < 6) { // Garante que a linha tem colunas suficientes
-            row.style.display = ''; // ou 'none' dependendo da lógica desejada para linhas malformadas
+        if (cols.length < 6) {
+            row.style.display = '';
             return;
         }
-
-        // A data na tabela está em formato DD/MM/YYYY. Precisa converter para YYYY-MM-DD para comparação de string.
         const dateParts = cols[3].textContent.trim().split('/');
         const rowDateStr = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : '';
-
-        const stat = cols[5].textContent.trim(); // O status já está como texto
+        const stat = cols[5].querySelector('.status-badge') ? cols[5].querySelector('.status-badge').textContent.trim() : cols[5].textContent.trim(); // Pega o texto do status
         const rowText = row.textContent.toLowerCase();
         let visible = true;
 
         if (text && !rowText.includes(text)) visible = false;
-        if (status && stat !== status) visible = false; // Comparação direta de string para status
+        if (status && stat !== status) visible = false;
         if (from && rowDateStr && rowDateStr < from) visible = false;
         if (to && rowDateStr && rowDateStr > to) visible = false;
         
@@ -406,58 +344,56 @@ const Dashboard = (function() {
     clearBtn.addEventListener('click', () => {
       searchInput.value = '';
       statusSelect.value = '';
-      startDate.value = '';
-      endDate.value = '';
-      applyFilter(); // Reaplica para mostrar tudo
+      startDateEl.value = '';
+      endDateEl.value = '';
+      applyFilter();
     });
     console.log("Filtros da tabela de manutenções recentes configurados.");
   }
 
-  // Chamar setupTableFilters sempre após renderDashboard (ATUALIZAÇÃO 2 - DECORATOR)
-  // É importante que 'renderDashboard' já esteja definida antes deste ponto.
-  // E 'setupTableFilters' também.
-  // Esta é uma forma de "decorar" a função original.
-  const originalRenderDashboard = renderDashboard; // Guarda a referência da função original
-  renderDashboard = function(data) { // Sobrescreve renderDashboard
-    originalRenderDashboard.call(this, data); // Chama a função original com o mesmo contexto e argumentos
-    setupTableFilters(); // Chama a nova função depois
+  // Decorator para renderDashboard
+  // Esta é a única atribuição a renderDashboard no escopo do IIFE
+  // que será usada externamente (se renderDashboard fosse exposta) ou internamente.
+  // Se renderDashboard não for exposta, _renderDashboard é a função principal de renderização.
+  // Para o propósito deste módulo, onde renderDashboard é chamado internamente,
+  // podemos simplesmente chamar setupTableFilters ao final de _renderDashboard.
+  // No entanto, a instrução pede para usar o padrão decorator.
+  const originalRenderDashboard = _renderDashboard; // Usa a função interna renomeada
+  var renderDashboard = function(data) { // Declara renderDashboard aqui para que seja a função usada
+    originalRenderDashboard.call(this, data);
+    setupTableFilters();
   };
 
 
-  /** Renderiza cartões de sumário - VERSÃO CORRIGIDA */
   function renderSummaryCards(summary) {
-    // Mapeamento: Chave do objeto 'summary' da API -> ID do elemento HTML que contém o valor
     const cardValueMap = {
       'total': 'total-maintenance',
       'pending': 'pending-verification',
-      'completed': 'completed-verifications', // Este ID existe no HTML
+      'completed': 'completed-verifications',
       'critical': 'critical-maintenance'
     };
-
     Object.entries(cardValueMap).forEach(([summaryKey, elementId]) => {
-      const valueElement = document.getElementById(elementId); // Busca pelo ID diretamente
+      const valueElement = document.getElementById(elementId);
       if (valueElement) {
-        const value = summary[summaryKey] ?? 0; // Usa ?? para tratar null/undefined como 0
-        valueElement.textContent = value; // Define o texto do elemento encontrado pelo ID
+        const value = summary[summaryKey] ?? 0;
+        valueElement.textContent = value;
       } else {
         console.warn(`Elemento de valor #${elementId} não encontrado para o card ${summaryKey}.`);
       }
     });
   }
 
-   /** Cria cards de sumário se necessário (inclui ícones Font Awesome) */
    function createSummaryCardsIfNeeded() {
        const dashboardContent = document.getElementById('tab-dashboard');
        if (!dashboardContent || dashboardContent.querySelector('.summary-cards')) return;
-
        console.log("Criando .summary-cards...");
        const cardsContainer = document.createElement('div');
        cardsContainer.className = 'summary-cards';
        const cards = [
-         { valueId: 'total-maintenance', icon: 'fa-clipboard-list', color: 'blue', label: 'Total Manutenções' },
-         { valueId: 'pending-verification', icon: 'fa-clock', color: 'yellow', label: 'Aguardando Verificação' },
-         { valueId: 'completed-verifications', icon: 'fa-check-circle', color: 'green', label: 'Concluídas/Verificadas' },
-         { valueId: 'critical-maintenance', icon: 'fa-exclamation-triangle', color: 'red', label: 'Manutenções Críticas' }
+         { valueId: 'total-maintenance', icon: 'fa-clipboard-list', label: 'Total Manutenções' },
+         { valueId: 'pending-verification', icon: 'fa-clock', label: 'Aguardando Verificação' },
+         { valueId: 'completed-verifications', icon: 'fa-check-circle', label: 'Concluídas/Verificadas' },
+         { valueId: 'critical-maintenance', icon: 'fa-exclamation-triangle', label: 'Manutenções Críticas' }
        ];
        cards.forEach(card => {
            const cardElement = document.createElement('div');
@@ -475,7 +411,6 @@ const Dashboard = (function() {
         else { dashboardContent.prepend(cardsContainer); }
    }
 
-  /** Chama as funções de renderização para todos os gráficos */
   function renderCharts(chartData) {
       console.log("Renderizando gráficos...");
       renderStatusChart(chartData.status || [], 'maintenance-status-chart');
@@ -485,14 +420,12 @@ const Dashboard = (function() {
       renderCriticalVsRegularChart(chartData.criticalVsRegular || [], 'critical-vs-regular-chart');
       renderVerificationResultsChart(chartData.verificationResults || [], 'verification-results-chart');
       renderMaintenanceFrequencyChart('maintenance-frequency-chart', chartData.maintenanceFrequency || []);
-
       if(document.getElementById('maintenance-type-chart')) {
           renderMaintenanceTypeChart(chartData.maintenanceTypes || [], 'maintenance-type-chart');
       }
       console.log("Chamadas de renderização de gráficos concluídas.");
   }
 
-  /** Renderiza gráfico de frequência apenas com dados válidos */
   function renderMaintenanceFrequencyChart(chartId, data) {
     const container = document.getElementById(chartId)?.parentElement;
     if (!data || !data.length) {
@@ -500,12 +433,11 @@ const Dashboard = (function() {
         const msg = document.createElement('div');
         msg.className = 'no-data-message';
         msg.textContent = 'Sem dados para intervalo de manutenção.';
-        // Limpa o conteúdo anterior do container antes de adicionar a mensagem
-        if (container.firstChild && container.firstChild.id === chartId) { // Se o canvas existe
+        if (container.firstChild && container.firstChild.id === chartId) {
             try {
                 if(chartInstances['frequencyChart']) chartInstances['frequencyChart'].destroy();
             } catch(e) { console.warn("Erro ao limpar canvas para msg sem dados (freq):", e);}
-            container.innerHTML = ''; // Limpa o canvas e qualquer outra coisa
+            container.innerHTML = '';
         }
         container.appendChild(msg);
       }
@@ -513,40 +445,36 @@ const Dashboard = (function() {
     }
     const oldMsg = container.querySelector('.no-data-message');
     if (oldMsg) oldMsg.remove();
-
-    // Se o canvas não existir (foi removido pela mensagem de 'sem dados'), recria
     if (!document.getElementById(chartId) && container) {
         const newCanvas = document.createElement('canvas');
         newCanvas.id = chartId;
-        newCanvas.style.height = '200px'; // ou a altura que você usa
+        newCanvas.style.height = '200px';
         container.appendChild(newCanvas);
     }
     renderGenericChart(chartId, 'line', data, { /* suas opções */ }, 'frequencyChart');
   }
 
-
-  /** Função genérica para renderizar um gráfico */
   function renderGenericChart(chartId, chartType, chartData, options = {}, chartKey = null) {
-      let canvas = document.getElementById(chartId); // Use let pois pode ser recriado
+      let canvas = document.getElementById(chartId);
       if (!canvas) { console.error(`Canvas #${chartId} não encontrado!`); return; }
       if (typeof Chart === 'undefined') { console.error(`Chart.js não carregado para ${chartId}!`); return; }
 
       const parent = canvas.parentElement;
       const noDataMessage = parent?.querySelector('.no-data-message');
-      if (noDataMessage && parent) { // Se a mensagem existe no PAI
-        parent.innerHTML = ''; // Limpa o container (remove a mensagem)
+      if (noDataMessage && parent) {
+        parent.innerHTML = '';
         const newCanvas = document.createElement('canvas');
         newCanvas.id = chartId;
         newCanvas.style.height = canvas.style.height || '200px';
         newCanvas.style.width = canvas.style.width || '100%';
         parent.appendChild(newCanvas);
-        canvas = newCanvas; // Atualiza a referência do canvas
+        canvas = newCanvas;
         console.log(`Canvas #${chartId} recriado após remover mensagem 'sem dados'.`);
       }
 
       const isValidData = chartData && Array.isArray(chartData) && chartData.length > 0 && chartData.some(item => (item.count || 0) > 0);
 
-      if (!isValidData && chartId !== 'maintenance-frequency-chart') { // Manter o placeholder para outros gráficos
+      if (!isValidData && chartId !== 'maintenance-frequency-chart') {
         console.warn(`Dados inválidos/vazios para ${chartId}. Usando placeholder.`);
         const ctx = canvas.getContext('2d');
         canvas.height = 150;
@@ -562,20 +490,15 @@ const Dashboard = (function() {
         }
         return;
       }
-      // Para maintenance-frequency-chart, se chegou aqui, os dados são válidos (tratamento prévio)
-
       const dataToRender = chartData;
-
       try {
           const instanceKey = chartKey || chartId;
           if (chartInstances[instanceKey]) {
             try { chartInstances[instanceKey].destroy(); } catch(e){ console.warn("Erro ao destruir chart (generic):", e); }
           }
-
           const labels = dataToRender.map(item => item.label || 'N/A');
           const counts = dataToRender.map(item => item.count || 0);
           let colors = generateColorPalette(labels.length);
-
           if (chartId === 'maintenance-status-chart') {
               colors = labels.map(l => getStatusColor(l));
           } else if (chartId === 'critical-vs-regular-chart') {
@@ -583,7 +506,6 @@ const Dashboard = (function() {
           } else if (chartId === 'verification-results-chart') {
               colors = labels.map(l => getStatusColor(l));
           }
-
           const defaultOptions = {
               responsive: true, maintainAspectRatio: false,
               plugins: { legend: { display: true }, tooltip: { enabled: true } }
@@ -605,16 +527,13 @@ const Dashboard = (function() {
               defaultOptions.scales = { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } };
               defaultOptions.elements = { line: { tension: 0.1, fill: true }, point: { radius: 3 } };
           }
-
           const mergedOptions = deepMerge(defaultOptions, options);
-
           chartInstances[instanceKey] = new Chart(canvas.getContext('2d'), {
               type: chartType,
               data: { labels, datasets: [{ data: counts, backgroundColor: colors, borderWidth: (chartType === 'pie' || chartType === 'doughnut') ? 0 : 1 }] },
               options: mergedOptions
           });
           console.log(`${chartId} (${chartType}) renderizado.`);
-
       } catch (error) { console.error(`Erro ao renderizar ${chartId}:`, error); }
   }
 
@@ -646,10 +565,8 @@ const Dashboard = (function() {
           elements: { line: { tension: 0.1, fill: true }, point: { radius: data.some(d=>(d.count||0)>0) ? 3 : 0 } }
       };
       const dataForChart = data.map(item => ({ label: item.label, count: item.count }));
-
        let canvas = document.getElementById(chartId);
        if (!canvas || typeof Chart === 'undefined') return;
-
        const parent = canvas.parentElement;
        const noDataMessage = parent?.querySelector('.no-data-message');
        if (noDataMessage && parent) {
@@ -659,11 +576,9 @@ const Dashboard = (function() {
            parent.appendChild(newCanvas);
            canvas = newCanvas;
        }
-
        const isValidData = dataForChart && dataForChart.length > 0 && dataForChart.some(item => (item.count || 0) > 0);
        const isPlaceholder = !isValidData;
        if (isPlaceholder) console.warn(`Dados de Tendência inválidos/vazios para ${chartId}.`);
-
        try {
            const instanceKey = 'trendChart';
            if (chartInstances[instanceKey]) {
@@ -703,15 +618,12 @@ const Dashboard = (function() {
        const tableBody = document.getElementById(tbodyId);
        if (!tableBody) { console.warn(`Tbody #${tbodyId} não encontrado!`); return; }
        tableBody.innerHTML = '';
-
        const thead = tableBody.previousElementSibling;
        const colspan = thead?.rows?.[0]?.cells?.length || 5;
-
        if (!items || items.length === 0) {
          tableBody.innerHTML = `<tr><td colspan="${colspan}" class="text-center" style="padding: 20px; color: #6c757d;">Nenhum dado encontrado para este período.</td></tr>`;
          return;
        }
-
        items.forEach(item => {
            const row = document.createElement('tr');
            let html = '';
@@ -735,7 +647,6 @@ const Dashboard = (function() {
            row.innerHTML = html;
            tableBody.appendChild(row);
        });
-
         const listenerKey = tbodyId.replace(/-([a-z])/g, g => g[1].toUpperCase()) + 'ListenerSet';
         if (!tableBody.dataset[listenerKey]) {
            tableBody.addEventListener('click', handleTableActionClick);
@@ -749,7 +660,6 @@ const Dashboard = (function() {
        if (!button) return;
        const maintenanceId = button.getAttribute('data-id');
        if (!maintenanceId) return;
-
        if (button.classList.contains('view-maintenance')) {
           console.log(`Visualizar manutenção ID: ${maintenanceId}`);
           if (typeof window.viewMaintenanceDetails === 'function') {
@@ -900,45 +810,18 @@ const Dashboard = (function() {
 })();
 
 // ----------------------------------------------------------
-// Exporta globalmente a função de visualizar detalhes de manutenção (ATUALIZAÇÃO 1)
+// Exporta globalmente a função de visualizar detalhes de manutenção
+// (ATUALIZADO CONFORME A ÚLTIMA INSTRUÇÃO)
 // ----------------------------------------------------------
 if (typeof window !== 'undefined') {
   window.viewMaintenanceDetails = function(maintenanceId) {
-    // Tenta usar o módulo Maintenance (caso exista)
-    if (typeof Maintenance !== 'undefined' && typeof Maintenance.openMaintenanceForm === 'function') {
-      console.log("Delegando para Maintenance.openMaintenanceForm:", maintenanceId);
+    if (typeof Maintenance !== 'undefined' && Maintenance.openMaintenanceForm) {
       Maintenance.openMaintenanceForm(maintenanceId);
       return;
     }
-    // Fallback: chamar API direto e abrir modal via utilitário
-    if (window.API && typeof API.getMaintenanceDetails === 'function') {
-      console.log("Fallback: Chamando API.getMaintenanceDetails para:", maintenanceId);
-      API.getMaintenanceDetails({ id: maintenanceId }) // Supondo que a API espera um objeto com id
-        .then(resp => {
-          if (resp.success && resp.maintenance) {
-            // Reaproveita seu modal de detalhes (de verification.js, maintenance.js ou utilities)
-            // Supondo que exista uma função global ou em Utilities para exibir modais.
-            if (typeof displayDetailsModal === 'function') { // Função hipotética
-              displayDetailsModal(resp.maintenance);
-            } else if (typeof Utilities !== 'undefined' && typeof Utilities.showDetailsModal === 'function') { // Outra função hipotética
-              Utilities.showDetailsModal(resp.maintenance);
-            }
-            else {
-              alert("Detalhes da Manutenção:\n" + JSON.stringify(resp.maintenance, null, 2));
-            }
-          } else {
-            console.error("Erro ao obter detalhes da manutenção via API:", resp);
-            alert(`Não foi possível carregar detalhes: ${resp.message || 'erro desconhecido na API'}`);
-          }
-        })
-        .catch(err => {
-          console.error("Erro de comunicação ao obter detalhes da manutenção:", err);
-          alert(`Erro de comunicação ao buscar detalhes: ${err.message}`);
-        });
-      return;
-    }
-    console.error("Nenhum handler disponível para viewMaintenanceDetails. ID:", maintenanceId);
-    alert(`Detalhes da manutenção ${maintenanceId} não podem ser exibidos (nenhum handler configurado).`);
+    // Removido o fallback para API.getMaintenanceDetails e displayDetailsModal conforme a última instrução.
+    console.error("Nenhum handler disponível para viewMaintenanceDetails. Maintenance.openMaintenanceForm não encontrado. ID:", maintenanceId);
+    alert(`Detalhes da manutenção ${maintenanceId} não podem ser exibidos.`);
   };
 }
 
