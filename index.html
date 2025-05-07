@@ -203,71 +203,68 @@
     </div>
 
     <div class="tab-content" id="tab-maintenance">
-      <div class="filter-section">
-        <div class="filter-main">
-          <div class="search-container">
-            <input type="text" id="maintenance-search" placeholder="Buscar por ID, equipamento, responsável..." class="search-input">
-            <button type="button" id="maintenance-filter-toggle" class="filter-toggle-btn">
-              <i class="fas fa-filter"></i> Filtros
-            </button>
+      <div class="filter-bar">
+        <div class="search-group">
+          <input type="text" id="maintenance-search" placeholder="Buscar por ID, equipamento, responsável..." class="search-input">
+          <button id="toggle-filters-btn" class="filter-toggle">
+            <i class="fas fa-filter"></i> Filtros
+          </button>
+        </div>
+        <button id="clear-filters" class="btn btn-light">Limpar Filtros</button>
+      </div>
+
+      <div id="expanded-filters" class="expanded-filters">
+        <div class="filter-grid">
+          <div class="filter-item">
+            <label for="equipment-type-filter">Tipo de Equipamento:</label>
+            <select id="equipment-type-filter" class="filter-select">
+              <option value="">Todos</option>
+              <option value="Alta Pressão">Alta Pressão</option>
+              <option value="Auto Vácuo / Hiper Vácuo">Auto Vácuo / Hiper Vácuo</option>
+              <option value="Aspirador">Aspirador</option>
+              <option value="Poliguindaste">Poliguindaste</option>
+              <option value="Outro">Outro</option>
+            </select>
           </div>
-          <div class="filter-actions">
-            <button id="clear-filters" class="btn btn-light">Limpar Filtros</button>
+          
+          <div class="filter-item">
+            <label for="status-filter">Status:</label>
+            <select id="status-filter" class="filter-select">
+              <option value="">Todos</option>
+              <option value="Pendente">Pendente</option>
+              <option value="Concluído">Concluído</option>
+              <option value="Ajustes">Ajustes</option>
+              <option value="Reprovado">Reprovado</option>
+            </select>
+          </div>
+          
+          <div class="filter-item">
+            <label for="maintenance-type-filter">Tipo de Manutenção:</label>
+            <select id="maintenance-type-filter" class="filter-select">
+              <option value="">Todos</option>
+              <option value="Preventiva">Preventiva</option>
+              <option value="Corretiva">Corretiva</option>
+              <option value="Emergencial">Emergencial</option>
+            </select>
+          </div>
+          
+          <div class="filter-item">
+            <label for="problem-category-filter">Categoria do Problema:</label>
+            <select id="problem-category-filter" class="filter-select">
+              <option value="">Todos</option>
+              <!-- Será preenchido dinamicamente -->
+            </select>
           </div>
         </div>
-        
-        <div class="filter-expanded" id="maintenance-filters-expanded">
-          <div class="filter-grid">
-            <div class="filter-item">
-              <label for="equipment-type-filter">Tipo de Equipamento:</label>
-              <select id="equipment-type-filter" class="filter-select">
-                <option value="">Todos</option>
-                <option value="Alta Pressão">Alta Pressão</option>
-                <option value="Auto Vácuo / Hiper Vácuo">Auto Vácuo / Hiper Vácuo</option>
-                <option value="Aspirador">Aspirador</option>
-                <option value="Poliguindaste">Poliguindaste</option>
-                <option value="Outro">Outro</option>
-              </select>
-            </div>
-            
-            <div class="filter-item">
-              <label for="status-filter">Status:</label>
-              <select id="status-filter" class="filter-select">
-                <option value="">Todos</option>
-                <option value="Pendente">Pendente</option>
-                <option value="Concluído">Concluído</option>
-                <option value="Ajustes">Ajustes</option>
-                <option value="Reprovado">Reprovado</option>
-              </select>
-            </div>
-            
-            <div class="filter-item">
-              <label for="maintenance-type-filter">Tipo de Manutenção:</label>
-              <select id="maintenance-type-filter" class="filter-select">
-                <option value="">Todos</option>
-                <option value="Preventiva">Preventiva</option>
-                <option value="Corretiva">Corretiva</option>
-                <option value="Emergencial">Emergencial</option>
-              </select>
-            </div>
-            
-            <div class="filter-item">
-              <label for="problem-category-filter">Categoria do Problema:</label>
-              <select id="problem-category-filter" class="filter-select">
-                <option value="">Todos</option>
-                <!-- Será preenchido dinamicamente -->
-              </select>
-            </div>
-          </div>
-          <div id="filter-results-count" class="filter-results-info" style="display: none;"></div>
-        </div>
+        <div id="filter-results-count" class="filter-results-info" style="display: none;"></div>
       </div>
         <div class="section">
-           <div class="search-container">
+           <!-- Removido o .search-container e .filter-container duplicados daqui -->
+           <!-- <div class="search-container">
              <input type="text" class="search-input" id="maintenance-search" placeholder="Buscar por ID, equipamento, responsável...">
            </div>
 
-           <div class="filter-container" id="maintenance-filter-buttons"> </div>
+           <div class="filter-container" id="maintenance-filter-buttons"> </div> -->
 
            <h3 class="section-title">
              Lista de Manutenções
@@ -302,53 +299,50 @@
     </div>
 
     <div class="tab-content" id="tab-verification">
-      <div class="filter-section">
-        <div class="filter-main">
-          <div class="search-container">
-            <input type="text" id="verification-search" placeholder="Buscar por ID, equipamento, responsável..." class="search-input">
-            <button type="button" id="verification-filter-toggle" class="filter-toggle-btn">
-              <i class="fas fa-filter"></i> Filtros
-            </button>
+      <div class="filter-bar">
+        <div class="search-group">
+          <input type="text" id="verification-search" placeholder="Buscar por ID, equipamento, responsável..." class="search-input">
+          <button id="toggle-verification-filters-btn" class="filter-toggle">
+            <i class="fas fa-filter"></i> Filtros
+          </button>
+        </div>
+        <button id="verification-clear-filters" class="btn btn-light">Limpar Filtros</button>
+      </div>
+
+      <div id="verification-expanded-filters" class="expanded-filters">
+        <div class="filter-grid">
+          <div class="filter-item">
+            <label for="verification-equipment-type-filter">Tipo de Equipamento:</label>
+            <select id="verification-equipment-type-filter" class="filter-select">
+              <option value="">Todos</option>
+              <option value="Alta Pressão">Alta Pressão</option>
+              <option value="Auto Vácuo / Hiper Vácuo">Auto Vácuo / Hiper Vácuo</option>
+              <option value="Aspirador">Aspirador</option>
+              <option value="Poliguindaste">Poliguindaste</option>
+              <option value="Outro">Outro</option>
+            </select>
           </div>
-          <div class="filter-actions">
-            <button id="verification-clear-filters" class="btn btn-light">Limpar Filtros</button>
+          
+          <div class="filter-item">
+            <label for="verification-maintenance-type-filter">Tipo de Manutenção:</label>
+            <select id="verification-maintenance-type-filter" class="filter-select">
+              <option value="">Todos</option>
+              <option value="Preventiva">Preventiva</option>
+              <option value="Corretiva">Corretiva</option>
+              <option value="Emergencial">Emergencial</option>
+            </select>
           </div>
         </div>
-        
-        <div class="filter-expanded" id="verification-filters-expanded">
-          <div class="filter-grid">
-            <div class="filter-item">
-              <label for="verification-equipment-type-filter">Tipo de Equipamento:</label>
-              <select id="verification-equipment-type-filter" class="filter-select">
-                <option value="">Todos</option>
-                <option value="Alta Pressão">Alta Pressão</option>
-                <option value="Auto Vácuo / Hiper Vácuo">Auto Vácuo / Hiper Vácuo</option>
-                <option value="Aspirador">Aspirador</option>
-                <option value="Poliguindaste">Poliguindaste</option>
-                <option value="Outro">Outro</option>
-              </select>
-            </div>
-            
-            <div class="filter-item">
-              <label for="verification-maintenance-type-filter">Tipo de Manutenção:</label>
-              <select id="verification-maintenance-type-filter" class="filter-select">
-                <option value="">Todos</option>
-                <option value="Preventiva">Preventiva</option>
-                <option value="Corretiva">Corretiva</option>
-                <option value="Emergencial">Emergencial</option>
-              </select>
-            </div>
-          </div>
-          <div id="verification-filter-results-count" class="filter-results-info" style="display: none;"></div>
-        </div>
+        <div id="verification-filter-results-count" class="filter-results-info" style="display: none;"></div>
       </div>
        <div class="section">
-          <div class="search-container">
+          <!-- Removido o .search-container e .filter-container duplicados daqui -->
+          <!-- <div class="search-container">
             <input type="text" class="search-input" id="verification-search" placeholder="Buscar por ID, equipamento, responsável...">
           </div>
 
           <div class="filter-container" id="verification-filter-buttons">
-             </div>
+             </div> -->
 
           <h3 class="section-title">
             Verificações Pendentes
