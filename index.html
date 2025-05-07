@@ -35,7 +35,22 @@
     <div class="tab-content active" id="tab-dashboard">
       <div class="dashboard-header">
         <h2>Visão Geral</h2>
-        </div>
+      </div>
+
+      <!-- Painel de Filtros Inteligentes -->
+      <div class="dashboard-filters">
+        <input type="text" id="filter-search" placeholder="🔍 Pesquisar..." />
+        <select id="filter-status">
+          <option value="">Todas as Situações</option>
+          <option value="Pendente">Pendente</option>
+          <option value="Concluído">Concluído</option>
+          <option value="Críticas">Críticas</option>
+        </select>
+        <input type="date" id="filter-start-date" />
+        <input type="date" id="filter-end-date" />
+        <button id="filter-apply" class="btn btn-sm">Aplicar</button>
+        <button id="filter-clear" class="btn btn-sm">Limpar</button>
+      </div>
 
       <div class="summary-cards">
         <div class="card">
@@ -1167,7 +1182,7 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('DOMContentLoaded', function() {
   console.log("Aplicando patch de correção para formulário de manutenção");
   
-  // Adiciona listener ao botão de nova manutenção para tentar carregar o formulário manualmente
+  // Adiciona listener ao botão de nova manutenção para tentar carregar o formulário manually
   const newMaintenanceBtn = document.getElementById('new-maintenance');
   if (newMaintenanceBtn) {
     // Preservar o handler original
