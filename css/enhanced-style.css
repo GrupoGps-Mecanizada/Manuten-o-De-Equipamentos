@@ -17,8 +17,7 @@
   --status-completed: #2b9348;      /* Verde mais profissional */
   --status-danger: #cc0000;         /* Vermelho mais intenso para alertas */
   --status-rejected: #e63946;       /* Vermelho-coral para rejeições */
-  --status-adjustments: #f9c74f;    /* Amarelo-ouro para ajustes (pode ser usado para status-adjustments) */
-  --status-ajustes-custom: #6c757d; /* Cinza para status-ajustes, conforme solicitado */
+  --status-adjustments: #f9c74f;    /* Amarelo-ouro para a classe 'status-adjustments' (se usada) */
 
   /* Cores de fundo */
   --bg-color: #f5f7fa;              /* Cinza mais azulado para fundo */
@@ -452,8 +451,8 @@ td.action-buttons {
 .status-verified, .status-verification { background-color: var(--status-verification); }
 .status-completed { background-color: var(--status-completed); }
 .status-rejected { background-color: var(--status-rejected); }
-.status-adjustments { background-color: var(--status-adjustments); } /* Usará --status-adjustments (amarelo-ouro por padrão) */
-.status-ajustes { background-color: var(--status-ajustes-custom); color: #fff; } /* NOVO - para a classe 'status-ajustes', usa cinza */
+.status-adjustments { background-color: var(--status-adjustments); } /* Para a classe 'status-adjustments' (termo em inglês ou uso geral), usa a variável amarela. */
+/* .status-badge.status-ajustes é definido ao final do arquivo, conforme instrução */
 .status-critical, .status-danger { background-color: var(--status-danger); }
 .status-default { background-color: var(--text-lighter); }
 
@@ -1263,7 +1262,8 @@ select.form-control {
 
 /* Add primary-color-rgb for rgba usage */
 :root {
-  --primary-color-rgb: 26, 95, 180;
+  /* Esta variável já foi definida no topo, garantindo que não haja duplicação */
+  /* --primary-color-rgb: 26, 95, 180; */
 }
 
 /* Graceful initialization - prevent FOUC */
@@ -1276,7 +1276,7 @@ select.form-control {
   opacity: 1;
 }
 
-/* Estilos para o dropdown de filtros (Mantido da instrução anterior) */
+/* Estilos para o dropdown de filtros (Mantido, pode ser usado por outros componentes) */
 .filter-dropdown {
   position: relative;
   display: inline-block;
@@ -1325,7 +1325,7 @@ select.form-control {
   margin-top: 10px;
 }
 
-/* Smart Filter Container (Mantido da instrução anterior) */
+/* Smart Filter Container (Mantido, pode ser usado por outros componentes) */
 .smart-filter-container {
     background-color: #f8f9fa;
     border-radius: 8px;
@@ -1352,7 +1352,6 @@ select.form-control {
     font-size: 0.9rem;
 }
 
-/* .filter-dropdown já definido acima, se precisar de especificidade para smart-filter, use .smart-filter-container .filter-dropdown */
 .smart-filter-container .filter-dropdown {
     min-width: 150px;
     padding: 6px 12px;
@@ -1393,7 +1392,6 @@ select.form-control {
     font-size: 0.9rem;
 }
 
-/* .filter-actions já definido acima, se precisar de especificidade para smart-filter, use .smart-filter-container .filter-actions */
 .smart-filter-container .filter-actions {
     display: flex;
     gap: 8px;
@@ -1430,14 +1428,14 @@ select.form-control {
     }
 }
 
-/* Layout unificado: controles + filtros (Dashboard Filters) */
-/* Garantindo que este bloco apareça uma única vez e corretamente */
-#tab-dashboard .dashboard-header {
+/* Layout unificado: controles + filtros - Antigo, removido para dar lugar ao novo bloco abaixo */
+/* #tab-dashboard .dashboard-header {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
+} */
 
+/* INÍCIO: Estilos de Filtros adicionados conforme instrução 3 */
 .dashboard-filters {
   display: flex;
   flex-wrap: wrap;
@@ -1445,7 +1443,6 @@ select.form-control {
   margin: 16px 0;
   align-items: center;
 }
-
 .dashboard-filters input,
 .dashboard-filters select {
   padding: 4px 8px;
@@ -1453,17 +1450,20 @@ select.form-control {
   border-radius: 4px;
   font-size: 0.9rem;
 }
-
 .dashboard-filters button {
   padding: 4px 12px;
-  background-color: var(--primary-color, #0052cc); /* Fallback caso --primary-color não esteja definido */
+  background-color: var(--primary-color, #0052cc);
   color: #fff;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.9rem;
 }
-
 .dashboard-filters button:hover {
   opacity: 0.9;
 }
+/* FIM: Estilos de Filtros adicionados conforme instrução 3 */
+
+/* INÍCIO: Badge "Ajustes" adicionado conforme instrução 6 */
+.status-badge.status-ajustes { background-color: #6c757d; color: #fff; }
+/* FIM: Badge "Ajustes" adicionado conforme instrução 6 */
