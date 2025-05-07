@@ -38,6 +38,9 @@ const Maintenance = (() => {
     // Configurar listeners básicos
     setupBasicListeners();
 
+    // Configurar listeners de filtro
+    setupFilterListeners(); // Adicionado conforme Passo 8
+
     // Carregar lista de manutenções
     loadMaintenanceList();
   }
@@ -860,13 +863,15 @@ const Maintenance = (() => {
           if (response && response.success && Array.isArray(response.maintenances)) {
             fullMaintenanceList = response.maintenances;
             console.log("Lista de manutenções recebida:", fullMaintenanceList);
-            renderMaintenanceTable(fullMaintenanceList);
+            // renderMaintenanceTable(fullMaintenanceList); // A renderização agora é feita por applyFilters
+            applyFilters(); // Aplicar filtros (que também renderizam a tabela)
           } else {
             console.error("Erro ao carregar manutenções:", response);
             if (tableBody) {
               tableBody.innerHTML = '<tr><td colspan="10" class="text-center error-message">Erro ao carregar dados.</td></tr>';
             }
             fullMaintenanceList = []; // Limpar a lista em caso de erro
+            applyFilters(); // Para garantir que a mensagem de "nenhuma manutenção" apareça se a lista estiver vazia
           }
         })
         .catch(error => {
@@ -875,6 +880,7 @@ const Maintenance = (() => {
             tableBody.innerHTML = '<tr><td colspan="10" class="text-center error-message">Falha ao buscar dados.</td></tr>';
           }
           fullMaintenanceList = []; // Limpar a lista em caso de erro
+          applyFilters(); // Para garantir que a mensagem de "nenhuma manutenção" apareça se a lista estiver vazia
         })
         .finally(() => {
           // Esconder indicador de carregamento
@@ -887,10 +893,11 @@ const Maintenance = (() => {
       }
       showLoading(false);
       fullMaintenanceList = []; // Limpar a lista
+      applyFilters(); // Para garantir que a mensagem de "nenhuma manutenção" apareça se a lista estiver vazia
     }
   }
 
-  // >>> INÍCIO DA FUNÇÃO ATUALIZADA <<<
+  // >>> INÍCIO DA FUNÇÃO ATUALIZADA <<< (Esta função já existia no código fornecido)
   function renderMaintenanceTable(maintenances) {
     console.log(`Renderizando tabela com ${maintenances?.length || 0} manutenções`);
 
@@ -1348,13 +1355,231 @@ const Maintenance = (() => {
     }
   }
 
+  // --- Sistema de Filtros --- (Adicionado conforme Passo 8)
+  let filters = {
+    search: '',
+    equipmentType: '',
+    status: '',
+    maintenanceType: '',
+    problemCategory: ''
+  };
+
+  function setupFilterListeners() {
+    // Campo de busca
+    const searchInput = document.getElementById('maintenance-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        filters.search = this.value.toLowerCase().trim();
+        applyFilters();
+      });
+    }
+    
+    // Filtros de dropdown
+    const equipmentTypeFilter = document.getElementById('equipment-type-filter');
+    const statusFilter = document.getElementById('status-filter');
+    const maintenanceTypeFilter = document.getElementById('maintenance-type-filter');
+    const problemCategoryFilter = document.getElementById('problem-category-filter');
+    
+    if (equipmentTypeFilter) {
+      equipmentTypeFilter.addEventListener('change', function() {
+        filters.equipmentType = this.value;
+        applyFilters();
+      });
+    }
+    
+    if (statusFilter) {
+      statusFilter.addEventListener('change', function() {
+        filters.status = this.value;
+        applyFilters();
+      });
+    }
+    
+    if (maintenanceTypeFilter) {
+      maintenanceTypeFilter.addEventListener('change', function() {
+        filters.maintenanceType = this.value;
+        applyFilters();
+      });
+    }
+    
+    if (problemCategoryFilter) {
+      problemCategoryFilter.addEventListener('change', function() {
+        filters.problemCategory = this.value;
+        applyFilters();
+      });
+    }
+    
+    // Botão para limpar filtros
+    const clearFiltersBtn = document.getElementById('clear-filters');
+    if (clearFiltersBtn) {
+      clearFiltersBtn.addEventListener('click', function() {
+        resetFilters();
+      });
+    }
+    
+    // Preencher categorias de problema dinamicamente
+    populateProblemCategoryFilter();
+  }
+
+  function resetFilters() {
+    filters = {
+      search: '',
+      equipmentType: '',
+      status: '',
+      maintenanceType: '',
+      problemCategory: ''
+    };
+    
+    // Resetar valores dos elementos de filtro
+    const elements = [
+      'maintenance-search',
+      'equipment-type-filter',
+      'status-filter',
+      'maintenance-type-filter',
+      'problem-category-filter'
+    ];
+    
+    elements.forEach(id => {
+      const element = document.getElementById(id);
+      if (element) {
+        if (element.tagName === 'INPUT') {
+          element.value = '';
+        } else if (element.tagName === 'SELECT') {
+          element.selectedIndex = 0;
+        }
+      }
+    });
+    
+    // Aplicar filtros resetados
+    applyFilters();
+  }
+
+  function populateProblemCategoryFilter() {
+    const filterSelect = document.getElementById('problem-category-filter');
+    if (!filterSelect) return;
+    
+    // Limpar opções existentes mantendo a primeira
+    while (filterSelect.options.length > 1) {
+      filterSelect.remove(1);
+    }
+    
+    // Adicionar categorias do array DEFAULT_PROBLEM_CATEGORIES
+    DEFAULT_PROBLEM_CATEGORIES.forEach(category => {
+      const option = document.createElement('option');
+      option.value = category;
+      option.textContent = category;
+      filterSelect.appendChild(option);
+    });
+  }
+
+  function applyFilters() {
+    if (!fullMaintenanceList || !Array.isArray(fullMaintenanceList)) {
+      console.error("Lista de manutenções não disponível para filtrar");
+      renderMaintenanceTable([]); // Renderiza tabela vazia ou com mensagem de erro
+      updateFilterResultsCount(0, 0);
+      return;
+    }
+    
+    const filteredList = fullMaintenanceList.filter(item => {
+      // Aplicar filtro de busca por texto
+      if (filters.search) {
+        const searchTerms = [
+          item.id,
+          item.placaOuId,
+          item.responsavel,
+          item.tipoEquipamento,
+          item.localOficina
+        ];
+        
+        const matchesSearch = searchTerms.some(term => 
+          term && String(term).toLowerCase().includes(filters.search)
+        );
+        
+        if (!matchesSearch) return false;
+      }
+      
+      // Aplicar filtro de tipo de equipamento
+      if (filters.equipmentType && item.tipoEquipamento !== filters.equipmentType) {
+        return false;
+      }
+      
+      // Aplicar filtro de status
+      if (filters.status && item.status !== filters.status) {
+        return false;
+      }
+      
+      // Aplicar filtro de tipo de manutenção
+      if (filters.maintenanceType && item.tipoManutencao !== filters.maintenanceType) {
+        return false;
+      }
+      
+      // Aplicar filtro de categoria de problema
+      // Considerar que item.categoriaProblema pode ser o texto de "Outros" ou a categoria específica
+      // Se o filtro for "Outros", precisamos verificar se item.categoriaProblema é "Outros"
+      // Se o filtro for uma categoria específica, verificamos se item.categoriaProblema é essa categoria
+      // ou, se item.categoriaProblema é "Outros", verificamos item.categoriaProblemaOutro.
+      if (filters.problemCategory) {
+        if (filters.problemCategory === 'Outros') {
+          if (item.categoriaProblema !== 'Outros') return false;
+        } else {
+          const problemCategoryText = item.categoriaProblema === 'Outros'
+                                      ? item.categoriaProblemaOutro
+                                      : item.categoriaProblema;
+          if (problemCategoryText !== filters.problemCategory) return false;
+        }
+      }
+      
+      return true;
+    });
+    
+    // Renderizar a tabela com a lista filtrada
+    renderMaintenanceTable(filteredList);
+    
+    // Exibir contador de resultados
+    updateFilterResultsCount(filteredList.length, fullMaintenanceList.length);
+  }
+
+  function updateFilterResultsCount(filteredCount, totalCount) {
+    const filterCountElement = document.getElementById('filter-results-count');
+    
+    if (!filterCountElement) {
+      // Criar elemento se não existir (código fornecido na instrução)
+      const countDisplay = document.createElement('div');
+      countDisplay.id = 'filter-results-count';
+      countDisplay.className = 'filter-results-info';
+      
+      // Encontrar onde inserir
+      const filtersContainer = document.querySelector('.filters-container');
+      if (filtersContainer) {
+        filtersContainer.appendChild(countDisplay);
+      } else {
+          // Fallback se .filters-container não existir, para evitar erro.
+          // Poderia adicionar a um elemento pai padrão ou logar um aviso.
+          console.warn("Contêiner de filtros '.filters-container' não encontrado para adicionar 'filter-results-count'.");
+          // Adiciona ao body como último recurso, mas idealmente o HTML deveria ter o container.
+          document.body.appendChild(countDisplay);
+      }
+    }
+    
+    // Agora que temos certeza que o elemento existe (ou foi criado), podemos usá-lo.
+    const elementToUpdate = document.getElementById('filter-results-count');
+    if (elementToUpdate) {
+      if (filteredCount < totalCount) {
+        elementToUpdate.textContent = `Mostrando ${filteredCount} de ${totalCount} manutenções`;
+        elementToUpdate.style.display = 'block';
+      } else {
+        elementToUpdate.textContent = ''; // Limpa o texto se todos os itens são mostrados
+        elementToUpdate.style.display = 'none';
+      }
+    }
+  }
+
   // API pública do módulo
   return {
     initialize,
     openMaintenanceForm,
     loadMaintenanceList,
-    viewMaintenanceDetails,
-    fullMaintenanceList
+    viewMaintenanceDetails,  // Adicionado para acesso externo (já existia)
+    fullMaintenanceList      // Adicionado para compartilhar dados (já existia)
   };
 })();
 
@@ -1363,3 +1588,13 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log("DOM completamente carregado. Inicializando Maintenance...");
   Maintenance.initialize();
 });
+
+// Torna os dados de manutenções acessíveis globalmente (Adicionado conforme Passo 1)
+window.maintenanceDataShared = {
+  getMaintenanceById: function(id) {
+    if (Maintenance && Maintenance.fullMaintenanceList) {
+      return Maintenance.fullMaintenanceList.find(item => String(item.id) === String(id));
+    }
+    return null;
+  }
+};
