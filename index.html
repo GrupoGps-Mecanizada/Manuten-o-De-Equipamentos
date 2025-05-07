@@ -32,13 +32,15 @@
       <div class="tab" data-tab="reports">Relatórios</div>
     </div>
 
+    <!-- O bloco de filtros global que estava aqui foi removido -->
+
     <div class="tab-content active" id="tab-dashboard">
       <div class="dashboard-header">
         <h2>Visão Geral</h2>
       </div>
 
-      <!-- Painel de Filtros Inteligentes -->
-      <!-- =============================== INÍCIO DO BLOCO DE FILTROS =============================== -->
+      <!-- Painel de Filtros Inteligentes (Específico para Dashboard) -->
+      <!-- =============================== INÍCIO DO BLOCO DE FILTROS DO DASHBOARD =============================== -->
       <div class="dashboard-filters">
         <input type="text" id="filter-search" placeholder="🔍 Pesquisar..." />
         <select id="filter-status">
@@ -46,13 +48,14 @@
           <option value="Pendente">Pendente</option>
           <option value="Concluído">Concluído</option>
           <option value="Críticas">Críticas</option>
+          <option value="Ajustes">Ajustes</option>
         </select>
         <input type="date" id="filter-start-date" />
         <input type="date" id="filter-end-date" />
         <button id="filter-apply" class="btn btn-sm">Aplicar</button>
         <button id="filter-clear" class="btn btn-sm">Limpar</button>
       </div>
-      <!-- =============================== FIM DO BLOCO DE FILTROS ================================= -->
+      <!-- =============================== FIM DO BLOCO DE FILTROS DO DASHBOARD ================================= -->
 
       <div class="summary-cards">
         <div class="card">
