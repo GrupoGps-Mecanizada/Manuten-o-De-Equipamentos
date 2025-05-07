@@ -14,10 +14,7 @@ const Verification = (() => {
     setupListeners();
     
     // Configurar listeners de filtro
-    setupFilterListeners();
-    
-    // Configurar toggle de filtros
-    setupFilterToggle(); // Adicionada esta linha
+    setupFilterListeners(); // Esta função agora também chama setupFilterToggle
     
     // Carregar lista se a aba estiver ativa
     if (document.querySelector('.tab[data-tab="verification"].active')) {
@@ -485,6 +482,27 @@ const Verification = (() => {
     maintenanceType: ''
   };
 
+  // Configurar os toggles de filtro
+  function setupFilterToggle() {
+    const filterToggleBtn = document.getElementById('toggle-verification-filters-btn');
+    const expandedFilters = document.getElementById('verification-expanded-filters');
+    
+    if (filterToggleBtn && expandedFilters) {
+      filterToggleBtn.addEventListener('click', function() {
+        expandedFilters.classList.toggle('show');
+        this.classList.toggle('active');
+        
+        // Atualizar texto do botão
+        if (this.classList.contains('active')) {
+          this.innerHTML = '<i class="fas fa-times"></i> Fechar Filtros';
+        } else {
+          this.innerHTML = '<i class="fas fa-filter"></i> Filtros';
+        }
+      });
+    }
+  }
+
+  // Atualizar setupFilterListeners
   function setupFilterListeners() {
     // Campo de busca
     const searchInput = document.getElementById('verification-search');
@@ -520,28 +538,12 @@ const Verification = (() => {
         resetFilters();
       });
     }
-  }
-
-  // Adicione após setupFilterListeners()
-  function setupFilterToggle() {
-    const filterToggleBtn = document.getElementById('verification-filter-toggle');
-    const filtersExpanded = document.getElementById('verification-filters-expanded');
     
-    if (filterToggleBtn && filtersExpanded) {
-      filterToggleBtn.addEventListener('click', function() {
-        filtersExpanded.classList.toggle('show');
-        filterToggleBtn.classList.toggle('active');
-        
-        // Alterar texto do botão
-        if (filterToggleBtn.classList.contains('active')) {
-          filterToggleBtn.innerHTML = '<i class="fas fa-times"></i> Fechar Filtros';
-        } else {
-          filterToggleBtn.innerHTML = '<i class="fas fa-filter"></i> Filtros';
-        }
-      });
-    }
+    // Configurar toggle de filtros
+    setupFilterToggle();
   }
 
+  // Função reset melhorada
   function resetFilters() {
     verificationFilters = {
       search: '',
@@ -566,6 +568,18 @@ const Verification = (() => {
         }
       }
     });
+    
+    // Fechar os filtros expandidos
+    const expandedFilters = document.getElementById('verification-expanded-filters');
+    const filterToggleBtn = document.getElementById('toggle-verification-filters-btn');
+    
+    if (expandedFilters && expandedFilters.classList.contains('show')) {
+      expandedFilters.classList.remove('show');
+      if (filterToggleBtn) {
+        filterToggleBtn.classList.remove('active');
+        filterToggleBtn.innerHTML = '<i class="fas fa-filter"></i> Filtros';
+      }
+    }
     
     // Aplicar filtros resetados
     applyFilters();
@@ -627,13 +641,18 @@ const Verification = (() => {
       // Encontrar onde inserir
       const filtersContainer = document.querySelector('.tab-content[data-tab="verification"] .filters-container');
       if (filtersContainer) {
-        filtersContainer.appendChild(countDisplay);
+        const toggleButton = document.getElementById('toggle-verification-filters-btn');
+        if (toggleButton && toggleButton.parentNode === filtersContainer) {
+            filtersContainer.insertBefore(countDisplay, toggleButton.nextSibling);
+        } else {
+            filtersContainer.appendChild(countDisplay);
+        }
       }
     }
     
     const element = document.getElementById('verification-filter-results-count');
     if (element) {
-      if (filteredCount < totalCount) {
+      if (filteredCount < totalCount && totalCount > 0) {
         element.textContent = `Mostrando ${filteredCount} de ${totalCount} verificações pendentes`;
         element.style.display = 'block';
       } else {
